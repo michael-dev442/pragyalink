@@ -4,7 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mechanic Assistance Hub | PragyaLink</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="/socket.io/socket.io.js"></script>
+
     <style>
         .glass-card {
             background: rgba(15, 23, 42, 0.92);
@@ -17,15 +21,15 @@
 
     <header class="bg-slate-800 border-b border-slate-700 px-6 py-3.5 flex justify-between items-center z-10 shadow-md">
         <div class="flex items-center space-x-3">
-            <a href="/" class="text-2xl font-black text-white tracking-wide">Pragya<span class="text-blue-400">Fix</span></a>
-            <span class="bg-blue-500/20 text-blue-300 text-xs font-bold px-2.5 py-1 rounded-full border border-blue-500/30">
-                🔧 Emergency Dispatch
+            <a href="/" class="text-2xl font-black text-white tracking-wide">Pragya<span class="text-sky-400">Mechanic</span></a>
+            <span class="bg-sky-500/20 text-sky-300 text-xs font-bold px-2.5 py-1 rounded-full border border-sky-500/30">
+                🛠️ Service & Repair Station
             </span>
         </div>
         
         <div class="flex items-center space-x-3">
-            <span id="userGreeting" class="text-xs text-blue-400 font-bold hidden sm:inline"></span>
-            <button id="authBtn" onclick="openAuthModal()" class="text-xs bg-blue-500 hover:bg-blue-400 text-slate-950 px-3.5 py-2 rounded-lg font-bold transition">
+            <span id="userGreeting" class="text-xs text-sky-400 font-bold hidden sm:inline"></span>
+            <button id="authBtn" onclick="openAuthModal()" class="text-xs bg-sky-500 hover:bg-sky-400 text-slate-950 px-3.5 py-2 rounded-lg font-bold transition">
                 Log In / Sign Up
             </button>
             <a href="/" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3.5 py-2 rounded-lg font-semibold transition">
@@ -34,40 +38,56 @@
         </div>
     </header>
 
-    <main class="flex-1 p-6 max-w-4xl mx-auto w-full space-y-6">
-        <div class="glass-card p-6 rounded-3xl shadow-2xl flex justify-between items-center">
+    <main class="flex-1 p-6 max-w-5xl mx-auto w-full space-y-6">
+
+        <div class="glass-card p-6 rounded-3xl shadow-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-l-4 border-sky-500">
             <div>
-                <h2 class="text-xl font-extrabold text-white">Emergency Breakdown Queue</h2>
-                <p class="text-xs text-slate-400">Stranded Bajaj & TVS tricycles needing immediate repair in Ashanti Region</p>
+                <h2 class="text-xl font-extrabold text-white">Workshop Availability</h2>
+                <p id="statusSub" class="text-xs text-slate-400">Set your station status so nearby riders know you are open for maintenance</p>
             </div>
-            <span class="bg-rose-500/20 text-rose-400 text-xs font-bold px-3 py-1.5 rounded-full border border-rose-500/30">
-                🚨 2 Urgent Alerts
-            </span>
+            <button id="toggleStatusBtn" onclick="toggleWorkshopStatus()" class="bg-sky-500 hover:bg-sky-400 text-slate-950 px-6 py-3 rounded-2xl font-black transition shadow-lg text-sm w-full sm:w-auto">
+                🔧 SHOP IS OPEN
+            </button>
         </div>
 
-        <div class="glass-card p-6 rounded-3xl shadow-2xl space-y-4">
-            <h3 class="text-base font-bold text-white border-b border-slate-700 pb-3">🛠️ Active Repair Requests</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            <div class="space-y-3">
-                <div class="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 flex justify-between items-center">
-                    <div>
-                        <div class="text-sm font-bold text-white">Bajaj RE - Engine Stall / Spark Plug Issue</div>
-                        <div class="text-xs text-slate-400">Location: Patasi Junction • Contact: 0244112233</div>
-                    </div>
-                    <button onclick="dispatchMechanic('Patasi')" class="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition">
-                        Dispatch Assistance
-                    </button>
+            <div class="md:col-span-2 glass-card p-6 rounded-3xl shadow-2xl space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+                    <h3 class="text-base font-bold text-white">🚨 Emergency Breakdown Calls</h3>
+                    <span class="bg-rose-500/20 text-rose-400 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-500/30">Live Alerts</span>
                 </div>
+                
+                <div id="repairQueue" class="space-y-3">
+                    <div class="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                        <div>
+                            <div class="text-sm font-bold text-amber-400">🛺 Bajaj RE Engine Breakdown</div>
+                            <div class="text-xs text-slate-300">Rider: Kwadwo • Location: Nkawie High Street</div>
+                            <div class="text-[11px] text-slate-400 mt-1">Issue: Clutch cable snapped near station</div>
+                        </div>
+                        <button onclick="dispatchMechanic('Kwadwo')" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold px-4 py-2.5 rounded-xl text-xs transition">
+                            Respond to Assistance
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-                <div class="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 flex justify-between items-center">
-                    <div>
-                        <div class="text-sm font-bold text-white">TVS King - Flat Tire & Chain Lockup</div>
-                        <div class="text-xs text-slate-400">Location: Santasi Roundabout • Contact: 0208899000</div>
-                    </div>
-                    <button onclick="dispatchMechanic('Santasi')" class="bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition">
-                        Dispatch Assistance
-                    </button>
-                </div>
+            <div class="glass-card p-6 rounded-3xl shadow-2xl space-y-4">
+                <h3 class="text-base font-bold text-white border-b border-slate-700 pb-3">🧰 Quick Spare Inventory</h3>
+                <ul class="space-y-2.5 text-xs text-slate-300">
+                    <li class="flex justify-between bg-slate-800/60 p-2.5 rounded-xl border border-slate-700">
+                        <span>Tricycle Brake Shoes</span>
+                        <span class="text-emerald-400 font-bold">In Stock</span>
+                    </li>
+                    <li class="flex justify-between bg-slate-800/60 p-2.5 rounded-xl border border-slate-700">
+                        <span>Drive Chains & Cables</span>
+                        <span class="text-emerald-400 font-bold">In Stock</span>
+                    </li>
+                    <li class="flex justify-between bg-slate-800/60 p-2.5 rounded-xl border border-slate-700">
+                        <span>Spark Plugs (Bajaj/TVS)</span>
+                        <span class="text-emerald-400 font-bold">In Stock</span>
+                    </li>
+                </ul>
             </div>
         </div>
     </main>
@@ -77,42 +97,42 @@
             <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white font-bold text-lg">✕</button>
             
             <div class="flex border-b border-slate-700 mb-6">
-                <button id="tabLogin" onclick="switchAuthTab('login')" class="flex-1 py-2 font-bold text-sm text-blue-400 border-b-2 border-blue-400">Log In</button>
+                <button id="tabLogin" onclick="switchAuthTab('login')" class="flex-1 py-2 font-bold text-sm text-sky-400 border-b-2 border-sky-400">Log In</button>
                 <button id="tabSignup" onclick="switchAuthTab('signup')" class="flex-1 py-2 font-bold text-sm text-slate-400">Sign Up</button>
             </div>
 
             <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Username</label>
-                    <input type="text" id="loginUser" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-400">
+                    <input type="text" id="loginUser" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-sky-400">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Password</label>
-                    <input type="password" id="loginPass" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-400">
+                    <input type="password" id="loginPass" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-sky-400">
                 </div>
-                <button type="submit" class="w-full bg-blue-500 hover:bg-blue-400 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg transition text-sm">
-                    Log In as Mechanic
+                <button type="submit" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg transition text-sm">
+                    Log In to Mechanic Portal
                 </button>
             </form>
 
             <form id="signupForm" onsubmit="handleSignup(event)" class="space-y-3 hidden">
                 <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Full Name / Garage Name</label>
-                    <input type="text" id="signName" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-400">
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Workshop Name / Full Name</label>
+                    <input type="text" id="signName" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-sky-400">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Phone Contact</label>
-                    <input type="tel" id="signPhone" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-400">
+                    <input type="tel" id="signPhone" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-sky-400">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Username</label>
-                    <input type="text" id="signUser" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-400">
+                    <input type="text" id="signUser" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-sky-400">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Password</label>
-                    <input type="password" id="signPass" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-blue-400">
+                    <input type="password" id="signPass" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-sky-400">
                 </div>
-                <button type="submit" class="w-full bg-blue-500 hover:bg-blue-400 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg transition text-sm">
+                <button type="submit" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg transition text-sm">
                     Register Mechanic Account
                 </button>
             </form>
@@ -120,20 +140,33 @@
     </div>
 
     <script>
+        let isOpen = true;
+
         document.addEventListener('DOMContentLoaded', checkUserSession);
 
-        function dispatchMechanic(location) {
-            alert(`Emergency assistance unit dispatched to ${location}!`);
+        function toggleWorkshopStatus() {
+            isOpen = !isOpen;
+            const btn = document.getElementById('toggleStatusBtn');
+            if (isOpen) {
+                btn.innerText = "🔧 SHOP IS OPEN";
+                btn.className = "bg-sky-500 hover:bg-sky-400 text-slate-950 px-6 py-3 rounded-2xl font-black transition shadow-lg text-sm w-full sm:w-auto";
+            } else {
+                btn.innerText = "🔴 SHOP IS CLOSED";
+                btn.className = "bg-rose-500 hover:bg-rose-400 text-white px-6 py-3 rounded-2xl font-black transition shadow-lg text-sm w-full sm:w-auto";
+            }
         }
 
-        /* SECURE SESSION MANAGEMENT */
+        function dispatchMechanic(riderName) {
+            alert(`Assistance dispatched to ${riderName}! Coordinates sent to your phone.`);
+        }
+
         async function checkUserSession() {
             try {
                 const res = await fetch('/api/me');
                 const data = await res.json();
 
                 if (data.success) {
-                    document.getElementById('userGreeting').innerText = `🔧 Mechanic: ${data.user.username}`;
+                    document.getElementById('userGreeting').innerText = `🛠️ Station: ${data.user.username}`;
                     document.getElementById('userGreeting').classList.remove('hidden');
                     const authBtn = document.getElementById('authBtn');
                     authBtn.innerText = 'Log Out';
@@ -141,9 +174,7 @@
                 } else {
                     openAuthModal();
                 }
-            } catch (err) {
-                openAuthModal();
-            }
+            } catch (err) { openAuthModal(); }
         }
 
         function openAuthModal() { document.getElementById('authModal').classList.remove('hidden'); }
@@ -153,12 +184,12 @@
             if (tab === 'login') {
                 document.getElementById('loginForm').classList.remove('hidden');
                 document.getElementById('signupForm').classList.add('hidden');
-                document.getElementById('tabLogin').className = "flex-1 py-2 font-bold text-sm text-blue-400 border-b-2 border-blue-400";
+                document.getElementById('tabLogin').className = "flex-1 py-2 font-bold text-sm text-sky-400 border-b-2 border-sky-400";
                 document.getElementById('tabSignup').className = "flex-1 py-2 font-bold text-sm text-slate-400";
             } else {
                 document.getElementById('loginForm').classList.add('hidden');
                 document.getElementById('signupForm').classList.remove('hidden');
-                document.getElementById('tabSignup').className = "flex-1 py-2 font-bold text-sm text-blue-400 border-b-2 border-blue-400";
+                document.getElementById('tabSignup').className = "flex-1 py-2 font-bold text-sm text-sky-400 border-b-2 border-sky-400";
                 document.getElementById('tabLogin').className = "flex-1 py-2 font-bold text-sm text-slate-400";
             }
         }
@@ -175,12 +206,8 @@
             });
 
             const data = await res.json();
-            if (data.success) {
-                closeAuthModal();
-                checkUserSession();
-            } else {
-                alert(data.error || 'Login failed');
-            }
+            if (data.success) { closeAuthModal(); checkUserSession(); } 
+            else { alert(data.error || 'Login failed'); }
         }
 
         async function handleSignup(e) {
@@ -197,12 +224,8 @@
             });
 
             const data = await res.json();
-            if (data.success) {
-                closeAuthModal();
-                checkUserSession();
-            } else {
-                alert(data.error || 'Registration failed');
-            }
+            if (data.success) { closeAuthModal(); checkUserSession(); } 
+            else { alert(data.error || 'Registration failed'); }
         }
 
         async function logout() {
