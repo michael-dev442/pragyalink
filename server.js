@@ -1,54 +1,72 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
-const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'pragyalink_super_secret_key_2026';
+const server = http.createServer(app);
+const io = new Server(server);
 
-// Middleware
+const JWT_SECRET = process.env.JWT_SECRET || 'pragyalink_secure_key_2026_ashanti';
+const PORT = process.env.PORT || 3000;
+
+// -----------------------------------------------------------
+// MIDDLEWARE CONFIGURATION
+// -----------------------------------------------------------
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
-// 1. RATE LIMITING: Protect against brute-force attacks
+// Rate limiter to prevent brute force login attempts
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // Limit each IP to 10 requests per window
-    message: { success: false, error: 'Too many login attempts. Please try again in 15 minutes.' }
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: { success: false, error: 'Too many requests. Please try again later.' }
 });
 
-// Database Initialization
-const db = new sqlite3.Database('./database.db', (err) => {
-    if (err) console.error('Database connection error:', err);
-    else console.log('🔒 Secure SQLite Database Connected');
+app.use('/api/login', authLimiter);
+app.use('/api/signup', authLimiter);
+
+// -----------------------------------------------------------
+// SQLITE DATABASE INITIALIZATION
+// -----------------------------------------------------------
+const db = new sqlite3.Database('./pragyalink.db', (err) => {
+    if (err) {
+        console.error('❌ Database connection error:', err.message);
+    } else {
+        console.log('✅ Connected to SQLite database (pragyalink.db)');
+    }
 });
 
-// Ensure Users Table Exists
-db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        fullName TEXT,
-        contact TEXT,
-        username TEXT UNIQUE,
-        password TEXT,
-        role TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-`);
+db.serialize(() => {
+    db.run(`
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fullName TEXT NOT NULL,
+            contact TEXT NOT NULL,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL CHECK(role IN ('passenger', 'rider', 'mechanic')),
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+});
 
-// SECURITY MIDDLEWARE: Verify JWT Token
+// -----------------------------------------------------------
+// AUTHENTICATION MIDDLEWARE
+// -----------------------------------------------------------
 function authenticateToken(req, res, next) {
-    const token = req.cookies.authToken;
-    if (!token) return res.status(401).json({ success: false, error: 'Access Denied. Please log in.' });
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ success: false, error: 'Access denied. Please log in.' });
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.status(403).json({ success: false, error: 'Invalid or expired session.' });
+        if (err) return res.status(403).json({ success: false, error: 'Session expired or invalid token.' });
         req.user = user;
         next();
     });
@@ -58,93 +76,121 @@ function authenticateToken(req, res, next) {
 // AUTHENTICATION API ROUTES
 // -----------------------------------------------------------
 
-// SECURE SIGNUP ROUTE
+// POST /api/signup
 app.post('/api/signup', async (req, res) => {
     const { fullName, contact, username, password, role } = req.body;
 
-    if (!username || !password || !role) {
+    if (!fullName || !contact || !username || !password || !role) {
         return res.status(400).json({ success: false, error: 'All fields are required.' });
     }
 
     try {
-        // Hash password with salt rounds (10)
         const hashedPassword = await bcrypt.hash(password, 10);
+        const query = `INSERT INTO users (fullName, contact, username, password, role) VALUES (?, ?, ?, ?, ?)`;
 
-        const sql = `INSERT INTO users (fullName, contact, username, password, role) VALUES (?, ?, ?, ?, ?)`;
-        db.run(sql, [fullName, contact, username, hashedPassword, role], function (err) {
+        db.run(query, [fullName, contact, username, hashedPassword, role], function(err) {
             if (err) {
-                if (err.message.includes('UNIQUE')) {
+                if (err.message.includes('UNIQUE constraint failed')) {
                     return res.status(400).json({ success: false, error: 'Username already taken.' });
                 }
-                return res.status(500).json({ success: false, error: 'Database error.' });
+                return res.status(500).json({ success: false, error: 'Failed to create user account.' });
             }
 
-            // Create JWT Token
             const token = jwt.sign({ id: this.lastID, username, role }, JWT_SECRET, { expiresIn: '24h' });
-
-            // Set Secure HTTP-Only Cookie
-            res.cookie('authToken', token, {
-                httpOnly: true, // Prevents XSS script access
-                secure: false,  // Set to true in HTTPS production
-                maxAge: 24 * 60 * 60 * 1000
-            });
-
+            res.cookie('token', token, { httpOnly: true, secure: false, maxAge: 24 * 60 * 60 * 1000 });
+            
             res.json({ success: true, user: { id: this.lastID, username, role } });
         });
-    } catch (error) {
-        res.status(500).json({ success: false, error: 'Server encryption error.' });
+    } catch (err) {
+        res.status(500).json({ success: false, error: 'Server error during registration.' });
     }
 });
 
-// SECURE LOGIN ROUTE (Rate Limited)
-app.post('/api/login', authLimiter, (req, res) => {
+// POST /api/login
+app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
 
-    const sql = `SELECT * FROM users WHERE username = ?`;
-    db.get(sql, [username], async (err, user) => {
+    if (!username || !password) {
+        return res.status(400).json({ success: false, error: 'Username and password required.' });
+    }
+
+    const query = `SELECT * FROM users WHERE username = ?`;
+    db.get(query, [username], async (err, user) => {
         if (err || !user) {
-            return res.status(401).json({ success: false, error: 'Invalid username or password.' });
+            return res.status(400).json({ success: false, error: 'Invalid username or password.' });
         }
 
-        // Compare hashed password
         const validPassword = await bcrypt.compare(password, user.password);
         if (!validPassword) {
-            return res.status(401).json({ success: false, error: 'Invalid username or password.' });
+            return res.status(400).json({ success: false, error: 'Invalid username or password.' });
         }
 
-        // Create JWT Token
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
-
-        // Set Secure Cookie
-        res.cookie('authToken', token, {
-            httpOnly: true,
-            secure: false,
-            maxAge: 24 * 60 * 60 * 1000
-        });
+        res.cookie('token', token, { httpOnly: true, secure: false, maxAge: 24 * 60 * 60 * 1000 });
 
         res.json({ success: true, user: { id: user.id, username: user.username, role: user.role } });
     });
 });
 
-// SESSION CHECK ROUTE
+// GET /api/me (Check active session)
 app.get('/api/me', authenticateToken, (req, res) => {
     res.json({ success: true, user: req.user });
 });
 
-// LOGOUT ROUTE
+// POST /api/logout
 app.post('/api/logout', (req, res) => {
-    res.clearCookie('authToken');
-    res.json({ success: true, message: 'Logged out securely.' });
+    res.clearCookie('token');
+    res.json({ success: true, message: 'Logged out successfully.' });
 });
 
 // -----------------------------------------------------------
-// VIEW ROUTES
+// HTML VIEW ROUTES
 // -----------------------------------------------------------
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views', 'index.html')));
-app.get('/passenger', (req, res) => res.sendFile(path.join(__dirname, 'views', 'passenger.html')));
-app.get('/rider', (req, res) => res.sendFile(path.join(__dirname, 'views', 'rider.html')));
-app.get('/mechanic', (req, res) => res.sendFile(path.join(__dirname, 'views', 'mechanic.html')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views/index.html')));
+app.get('/passenger', (req, res) => res.sendFile(path.join(__dirname, 'views/passenger.html')));
+app.get('/rider', (req, res) => res.sendFile(path.join(__dirname, 'views/rider.html')));
+app.get('/mechanic', (req, res) => res.sendFile(path.join(__dirname, 'views/mechanic.html')));
 
-app.listen(PORT, () => {
-    console.log(`🚀 Secure PragyaLink Server running on http://localhost:${PORT}`);
+// -----------------------------------------------------------
+// REAL-TIME SOCKET.IO GPS BROADCASTING ENGINE
+// -----------------------------------------------------------
+const activeDrivers = {};
+
+io.on('connection', (socket) => {
+    console.log(`🔌 Client connected: ${socket.id}`);
+
+    // Send currently active drivers to a newly connected passenger
+    socket.emit('initial-drivers', Object.values(activeDrivers));
+
+    // Listen for live driver GPS coordinates
+    socket.on('update-location', (driverData) => {
+        activeDrivers[socket.id] = {
+            id: socket.id,
+            name: driverData.name || 'Pragya Rider',
+            vehicle: driverData.vehicle || 'Bajaj RE',
+            phone: driverData.phone || '0240000000',
+            lat: driverData.lat,
+            lng: driverData.lng,
+            updatedAt: Date.now()
+        };
+
+        // Broadcast driver position to all connected clients
+        io.emit('driver-moved', activeDrivers[socket.id]);
+    });
+
+    // Handle rider disconnect / offline
+    socket.on('disconnect', () => {
+        if (activeDrivers[socket.id]) {
+            delete activeDrivers[socket.id];
+            io.emit('driver-offline', socket.id);
+            console.log(`❌ Driver went offline: ${socket.id}`);
+        }
+    });
+});
+
+// -----------------------------------------------------------
+// START HTTP & WEBSOCKET SERVER
+// -----------------------------------------------------------
+server.listen(PORT, () => {
+    console.log(`🚀 PragyaLink Server running on http://localhost:${PORT}`);
 });

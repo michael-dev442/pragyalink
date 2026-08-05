@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Find a Pragya Pickup | PragyaLink</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="/socket.io/socket.io.js"></script>
     
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -20,7 +23,7 @@
             font-size: 34px;
             cursor: pointer;
             filter: drop-shadow(0px 6px 10px rgba(0,0,0,0.7));
-            transition: transform 0.2s ease;
+            transition: all 0.5s ease-in-out;
         }
         .pragya-marker:hover { transform: scale(1.35); }
         .maplibregl-popup-content {
@@ -39,7 +42,7 @@
         <div class="flex items-center space-x-3">
             <a href="/" class="text-2xl font-black text-white tracking-wide">Pragya<span class="text-amber-400">Link</span></a>
             <span class="bg-amber-500/20 text-amber-300 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-500/30">
-                🛺 3D Google Radar
+                🛺 3D Live Radar
             </span>
         </div>
         
@@ -61,7 +64,7 @@
             <div class="border-b border-slate-700/60 pb-3 flex justify-between items-center">
                 <div>
                     <h3 class="font-extrabold text-white text-base">3D Active Tricycles</h3>
-                    <p class="text-xs text-amber-400 font-semibold">Nkawie, Patasi & Kumasi Hub</p>
+                    <p class="text-xs text-amber-400 font-semibold">Live GPS Updates</p>
                 </div>
                 <span class="flex h-2.5 w-2.5 relative">
                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -69,22 +72,8 @@
                 </span>
             </div>
 
-            <div class="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-                <div onclick="focusDriver(-1.8167, 6.6631)" class="p-3 bg-slate-800/80 hover:bg-slate-700/80 cursor-pointer rounded-xl border border-slate-700 flex justify-between items-center transition">
-                    <div>
-                        <div class="text-xs font-bold text-white">Kwame Owusu</div>
-                        <div class="text-[10px] text-slate-400">Bajaj RE • Yellow (Nkawie Market)</div>
-                    </div>
-                    <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30">Available</span>
-                </div>
-
-                <div onclick="focusDriver(-1.8147, 6.6616)" class="p-3 bg-slate-800/80 hover:bg-slate-700/80 cursor-pointer rounded-xl border border-slate-700 flex justify-between items-center transition">
-                    <div>
-                        <div class="text-xs font-bold text-white">Kofi Mensah</div>
-                        <div class="text-[10px] text-slate-400">TVS King • Green (Station Rd)</div>
-                    </div>
-                    <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30">Available</span>
-                </div>
+            <div id="driverList" class="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                <p id="noDriversText" class="text-xs text-slate-400 text-center py-4">Searching for online riders nearby...</p>
             </div>
 
             <div class="flex space-x-2">
@@ -146,10 +135,12 @@
     </div>
 
     <script>
+        const socket = io();
+        const activeMarkers = {};
         const NKAWIE_LNG = -1.8167;
         const NKAWIE_LAT = 6.6631;
 
-        // Load Google Maps Tile Engine inside 3D MapLibre
+        // Initialize 3D MapLibre Instance
         const map = new maplibregl.Map({
             container: 'map',
             style: {
@@ -184,32 +175,82 @@
         map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
 
         map.on('load', () => {
-            add3DPragyaMarker(NKAWIE_LNG, NKAWIE_LAT, "Kwame Owusu", "Bajaj RE (Yellow)", "0241234567", "Nkawie Main Market");
-            add3DPragyaMarker(NKAWIE_LNG + 0.002, NKAWIE_LAT - 0.0015, "Kofi Mensah", "TVS King (Green)", "0209876543", "Nkawie Police Station Rd");
-
             checkUserSession();
         });
 
-        function add3DPragyaMarker(lng, lat, name, vehicle, phone, street) {
-            const el = document.createElement('div');
-            el.className = 'pragya-marker';
-            el.innerHTML = '🛺';
+        /* -----------------------------------------------------------
+           REAL-TIME SOCKET.IO DRIVER TRACKING
+        ----------------------------------------------------------- */
+        socket.on('initial-drivers', (drivers) => {
+            drivers.forEach(driver => updateDriverMarker(driver));
+            refreshSidebar();
+        });
 
-            const popupHTML = `
-                <div style="font-family: sans-serif; min-width: 170px;">
-                    <h4 style="font-weight: bold; color: #f59e0b; font-size: 14px; margin-bottom: 2px;">🛺 ${name}</h4>
-                    <p style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">${vehicle}</p>
-                    <p style="font-size: 10px; color: #e2e8f0; font-weight: 600; margin-bottom: 8px;">📍 ${street}</p>
-                    <a href="tel:${phone}" onclick="requestRide('${name}')" style="display: block; background: #f59e0b; color: #0f172a; text-align: center; font-weight: bold; font-size: 12px; padding: 7px; border-radius: 8px; text-decoration: none;">
-                        📞 Request Pickup
-                    </a>
-                </div>
-            `;
+        socket.on('driver-moved', (driver) => {
+            updateDriverMarker(driver);
+            refreshSidebar();
+        });
 
-            new maplibregl.Marker(el)
-                .setLngLat([lng, lat])
-                .setPopup(new maplibregl.Popup({ offset: 25 }).setHTML(popupHTML))
-                .addTo(map);
+        socket.on('driver-offline', (driverId) => {
+            if (activeMarkers[driverId]) {
+                activeMarkers[driverId].marker.remove();
+                delete activeMarkers[driverId];
+                refreshSidebar();
+            }
+        });
+
+        function updateDriverMarker(driver) {
+            if (activeMarkers[driver.id]) {
+                activeMarkers[driver.id].marker.setLngLat([driver.lng, driver.lat]);
+                activeMarkers[driver.id].data = driver;
+            } else {
+                const el = document.createElement('div');
+                el.className = 'pragya-marker';
+                el.innerHTML = '🛺';
+
+                const popupHTML = `
+                    <div style="font-family: sans-serif; min-width: 170px;">
+                        <h4 style="font-weight: bold; color: #f59e0b; font-size: 14px; margin-bottom: 2px;">🛺 ${driver.name}</h4>
+                        <p style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">${driver.vehicle}</p>
+                        <a href="tel:${driver.phone}" onclick="requestRide('${driver.name}')" style="display: block; background: #f59e0b; color: #0f172a; text-align: center; font-weight: bold; font-size: 12px; padding: 7px; border-radius: 8px; text-decoration: none; margin-top: 6px;">
+                            📞 Request Pickup
+                        </a>
+                    </div>
+                `;
+
+                const marker = new maplibregl.Marker(el)
+                    .setLngLat([driver.lng, driver.lat])
+                    .setPopup(new maplibregl.Popup({ offset: 25 }).setHTML(popupHTML))
+                    .addTo(map);
+
+                activeMarkers[driver.id] = { marker, data: driver };
+            }
+        }
+
+        function refreshSidebar() {
+            const listContainer = document.getElementById('driverList');
+            const keys = Object.keys(activeMarkers);
+
+            if (keys.length === 0) {
+                listContainer.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Searching for online riders nearby...</p>`;
+                return;
+            }
+
+            listContainer.innerHTML = '';
+            keys.forEach(id => {
+                const driver = activeMarkers[id].data;
+                const item = document.createElement('div');
+                item.className = 'p-3 bg-slate-800/80 hover:bg-slate-700/80 cursor-pointer rounded-xl border border-slate-700 flex justify-between items-center transition';
+                item.onclick = () => focusDriver(driver.lng, driver.lat);
+                item.innerHTML = `
+                    <div>
+                        <div class="text-xs font-bold text-white">${driver.name}</div>
+                        <div class="text-[10px] text-slate-400">${driver.vehicle}</div>
+                    </div>
+                    <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30">Live GPS</span>
+                `;
+                listContainer.appendChild(item);
+            });
         }
 
         function focusDriver(lng, lat) {
@@ -227,7 +268,7 @@
         }
 
         function requestRide(driverName) {
-            alert(`Connecting to ${driverName}... Rider notified of your 3D pickup point!`);
+            alert(`Connecting to ${driverName}... Rider notified of your pickup location!`);
         }
 
         /* -----------------------------------------------------------

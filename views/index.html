@@ -3,164 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PragyaLink Ghana • Live Transport Hub</title>
+    <title>PragyaLink | Smart Tricycle Mobility Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body, html {
-            height: 100%;
-            margin: 0;
-            overflow: hidden;
-            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: #0c0a09;
-        }
-
-        .live-bg-container {
-            position: fixed;
-            inset: 0;
-            z-index: 0;
-            overflow: hidden;
-        }
-
-        .live-photo {
-            position: absolute;
-            inset: -5%;
-            width: 110%;
-            height: 110%;
-            background-image: url('/pragya-bg.jpg');
+        .hero-bg {
+            background: linear-gradient(to bottom, rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.95)), url('/pragya-bg.jpg');
             background-size: cover;
             background-position: center;
-            filter: brightness(0.7) contrast(1.1) saturate(1.2);
-            animation: slowCinematicPan 28s ease-in-out infinite alternate;
         }
-
-        @keyframes slowCinematicPan {
-            0% { transform: scale(1) translate(0, 0); }
-            50% { transform: scale(1.06) translate(-15px, -8px); }
-            100% { transform: scale(1.02) translate(10px, 5px); }
-        }
-
-        .ambient-overlay {
-            position: absolute;
-            inset: 0;
-            background: radial-gradient(circle at center, rgba(15, 23, 42, 0.3) 0%, rgba(12, 10, 9, 0.8) 100%);
-            pointer-events: none;
-        }
-
-        .network-particle {
-            position: absolute;
-            background-color: #f59e0b;
-            border-radius: 50%;
-            pointer-events: none;
-            box-shadow: 0 0 10px #f59e0b;
-            animation: floatParticle linear infinite;
-        }
-
-        @keyframes floatParticle {
-            0% { transform: translateY(100vh) scale(0.8); opacity: 0; }
-            20% { opacity: 0.8; }
-            80% { opacity: 0.8; }
-            100% { transform: translateY(-10vh) scale(1.3); opacity: 0; }
-        }
-
         .glass-card {
-            background: rgba(15, 23, 42, 0.85);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85);
-        }
-
-        .action-button {
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .action-button:hover {
-            transform: translateY(-3px) scale(1.01);
-            box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.5);
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
     </style>
 </head>
-<body class="relative min-h-screen text-slate-100 flex flex-col justify-center items-center p-4">
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex flex-col justify-between hero-bg">
 
-    <div class="live-bg-container">
-        <div class="live-photo"></div>
-        <div class="ambient-overlay"></div>
+    <header class="border-b border-slate-800/80 px-8 py-5 flex justify-between items-center max-w-7xl mx-auto w-full">
+        <div class="flex items-center space-x-3">
+            <span class="text-3xl font-black tracking-wider text-white">Pragya<span class="text-amber-400">Link</span></span>
+            <span class="bg-amber-500/20 text-amber-300 text-xs font-bold px-3 py-1 rounded-full border border-amber-500/30">
+                🛺 Ashanti Mobility Hub
+            </span>
+        </div>
+        
+        <div id="userStatus" class="flex items-center space-x-4">
+            <a href="/passenger" class="text-xs bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold px-4 py-2.5 rounded-xl shadow-lg transition">
+                Open 3D Radar Map
+            </a>
+        </div>
+    </header>
 
-        <script>
-            const bgContainer = document.querySelector('.live-bg-container');
-            for (let i = 0; i < 20; i++) {
-                const particle = document.createElement('div');
-                particle.className = 'network-particle';
-                const size = Math.random() * 6 + 3;
-                particle.style.width = size + 'px';
-                particle.style.height = size + 'px';
-                particle.style.left = Math.random() * 100 + '%';
-                particle.style.animationDuration = (Math.random() * 14 + 7) + 's';
-                particle.style.animationDelay = (Math.random() * 5) + 's';
-                bgContainer.appendChild(particle);
-            }
-        </script>
-    </div>
+    <main class="max-w-5xl mx-auto px-6 py-12 text-center space-y-8 my-auto">
+        <div class="inline-flex items-center space-x-2 bg-slate-800/80 border border-slate-700 px-4 py-1.5 rounded-full text-xs font-semibold text-amber-400">
+            <span>🚀 Live in Nkawie, Patasi, Santasi & Kumasi</span>
+        </div>
 
-    <main class="w-full max-w-md mx-auto z-10 px-2">
-        <div class="glass-card rounded-3xl p-7 sm:p-9 flex flex-col items-center">
-            
-            <div class="inline-flex items-center space-x-2 bg-amber-500/20 border border-amber-500/40 px-3.5 py-1 rounded-full text-amber-300 text-xs font-bold mb-6 shadow-sm">
-                <span class="w-2 h-2 bg-amber-400 rounded-full animate-ping"></span>
-                <span>Ghana Transport Hub • Active 🇬🇭</span>
-            </div>
+        <h1 class="text-4xl sm:text-6xl font-black text-white leading-tight tracking-tight">
+            Connecting Tricycles, Passengers & Mechanics <span class="text-amber-400">in Real-Time</span>
+        </h1>
 
-            <header class="text-center mb-7">
-                <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-white drop-shadow-md">
-                    Pragya<span class="text-amber-400">Link</span>
-                </h1>
-                <p class="text-slate-300 mt-2 text-xs sm:text-sm font-medium leading-relaxed">
-                    Connecting Passengers, Riders & Mechanics across Ghana instantly.
-                </p>
-            </header>
+        <p class="text-slate-300 text-base sm:text-lg max-w-2xl mx-auto font-medium leading-relaxed">
+            Find nearby Bajaj & TVS pickups on an interactive 3D map, request roadside assistance instantly, or broadcast your route as a rider.
+        </p>
 
-            <div class="w-full space-y-3.5">
-                <a href="/passenger" class="action-button group block w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold p-4 rounded-2xl shadow-lg flex items-center transition">
-                    <div class="flex items-center space-x-4 flex-1">
-                        <span class="text-3xl">🛺</span>
-                        <div class="text-left">
-                            <div class="text-base font-black">Find a Pragya Pickup</div>
-                            <div class="text-[11px] font-semibold text-amber-950/80">Search nearby, view contact, request ride.</div>
-                        </div>
-                    </div>
-                    <span class="text-2xl text-slate-950/70 group-hover:translate-x-1 transition-transform">➔</span>
-                </a>
+        <div class="grid md:grid-cols-3 gap-6 pt-6 max-w-4xl mx-auto">
+            <a href="/passenger" class="glass-card p-6 rounded-3xl hover:border-amber-400/50 transition group text-left space-y-3">
+                <div class="text-3xl">🛺</div>
+                <h3 class="text-lg font-bold text-white group-hover:text-amber-400 transition">Passenger Radar</h3>
+                <p class="text-xs text-slate-400">Locate active tricycles near you on a 3D Google-style radar map.</p>
+                <span class="text-xs font-bold text-amber-400 inline-block pt-2">Find Pickup →</span>
+            </a>
 
-                <a href="/rider" class="action-button group block w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold p-4 rounded-2xl shadow-lg flex items-center transition">
-                    <div class="flex items-center space-x-4 flex-1">
-                        <span class="text-3xl">👨‍✈️</span>
-                        <div class="text-left">
-                            <div class="text-base font-black">I'm a Pragya Rider</div>
-                            <div class="text-[11px] font-semibold text-emerald-100/80">Get passenger location, view breakdown alerts.</div>
-                        </div>
-                    </div>
-                    <span class="text-2xl text-white/70 group-hover:translate-x-1 transition-transform">➔</span>
-                </a>
+            <a href="/rider" class="glass-card p-6 rounded-3xl hover:border-emerald-400/50 transition group text-left space-y-3">
+                <div class="text-3xl">📱</div>
+                <h3 class="text-lg font-bold text-white group-hover:text-emerald-400 transition">Rider Console</h3>
+                <p class="text-xs text-slate-400">Go online, broadcast your route, and receive passenger requests.</p>
+                <span class="text-xs font-bold text-emerald-400 inline-block pt-2">Driver Portal →</span>
+            </a>
 
-                <a href="/mechanic" class="action-button group block w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold p-4 rounded-2xl shadow-lg flex items-center transition">
-                    <div class="flex items-center space-x-4 flex-1">
-                        <span class="text-3xl">🔧</span>
-                        <div class="text-left">
-                            <div class="text-base font-black">Mechanic / Electrician</div>
-                            <div class="text-[11px] font-semibold text-blue-100/80">View nearby stranded/faulty tricycles.</div>
-                        </div>
-                    </div>
-                    <span class="text-2xl text-white/70 group-hover:translate-x-1 transition-transform">➔</span>
-                </a>
-            </div>
-
-            <footer class="w-full mt-8 border-t border-slate-700/60 pt-3.5 text-center">
-                <div class="flex justify-between items-center text-[11px] text-slate-400 font-medium px-2">
-                    <span>Ghana Transport Solution</span>
-                    <span>Safe • Fast • Reliable</span>
-                </div>
-            </footer>
+            <a href="/mechanic" class="glass-card p-6 rounded-3xl hover:border-blue-400/50 transition group text-left space-y-3">
+                <div class="text-3xl">🔧</div>
+                <h3 class="text-lg font-bold text-white group-hover:text-blue-400 transition">Emergency Fix</h3>
+                <p class="text-xs text-slate-400">Stranded with engine issues? Dispatch nearby certified mechanics.</p>
+                <span class="text-xs font-bold text-blue-400 inline-block pt-2">Get Assistance →</span>
+            </a>
         </div>
     </main>
+
+    <footer class="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
+        PragyaLink Systems © 2026 • Powered by Express, SQLite & MapLibre 3D
+    </footer>
+
 </body>
 </html>
