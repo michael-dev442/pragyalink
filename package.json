@@ -1,14 +1,12 @@
 {
   "name": "pragyalink",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "PragyaLink Tricycle Tracking Platform",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "build": "npm rebuild sqlite3 bcrypt --build-from-source"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
