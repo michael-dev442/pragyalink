@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find a Pragya Pickup | PragyaLink</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+
+    <style>
+        #map { height: calc(100vh - 64px); width: 100%; }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .pragya-marker {
+            font-size: 34px;
+            cursor: pointer;
+            filter: drop-shadow(0px 6px 10px rgba(0,0,0,0.7));
+            transition: transform 0.2s ease;
+        }
+        .pragya-marker:hover { transform: scale(1.35); }
+        .maplibregl-popup-content {
+            background: #0f172a !important;
+            color: white !important;
+            border-radius: 12px !important;
+            padding: 14px !important;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans h-screen flex flex-col overflow-hidden">
+
+    <header class="bg-slate-800 border-b border-slate-700 px-6 py-3.5 flex justify-between items-center z-10 shadow-md">
+        <div class="flex items-center space-x-3">
+            <a href="/" class="text-2xl font-black text-white tracking-wide">Pragya<span class="text-amber-400">Link</span></a>
+            <span class="bg-amber-500/20 text-amber-300 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-500/30">
+                🛺 3D Google Radar
+            </span>
+        </div>
+        
+        <div class="flex items-center space-x-3">
+            <span id="userGreeting" class="text-xs text-amber-400 font-bold hidden sm:inline"></span>
+            <button id="authBtn" onclick="openAuthModal()" class="text-xs bg-amber-500 hover:bg-amber-400 text-slate-950 px-3.5 py-2 rounded-lg font-bold transition">
+                Log In / Sign Up
+            </button>
+            <a href="/" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3.5 py-2 rounded-lg font-semibold transition">
+                Home Hub
+            </a>
+        </div>
+    </header>
+
+    <main class="relative flex-1">
+        <div id="map" class="z-0"></div>
+
+        <div class="absolute top-4 left-4 right-4 sm:left-auto sm:right-6 sm:w-80 glass-card p-5 rounded-2xl z-10 shadow-2xl space-y-4">
+            <div class="border-b border-slate-700/60 pb-3 flex justify-between items-center">
+                <div>
+                    <h3 class="font-extrabold text-white text-base">3D Active Tricycles</h3>
+                    <p class="text-xs text-amber-400 font-semibold">Nkawie, Patasi & Kumasi Hub</p>
+                </div>
+                <span class="flex h-2.5 w-2.5 relative">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+            </div>
+
+            <div class="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                <div onclick="focusDriver(-1.8167, 6.6631)" class="p-3 bg-slate-800/80 hover:bg-slate-700/80 cursor-pointer rounded-xl border border-slate-700 flex justify-between items-center transition">
+                    <div>
+                        <div class="text-xs font-bold text-white">Kwame Owusu</div>
+                        <div class="text-[10px] text-slate-400">Bajaj RE • Yellow (Nkawie Market)</div>
+                    </div>
+                    <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30">Available</span>
+                </div>
+
+                <div onclick="focusDriver(-1.8147, 6.6616)" class="p-3 bg-slate-800/80 hover:bg-slate-700/80 cursor-pointer rounded-xl border border-slate-700 flex justify-between items-center transition">
+                    <div>
+                        <div class="text-xs font-bold text-white">Kofi Mensah</div>
+                        <div class="text-[10px] text-slate-400">TVS King • Green (Station Rd)</div>
+                    </div>
+                    <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30">Available</span>
+                </div>
+            </div>
+
+            <div class="flex space-x-2">
+                <button onclick="recenter3D()" class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold py-2.5 rounded-xl shadow-md transition">
+                    🎯 Recenter View
+                </button>
+                <button onclick="toggleTilt()" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-3 py-2.5 rounded-xl transition">
+                    🔄 3D / 2D
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <div id="authModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-card w-full max-w-md p-6 rounded-3xl relative shadow-2xl">
+            <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white font-bold text-lg">✕</button>
+            
+            <div class="flex border-b border-slate-700 mb-6">
+                <button id="tabLogin" onclick="switchAuthTab('login')" class="flex-1 py-2 font-bold text-sm text-amber-400 border-b-2 border-amber-400">Log In</button>
+                <button id="tabSignup" onclick="switchAuthTab('signup')" class="flex-1 py-2 font-bold text-sm text-slate-400">Sign Up</button>
+            </div>
+
+            <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Username</label>
+                    <input type="text" id="loginUser" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Password</label>
+                    <input type="password" id="loginPass" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400">
+                </div>
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg transition text-sm">
+                    Log In to Passenger Radar
+                </button>
+            </form>
+
+            <form id="signupForm" onsubmit="handleSignup(event)" class="space-y-3 hidden">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Full Name</label>
+                    <input type="text" id="signName" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Phone Contact</label>
+                    <input type="tel" id="signPhone" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Username</label>
+                    <input type="text" id="signUser" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Password</label>
+                    <input type="password" id="signPass" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-400">
+                </div>
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg transition text-sm">
+                    Register Passenger Account
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const NKAWIE_LNG = -1.8167;
+        const NKAWIE_LAT = 6.6631;
+
+        // Load Google Maps Tile Engine inside 3D MapLibre
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                'version': 8,
+                'sources': {
+                    'google-map-tiles': {
+                        'type': 'raster',
+                        'tiles': [
+                            'https://mt0.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                            'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                            'https://mt2.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+                            'https://mt3.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'
+                        ],
+                        'tileSize': 256,
+                        'attribution': '© Google Maps'
+                    }
+                },
+                'layers': [{
+                    'id': 'google-tiles-layer',
+                    'type': 'raster',
+                    'source': 'google-map-tiles',
+                    'minzoom': 0,
+                    'maxzoom': 20
+                }]
+            },
+            center: [NKAWIE_LNG, NKAWIE_LAT],
+            zoom: 16,
+            pitch: 50,
+            bearing: -15
+        });
+
+        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
+
+        map.on('load', () => {
+            add3DPragyaMarker(NKAWIE_LNG, NKAWIE_LAT, "Kwame Owusu", "Bajaj RE (Yellow)", "0241234567", "Nkawie Main Market");
+            add3DPragyaMarker(NKAWIE_LNG + 0.002, NKAWIE_LAT - 0.0015, "Kofi Mensah", "TVS King (Green)", "0209876543", "Nkawie Police Station Rd");
+
+            checkUserSession();
+        });
+
+        function add3DPragyaMarker(lng, lat, name, vehicle, phone, street) {
+            const el = document.createElement('div');
+            el.className = 'pragya-marker';
+            el.innerHTML = '🛺';
+
+            const popupHTML = `
+                <div style="font-family: sans-serif; min-width: 170px;">
+                    <h4 style="font-weight: bold; color: #f59e0b; font-size: 14px; margin-bottom: 2px;">🛺 ${name}</h4>
+                    <p style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">${vehicle}</p>
+                    <p style="font-size: 10px; color: #e2e8f0; font-weight: 600; margin-bottom: 8px;">📍 ${street}</p>
+                    <a href="tel:${phone}" onclick="requestRide('${name}')" style="display: block; background: #f59e0b; color: #0f172a; text-align: center; font-weight: bold; font-size: 12px; padding: 7px; border-radius: 8px; text-decoration: none;">
+                        📞 Request Pickup
+                    </a>
+                </div>
+            `;
+
+            new maplibregl.Marker(el)
+                .setLngLat([lng, lat])
+                .setPopup(new maplibregl.Popup({ offset: 25 }).setHTML(popupHTML))
+                .addTo(map);
+        }
+
+        function focusDriver(lng, lat) {
+            map.flyTo({ center: [lng, lat], zoom: 17, pitch: 55, bearing: -10, essential: true });
+        }
+
+        function recenter3D() {
+            map.flyTo({ center: [NKAWIE_LNG, NKAWIE_LAT], zoom: 16, pitch: 50, bearing: -15, essential: true });
+        }
+
+        let isTilted = true;
+        function toggleTilt() {
+            isTilted = !isTilted;
+            map.easeTo({ pitch: isTilted ? 50 : 0, duration: 1000 });
+        }
+
+        function requestRide(driverName) {
+            alert(`Connecting to ${driverName}... Rider notified of your 3D pickup point!`);
+        }
+
+        /* -----------------------------------------------------------
+           SECURE SESSION MANAGEMENT (API VERIFICATION)
+        ----------------------------------------------------------- */
+        async function checkUserSession() {
+            try {
+                const res = await fetch('/api/me');
+                const data = await res.json();
+
+                if (data.success) {
+                    document.getElementById('userGreeting').innerText = `👤 Hello, ${data.user.username}`;
+                    document.getElementById('userGreeting').classList.remove('hidden');
+                    
+                    const authBtn = document.getElementById('authBtn');
+                    authBtn.innerText = 'Log Out';
+                    authBtn.onclick = logout;
+                } else {
+                    openAuthModal();
+                }
+            } catch (err) {
+                openAuthModal();
+            }
+        }
+
+        function openAuthModal() { document.getElementById('authModal').classList.remove('hidden'); }
+        function closeAuthModal() { document.getElementById('authModal').classList.add('hidden'); }
+
+        function switchAuthTab(tab) {
+            if (tab === 'login') {
+                document.getElementById('loginForm').classList.remove('hidden');
+                document.getElementById('signupForm').classList.add('hidden');
+                document.getElementById('tabLogin').className = "flex-1 py-2 font-bold text-sm text-amber-400 border-b-2 border-amber-400";
+                document.getElementById('tabSignup').className = "flex-1 py-2 font-bold text-sm text-slate-400";
+            } else {
+                document.getElementById('loginForm').classList.add('hidden');
+                document.getElementById('signupForm').classList.remove('hidden');
+                document.getElementById('tabSignup').className = "flex-1 py-2 font-bold text-sm text-amber-400 border-b-2 border-amber-400";
+                document.getElementById('tabLogin').className = "flex-1 py-2 font-bold text-sm text-slate-400";
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('loginUser').value;
+            const password = document.getElementById('loginPass').value;
+
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                closeAuthModal();
+                checkUserSession();
+            } else {
+                alert(data.error || 'Login failed');
+            }
+        }
+
+        async function handleSignup(e) {
+            e.preventDefault();
+            const fullName = document.getElementById('signName').value;
+            const contact = document.getElementById('signPhone').value;
+            const username = document.getElementById('signUser').value;
+            const password = document.getElementById('signPass').value;
+
+            const res = await fetch('/api/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fullName, contact, username, password, role: 'passenger' })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                closeAuthModal();
+                checkUserSession();
+            } else {
+                alert(data.error || 'Registration failed');
+            }
+        }
+
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            location.reload();
+        }
+    </script>
+</body>
+</html>
