@@ -3,359 +3,172 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Find a Pragya Pickup | PragyaLink</title>
+    <title>Passenger Radar | PragyaLink</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <script src="/socket.io/socket.io.js"></script>
-    
-    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="/socket.io/socket.io.js"></script>
 
     <style>
-        #map { height: calc(100vh - 64px); width: 100%; }
-        .glass-card {
-            background: rgba(15, 23, 42, 0.92);
-            backdrop-filter: blur(14px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .pragya-marker {
-            font-size: 34px;
-            cursor: pointer;
-            filter: drop-shadow(0px 6px 10px rgba(0,0,0,0.7));
-            transition: all 0.5s ease-in-out;
-        }
-        .pragya-marker:hover { transform: scale(1.35); }
-        .maplibregl-popup-content {
+        .maplibre-popup-content {
             background: #0f172a !important;
-            color: white !important;
-            border-radius: 12px !important;
-            padding: 14px !important;
+            color: #f8fafc !important;
+            border-radius: 12px;
             border: 1px solid rgba(255,255,255,0.2);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            padding: 12px;
         }
+        .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: #0f172a !important; }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 font-sans h-screen flex flex-col overflow-hidden">
+<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col overflow-hidden">
 
-    <header class="bg-slate-800 border-b border-slate-700 px-6 py-3.5 flex justify-between items-center z-10 shadow-md">
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex justify-between items-center z-20 shadow-xl">
         <div class="flex items-center space-x-3">
-            <a href="/" class="text-2xl font-black text-white tracking-wide">Pragya<span class="text-amber-400">Link</span></a>
-            <span class="bg-amber-500/20 text-amber-300 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-500/30">
-                🛺 3D Live Radar
+            <a href="/" class="text-2xl font-black text-white tracking-wider">Pragya<span class="text-sky-400">Link</span></a>
+            <span class="bg-sky-500/20 text-sky-300 text-xs font-bold px-2.5 py-1 rounded-full border border-sky-500/30">
+                🛺 Active Radar
             </span>
         </div>
-        
-        <div class="flex items-center space-x-3">
-            <span id="userGreeting" class="text-xs text-amber-400 font-bold hidden sm:inline"></span>
-            <button id="authBtn" onclick="openAuthModal()" class="text-xs bg-amber-500 hover:bg-amber-400 text-slate-950 px-3.5 py-2 rounded-lg font-bold transition">
-                Log In / Sign Up
-            </button>
-            <a href="/" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3.5 py-2 rounded-lg font-semibold transition">
-                Home Hub
-            </a>
-        </div>
+        <a href="/" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition">
+            Home Hub
+        </a>
     </header>
 
-    <main class="relative flex-1">
-        <div id="map" class="z-0"></div>
+    <div class="flex-1 relative flex flex-col md:flex-row">
+        
+        <div id="map" class="flex-1 h-full w-full"></div>
 
-        <div class="absolute top-4 left-4 right-4 sm:left-auto sm:right-6 sm:w-80 glass-card p-5 rounded-2xl z-10 shadow-2xl space-y-4">
-            <div class="border-b border-slate-700/60 pb-3 flex justify-between items-center">
-                <div>
-                    <h3 class="font-extrabold text-white text-base">3D Active Tricycles</h3>
-                    <p class="text-xs text-amber-400 font-semibold">Live GPS Updates</p>
-                </div>
-                <span class="flex h-2.5 w-2.5 relative">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+        <aside class="w-full md:w-96 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-5 flex flex-col z-10 shadow-2xl max-h-[45vh] md:max-h-full overflow-y-auto">
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+                <h2 class="text-base font-black text-white">Nearby Tricycles</h2>
+                <span id="activeCount" class="bg-emerald-500/20 text-emerald-400 text-xs font-mono font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    0 Online
                 </span>
             </div>
 
-            <div id="driverList" class="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-                <p id="noDriversText" class="text-xs text-slate-400 text-center py-4">Searching for online riders nearby...</p>
+            <div id="riderList" class="space-y-3 flex-1 overflow-y-auto pr-1">
+                <div id="emptyMsg" class="text-xs text-slate-400 text-center py-8">
+                    Searching for active Pragya drivers nearby...
+                </div>
             </div>
-
-            <div class="flex space-x-2">
-                <button onclick="recenter3D()" class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold py-2.5 rounded-xl shadow-md transition">
-                    🎯 Recenter View
-                </button>
-                <button onclick="toggleTilt()" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-3 py-2.5 rounded-xl transition">
-                    🔄 3D / 2D
-                </button>
-            </div>
-        </div>
-    </main>
-
-    <div id="authModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
-        <div class="glass-card w-full max-w-md p-6 rounded-3xl relative shadow-2xl">
-            <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white font-bold text-lg">✕</button>
-            
-            <div class="flex border-b border-slate-700 mb-6">
-                <button id="tabLogin" onclick="switchAuthTab('login')" class="flex-1 py-2 font-bold text-sm text-amber-400 border-b-2 border-amber-400">Log In</button>
-                <button id="tabSignup" onclick="switchAuthTab('signup')" class="flex-1 py-2 font-bold text-sm text-slate-400">Sign Up</button>
-            </div>
-
-            <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Username</label>
-                    <input type="text" id="loginUser" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Password</label>
-                    <input type="password" id="loginPass" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400">
-                </div>
-                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg transition text-sm">
-                    Log In to Passenger Radar
-                </button>
-            </form>
-
-            <form id="signupForm" onsubmit="handleSignup(event)" class="space-y-3 hidden">
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Full Name</label>
-                    <input type="text" id="signName" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-400">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Phone Contact</label>
-                    <input type="tel" id="signPhone" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-400">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Username</label>
-                    <input type="text" id="signUser" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-400">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Password</label>
-                    <input type="password" id="signPass" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-amber-400">
-                </div>
-                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg transition text-sm">
-                    Register Passenger Account
-                </button>
-            </form>
-        </div>
+        </aside>
     </div>
 
     <script>
         const socket = io();
-        const activeMarkers = {};
-        const NKAWIE_LNG = -1.8167;
-        const NKAWIE_LAT = 6.6631;
+        const markers = {};
 
-        // Initialize 3D MapLibre Instance
+        // Default map center (Kumasi / Nkawie Region)
         const map = new maplibregl.Map({
             container: 'map',
-            style: {
-                'version': 8,
-                'sources': {
-                    'google-map-tiles': {
-                        'type': 'raster',
-                        'tiles': [
-                            'https://mt0.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-                            'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-                            'https://mt2.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-                            'https://mt3.google.com/vt/lyrs=m&x={x}&y={y}&z={z}'
-                        ],
-                        'tileSize': 256,
-                        'attribution': '© Google Maps'
-                    }
-                },
-                'layers': [{
-                    'id': 'google-tiles-layer',
-                    'type': 'raster',
-                    'source': 'google-map-tiles',
-                    'minzoom': 0,
-                    'maxzoom': 20
-                }]
-            },
-            center: [NKAWIE_LNG, NKAWIE_LAT],
-            zoom: 16,
-            pitch: 50,
-            bearing: -15
+            style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+            center: [-1.6244, 6.6885],
+            zoom: 14,
+            pitch: 45
         });
 
-        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
+        map.addControl(new maplibregl.NavigationControl());
 
-        map.on('load', () => {
-            checkUserSession();
+        socket.on('current-riders', (riders) => {
+            riders.forEach(updateOrAddRider);
         });
 
-        /* -----------------------------------------------------------
-           REAL-TIME SOCKET.IO DRIVER TRACKING
-        ----------------------------------------------------------- */
-        socket.on('initial-drivers', (drivers) => {
-            drivers.forEach(driver => updateDriverMarker(driver));
-            refreshSidebar();
+        socket.on('rider-location-updated', (rider) => {
+            updateOrAddRider(rider);
         });
 
-        socket.on('driver-moved', (driver) => {
-            updateDriverMarker(driver);
-            refreshSidebar();
-        });
-
-        socket.on('driver-offline', (driverId) => {
-            if (activeMarkers[driverId]) {
-                activeMarkers[driverId].marker.remove();
-                delete activeMarkers[driverId];
-                refreshSidebar();
+        socket.on('rider-disconnected', (socketId) => {
+            if (markers[socketId]) {
+                markers[socketId].marker.remove();
+                delete markers[socketId];
+                renderRiderSidebar();
             }
         });
 
-        function updateDriverMarker(driver) {
-            if (activeMarkers[driver.id]) {
-                activeMarkers[driver.id].marker.setLngLat([driver.lng, driver.lat]);
-                activeMarkers[driver.id].data = driver;
+        function updateOrAddRider(rider) {
+            const { socketId, username, fullName, contact, vehicleType, vehicleColor, plateNumber, lat, lng } = rider;
+
+            const popupHTML = `
+                <div class="space-y-1 text-xs">
+                    <div class="font-extrabold text-sky-400 text-sm">🛺 ${vehicleType || 'Bajaj RE'}</div>
+                    <div class="text-white font-bold">${fullName || username}</div>
+                    <div class="text-slate-300">📞 <a href="tel:${contact}" class="underline text-sky-300">${contact || 'N/A'}</a></div>
+                    <div class="text-slate-400">Plate: <span class="text-amber-400 font-mono font-bold">${plateNumber || 'N/A'}</span></div>
+                    <div class="text-slate-400">Color: ${vehicleColor || 'Yellow'}</div>
+                </div>
+            `;
+
+            if (markers[socketId]) {
+                markers[socketId].marker.setLngLat([lng, lat]);
+                markers[socketId].popup.setHTML(popupHTML);
+                markers[socketId].data = rider;
             } else {
                 const el = document.createElement('div');
-                el.className = 'pragya-marker';
+                el.className = 'text-2xl cursor-pointer hover:scale-125 transition-transform';
                 el.innerHTML = '🛺';
 
-                const popupHTML = `
-                    <div style="font-family: sans-serif; min-width: 170px;">
-                        <h4 style="font-weight: bold; color: #f59e0b; font-size: 14px; margin-bottom: 2px;">🛺 ${driver.name}</h4>
-                        <p style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">${driver.vehicle}</p>
-                        <a href="tel:${driver.phone}" onclick="requestRide('${driver.name}')" style="display: block; background: #f59e0b; color: #0f172a; text-align: center; font-weight: bold; font-size: 12px; padding: 7px; border-radius: 8px; text-decoration: none; margin-top: 6px;">
-                            📞 Request Pickup
-                        </a>
-                    </div>
-                `;
+                const popup = new maplibregl.Popup({ offset: 25 }).setHTML(popupHTML);
 
-                const marker = new maplibregl.Marker(el)
-                    .setLngLat([driver.lng, driver.lat])
-                    .setPopup(new maplibregl.Popup({ offset: 25 }).setHTML(popupHTML))
+                const marker = new maplibregl.Marker({ element: el })
+                    .setLngLat([lng, lat])
+                    .setPopup(popup)
                     .addTo(map);
 
-                activeMarkers[driver.id] = { marker, data: driver };
+                markers[socketId] = { marker, popup, data: rider };
             }
+
+            renderRiderSidebar();
         }
 
-        function refreshSidebar() {
-            const listContainer = document.getElementById('driverList');
-            const keys = Object.keys(activeMarkers);
+        function renderRiderSidebar() {
+            const list = document.getElementById('riderList');
+            const count = document.getElementById('activeCount');
+            const keys = Object.keys(markers);
+
+            count.innerText = `${keys.length} Online`;
 
             if (keys.length === 0) {
-                listContainer.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Searching for online riders nearby...</p>`;
+                list.innerHTML = `<div class="text-xs text-slate-400 text-center py-8">Searching for active Pragya drivers nearby...</div>`;
                 return;
             }
 
-            listContainer.innerHTML = '';
-            keys.forEach(id => {
-                const driver = activeMarkers[id].data;
-                const item = document.createElement('div');
-                item.className = 'p-3 bg-slate-800/80 hover:bg-slate-700/80 cursor-pointer rounded-xl border border-slate-700 flex justify-between items-center transition';
-                item.onclick = () => focusDriver(driver.lng, driver.lat);
-                item.innerHTML = `
-                    <div>
-                        <div class="text-xs font-bold text-white">${driver.name}</div>
-                        <div class="text-[10px] text-slate-400">${driver.vehicle}</div>
+            list.innerHTML = keys.map(id => {
+                const r = markers[id].data;
+                return `
+                    <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 space-y-2 hover:border-sky-500/50 transition">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="bg-sky-500/20 text-sky-400 text-[10px] font-bold px-2 py-0.5 rounded border border-sky-500/30">
+                                    ${r.vehicleType || 'Bajaj RE'}
+                                </span>
+                                <h3 class="font-extrabold text-sm text-white mt-1">${r.fullName || r.username}</h3>
+                            </div>
+                            <span class="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
+                                ${r.plateNumber || 'N/A'}
+                            </span>
+                        </div>
+
+                        <div class="text-xs space-y-1 text-slate-300">
+                            <div>🎨 Color: <span class="text-white">${r.vehicleColor || 'Yellow'}</span></div>
+                            <div>📞 Contact: <a href="tel:${r.contact}" class="text-sky-400 font-bold underline">${r.contact || 'N/A'}</a></div>
+                        </div>
+
+                        <button onclick="flyToRider(${r.lng}, ${r.lat})" class="w-full bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 font-bold py-2 rounded-xl text-xs border border-sky-500/30 transition">
+                            📍 Track on Map
+                        </button>
                     </div>
-                    <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30">Live GPS</span>
                 `;
-                listContainer.appendChild(item);
-            });
+            }).join('');
         }
 
-        function focusDriver(lng, lat) {
-            map.flyTo({ center: [lng, lat], zoom: 17, pitch: 55, bearing: -10, essential: true });
-        }
-
-        function recenter3D() {
-            map.flyTo({ center: [NKAWIE_LNG, NKAWIE_LAT], zoom: 16, pitch: 50, bearing: -15, essential: true });
-        }
-
-        let isTilted = true;
-        function toggleTilt() {
-            isTilted = !isTilted;
-            map.easeTo({ pitch: isTilted ? 50 : 0, duration: 1000 });
-        }
-
-        function requestRide(driverName) {
-            alert(`Connecting to ${driverName}... Rider notified of your pickup location!`);
-        }
-
-        /* -----------------------------------------------------------
-           SECURE SESSION MANAGEMENT (API VERIFICATION)
-        ----------------------------------------------------------- */
-        async function checkUserSession() {
-            try {
-                const res = await fetch('/api/me');
-                const data = await res.json();
-
-                if (data.success) {
-                    document.getElementById('userGreeting').innerText = `👤 Hello, ${data.user.username}`;
-                    document.getElementById('userGreeting').classList.remove('hidden');
-                    
-                    const authBtn = document.getElementById('authBtn');
-                    authBtn.innerText = 'Log Out';
-                    authBtn.onclick = logout;
-                } else {
-                    openAuthModal();
-                }
-            } catch (err) {
-                openAuthModal();
-            }
-        }
-
-        function openAuthModal() { document.getElementById('authModal').classList.remove('hidden'); }
-        function closeAuthModal() { document.getElementById('authModal').classList.add('hidden'); }
-
-        function switchAuthTab(tab) {
-            if (tab === 'login') {
-                document.getElementById('loginForm').classList.remove('hidden');
-                document.getElementById('signupForm').classList.add('hidden');
-                document.getElementById('tabLogin').className = "flex-1 py-2 font-bold text-sm text-amber-400 border-b-2 border-amber-400";
-                document.getElementById('tabSignup').className = "flex-1 py-2 font-bold text-sm text-slate-400";
-            } else {
-                document.getElementById('loginForm').classList.add('hidden');
-                document.getElementById('signupForm').classList.remove('hidden');
-                document.getElementById('tabSignup').className = "flex-1 py-2 font-bold text-sm text-amber-400 border-b-2 border-amber-400";
-                document.getElementById('tabLogin').className = "flex-1 py-2 font-bold text-sm text-slate-400";
-            }
-        }
-
-        async function handleLogin(e) {
-            e.preventDefault();
-            const username = document.getElementById('loginUser').value;
-            const password = document.getElementById('loginPass').value;
-
-            const res = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            const data = await res.json();
-            if (data.success) {
-                closeAuthModal();
-                checkUserSession();
-            } else {
-                alert(data.error || 'Login failed');
-            }
-        }
-
-        async function handleSignup(e) {
-            e.preventDefault();
-            const fullName = document.getElementById('signName').value;
-            const contact = document.getElementById('signPhone').value;
-            const username = document.getElementById('signUser').value;
-            const password = document.getElementById('signPass').value;
-
-            const res = await fetch('/api/signup', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fullName, contact, username, password, role: 'passenger' })
-            });
-
-            const data = await res.json();
-            if (data.success) {
-                closeAuthModal();
-                checkUserSession();
-            } else {
-                alert(data.error || 'Registration failed');
-            }
-        }
-
-        async function logout() {
-            await fetch('/api/logout', { method: 'POST' });
-            location.reload();
+        function flyToRider(lng, lat) {
+            map.flyTo({ center: [lng, lat], zoom: 16, speed: 1.2 });
         }
     </script>
 </body>

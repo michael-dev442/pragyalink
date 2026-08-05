@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mechanic Assistance Hub | PragyaLink</title>
-    
+    <title>Mechanic Hub | PragyaLink</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="/socket.io/socket.io.js"></script>
 
     <style>
@@ -23,7 +23,7 @@
         <div class="flex items-center space-x-3">
             <a href="/" class="text-2xl font-black text-white tracking-wide">Pragya<span class="text-sky-400">Mechanic</span></a>
             <span class="bg-sky-500/20 text-sky-300 text-xs font-bold px-2.5 py-1 rounded-full border border-sky-500/30">
-                🛠️ Service & Repair Station
+                🛠️ Workshop & Assistance Console
             </span>
         </div>
         
@@ -38,56 +38,42 @@
         </div>
     </header>
 
-    <main class="flex-1 p-6 max-w-5xl mx-auto w-full space-y-6">
+    <main class="flex-1 p-6 max-w-6xl mx-auto w-full space-y-6">
 
         <div class="glass-card p-6 rounded-3xl shadow-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-l-4 border-sky-500">
             <div>
-                <h2 class="text-xl font-extrabold text-white">Workshop Availability</h2>
-                <p id="statusSub" class="text-xs text-slate-400">Set your station status so nearby riders know you are open for maintenance</p>
+                <h2 class="text-xl font-extrabold text-white">Workshop Station Status</h2>
+                <p class="text-xs text-slate-400">Set availability to receive active roadside repair dispatch requests</p>
             </div>
             <button id="toggleStatusBtn" onclick="toggleWorkshopStatus()" class="bg-sky-500 hover:bg-sky-400 text-slate-950 px-6 py-3 rounded-2xl font-black transition shadow-lg text-sm w-full sm:w-auto">
                 🔧 SHOP IS OPEN
             </button>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            <div class="md:col-span-2 glass-card p-6 rounded-3xl shadow-2xl space-y-4">
-                <div class="flex justify-between items-center border-b border-slate-700 pb-3">
-                    <h3 class="text-base font-bold text-white">🚨 Emergency Breakdown Calls</h3>
-                    <span class="bg-rose-500/20 text-rose-400 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-500/30">Live Alerts</span>
-                </div>
-                
-                <div id="repairQueue" class="space-y-3">
-                    <div class="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-                        <div>
-                            <div class="text-sm font-bold text-amber-400">🛺 Bajaj RE Engine Breakdown</div>
-                            <div class="text-xs text-slate-300">Rider: Kwadwo • Location: Nkawie High Street</div>
-                            <div class="text-[11px] text-slate-400 mt-1">Issue: Clutch cable snapped near station</div>
-                        </div>
-                        <button onclick="dispatchMechanic('Kwadwo')" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold px-4 py-2.5 rounded-xl text-xs transition">
-                            Respond to Assistance
-                        </button>
-                    </div>
-                </div>
+            <div class="lg:col-span-2 glass-card p-4 rounded-3xl shadow-2xl space-y-3 flex flex-col h-[450px]">
+                <h3 class="text-sm font-bold text-white px-2">🚨 Live Breakdown Location Radar</h3>
+                <div id="mechanicMap" class="flex-1 w-full rounded-2xl overflow-hidden"></div>
             </div>
 
             <div class="glass-card p-6 rounded-3xl shadow-2xl space-y-4">
-                <h3 class="text-base font-bold text-white border-b border-slate-700 pb-3">🧰 Quick Spare Inventory</h3>
-                <ul class="space-y-2.5 text-xs text-slate-300">
-                    <li class="flex justify-between bg-slate-800/60 p-2.5 rounded-xl border border-slate-700">
-                        <span>Tricycle Brake Shoes</span>
-                        <span class="text-emerald-400 font-bold">In Stock</span>
-                    </li>
-                    <li class="flex justify-between bg-slate-800/60 p-2.5 rounded-xl border border-slate-700">
-                        <span>Drive Chains & Cables</span>
-                        <span class="text-emerald-400 font-bold">In Stock</span>
-                    </li>
-                    <li class="flex justify-between bg-slate-800/60 p-2.5 rounded-xl border border-slate-700">
-                        <span>Spark Plugs (Bajaj/TVS)</span>
-                        <span class="text-emerald-400 font-bold">In Stock</span>
-                    </li>
-                </ul>
+                <h3 class="text-base font-bold text-white border-b border-slate-700 pb-3">🧰 Live Driver Distress Calls</h3>
+                
+                <div id="repairQueue" class="space-y-3">
+                    <div class="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 space-y-2">
+                        <div class="flex justify-between items-start">
+                            <span class="text-xs font-bold text-amber-400">🛺 Bajaj RE • M-24-AS</span>
+                            <span class="text-[10px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded font-bold border border-rose-500/30">Urgent</span>
+                        </div>
+                        <div class="text-sm font-extrabold text-white">Rider: Kwadwo Sarpong</div>
+                        <div class="text-xs text-slate-300">📞 <a href="tel:0241234567" class="text-sky-400 underline font-bold">0241234567</a></div>
+                        <div class="text-xs text-slate-400">Issue: Clutch cable snapped near High Street</div>
+                        <button onclick="dispatchMechanic('Kwadwo Sarpong', '0241234567')" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-2 rounded-xl text-xs transition">
+                            Dispatch Service Mobile
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -117,7 +103,7 @@
 
             <form id="signupForm" onsubmit="handleSignup(event)" class="space-y-3 hidden">
                 <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Workshop Name / Full Name</label>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Workshop / Full Name</label>
                     <input type="text" id="signName" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-sky-400">
                 </div>
                 <div>
@@ -140,7 +126,15 @@
     </div>
 
     <script>
+        const socket = io();
         let isOpen = true;
+
+        const map = new maplibregl.Map({
+            container: 'mechanicMap',
+            style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+            center: [-1.6244, 6.6885],
+            zoom: 13
+        });
 
         document.addEventListener('DOMContentLoaded', checkUserSession);
 
@@ -156,8 +150,8 @@
             }
         }
 
-        function dispatchMechanic(riderName) {
-            alert(`Assistance dispatched to ${riderName}! Coordinates sent to your phone.`);
+        function dispatchMechanic(riderName, phone) {
+            alert(`Mechanic dispatched to ${riderName} (${phone})! Route sent to mobile.`);
         }
 
         async function checkUserSession() {

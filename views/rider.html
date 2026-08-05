@@ -39,7 +39,7 @@
         <div class="glass-card p-6 rounded-3xl shadow-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
                 <h2 class="text-xl font-extrabold text-white">Broadcast Live GPS Location</h2>
-                <p id="statusSub" class="text-xs text-slate-400">Turn on to let nearby passengers track your Bajaj RE in real-time</p>
+                <p id="statusSub" class="text-xs text-slate-400">Turn on to let nearby passengers track your tricycle in real-time</p>
                 <div id="gpsCoords" class="text-[11px] font-mono text-emerald-400 mt-1 hidden">GPS Active: <span id="latLngVal">0.0, 0.0</span></div>
             </div>
             <button id="toggleDutyBtn" onclick="toggleDuty()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-6 py-3 rounded-2xl font-black transition shadow-lg text-sm w-full sm:w-auto">
@@ -65,7 +65,7 @@
     </main>
 
     <div id="authModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
-        <div class="glass-card w-full max-w-md p-6 rounded-3xl relative shadow-2xl">
+        <div class="glass-card w-full max-w-md p-6 rounded-3xl relative shadow-2xl max-h-[90vh] overflow-y-auto">
             <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white font-bold text-lg">✕</button>
             
             <div class="flex border-b border-slate-700 mb-6">
@@ -94,8 +94,29 @@
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Phone Contact</label>
-                    <input type="tel" id="signPhone" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-400">
+                    <input type="tel" id="signPhone" placeholder="024XXXXXXX" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-400">
                 </div>
+                
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1">Vehicle Type</label>
+                        <select id="signVehicleType" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-400">
+                            <option value="Bajaj RE">Bajaj RE</option>
+                            <option value="TVS King">TVS King</option>
+                            <option value="Piaggio Ape">Piaggio Ape</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1">Vehicle Color</label>
+                        <input type="text" id="signVehicleColor" placeholder="Yellow, Yellow/Black..." required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-400">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Number Plate</label>
+                    <input type="text" id="signPlate" placeholder="M-24-AS..." required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-400">
+                </div>
+
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Username</label>
                     <input type="text" id="signUser" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-400">
@@ -125,31 +146,42 @@
             const coordsContainer = document.getElementById('gpsCoords');
 
             if (isOnline) {
+                if (!navigator.geolocation) {
+                    alert("❌ Your browser does not support GPS location tracking.");
+                    isOnline = false;
+                    return;
+                }
+
                 btn.innerText = "🔴 GO OFFLINE";
                 btn.className = "bg-rose-500 hover:bg-rose-400 text-white px-6 py-3 rounded-2xl font-black transition shadow-lg text-sm w-full sm:w-auto";
                 coordsContainer.classList.remove('hidden');
 
-                if ("geolocation" in navigator) {
-                    watchId = navigator.geolocation.watchPosition(
-                        (pos) => {
-                            const lat = pos.coords.latitude;
-                            const lng = pos.coords.longitude;
-                            document.getElementById('latLngVal').innerText = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                watchId = navigator.geolocation.watchPosition(
+                    (pos) => {
+                        const lat = pos.coords.latitude;
+                        const lng = pos.coords.longitude;
+                        document.getElementById('latLngVal').innerText = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 
-                            socket.emit('update-location', {
-                                name: currentRiderName,
-                                vehicle: 'Bajaj RE Tricycle',
-                                phone: '0241234567',
-                                lat: lat,
-                                lng: lng
-                            });
-                        },
-                        (err) => console.error("GPS Error:", err),
-                        { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
-                    );
-                } else {
-                    alert("Geolocation is not supported by your browser.");
-                }
+                        socket.emit('update-location', {
+                            name: currentRiderName,
+                            lat: lat,
+                            lng: lng
+                        });
+                    },
+                    (err) => {
+                        let msg = "Could not access location.";
+                        if (err.code === err.PERMISSION_DENIED) {
+                            msg = "⚠️ GPS Permission Blocked! Tap the Lock icon 🔒 in your browser address bar -> Site Settings -> Allow Location, then refresh.";
+                        } else if (err.code === err.POSITION_UNAVAILABLE) {
+                            msg = "⚠️ GPS Signal unavailable. Please enable Device Location (GPS) in your phone settings.";
+                        } else if (err.code === err.TIMEOUT) {
+                            msg = "⚠️ Location request timed out. Retrying...";
+                        }
+                        alert(msg);
+                        console.error("GPS Error:", err);
+                    },
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+                );
 
             } else {
                 btn.innerText = "🟢 GO ONLINE (START GPS)";
@@ -160,8 +192,6 @@
                     navigator.geolocation.clearWatch(watchId);
                     watchId = null;
                 }
-                socket.disconnect();
-                socket.connect();
             }
         }
 
@@ -222,13 +252,25 @@
             e.preventDefault();
             const fullName = document.getElementById('signName').value;
             const contact = document.getElementById('signPhone').value;
+            const vehicleType = document.getElementById('signVehicleType').value;
+            const vehicleColor = document.getElementById('signVehicleColor').value;
+            const plateNumber = document.getElementById('signPlate').value;
             const username = document.getElementById('signUser').value;
             const password = document.getElementById('signPass').value;
 
             const res = await fetch('/api/signup', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fullName, contact, username, password, role: 'rider' })
+                body: JSON.stringify({ 
+                    fullName, 
+                    contact, 
+                    vehicleType, 
+                    vehicleColor, 
+                    plateNumber, 
+                    username, 
+                    password, 
+                    role: 'rider' 
+                })
             });
 
             const data = await res.json();
