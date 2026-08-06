@@ -132,6 +132,37 @@ app.post('/api/logout', (req, res) => {
 let activeRiders = {};
 
 io.on('connection', (socket) => {
+	// Phase B: Ride Request Handshake Listeners
+socket.on('request-ride', (payload) => {
+    // Find target rider's socket ID by username
+    const targetSocketId = Object.keys(activeRiders).find(
+        id => activeRiders[id].username === payload.targetRiderUsername
+    );
+
+    if (targetSocketId) {
+        io.to(targetSocketId).emit('incoming-ride-request', {
+            requestingPassengerSocketId: socket.id,
+            passengerName: payload.passengerName || 'Passenger',
+            passengerContact: payload.passengerContact || 'N/A',
+            pickupLat: payload.pickupLat,
+            pickupLng: payload.pickupLng,
+            estimatedFare: payload.estimatedFare,
+            distanceKm: payload.distanceKm
+        });
+    } else {
+        socket.emit('ride-error', 'Rider is no longer online.');
+    }
+});
+
+// Rider Accept/Decline Response
+socket.on('respond-ride-request', (data) => {
+    io.to(data.passengerSocketId).emit('ride-request-response', {
+        status: data.status, // 'accepted' or 'declined'
+        riderName: data.riderName,
+        riderContact: data.riderContact,
+        plateNumber: data.plateNumber
+    });
+});
     // Send existing active riders to newly connected passenger
     socket.emit('current-riders', Object.values(activeRiders));
 

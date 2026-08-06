@@ -282,6 +282,25 @@
             await fetch('/api/logout', { method: 'POST' });
             location.reload();
         }
+		    // Phase B: Incoming Dispatch Modal for Rider
+socket.on('incoming-ride-request', (req) => {
+    const accept = confirm(
+        `🚨 INCOMING RIDE REQUEST!\n\n` +
+        `👤 Passenger: ${req.passengerName}\n` +
+        `📞 Contact: ${req.passengerContact}\n` +
+        `📏 Distance: ${req.distanceKm} km away\n` +
+        `💰 Estimated Fare: GH₵ ${req.estimatedFare}\n\n` +
+        `Do you want to accept this ride?`
+    );
+
+    socket.emit('respond-ride-request', {
+        passengerSocketId: req.requestingPassengerSocketId,
+        status: accept ? 'accepted' : 'declined',
+        riderName: currentRiderName,
+        riderContact: '024XXXXXXX', // Pull from user session
+        plateNumber: 'M-24-AS'
+    });
+});
     </script>
 </body>
 </html>

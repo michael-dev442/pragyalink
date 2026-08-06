@@ -264,7 +264,48 @@
             }).join('');
         }
 
-        function flyToRider(lng, lat) {
+         // GHS Fare Calculation Logic (Base Rate + Distance)
+function calculateFareGHS(distKm) {
+    const baseFare = 5.00;     // GH₵ 5.00 base rate
+    const perKmRate = 2.50;    // GH₵ 2.50 per km
+    const fare = baseFare + (distKm * perKmRate);
+    return fare.toFixed(2);
+}
+
+function requestRideDirect(targetRiderUsername) {
+    const targetRider = Object.values(markers).find(m => m.data.username === targetRiderUsername);
+    if (!targetRider) return alert("Driver not found.");
+
+    const dist = targetRider.data.distKm;
+    const estFare = calculateFareGHS(dist);
+
+    const confirmRequest = confirm(
+        `🛺 Request ride from ${targetRider.data.fullName || targetRiderUsername}?\n\n` +
+        `📏 Distance: ${dist < 1 ? Math.round(dist * 1000) + 'm' : dist.toFixed(1) + 'km'}\n` +
+        `💰 Estimated Fare: GH₵ ${estFare}`
+    );
+
+    if (confirmRequest) {
+        socket.emit('request-ride', {
+            targetRiderUsername: targetRiderUsername,
+            passengerName: 'Passenger (' + (passengerPos.lat.toFixed(3)) + ')',
+            pickupLat: passengerPos.lat,
+            pickupLng: passengerPos.lng,
+            distanceKm: dist.toFixed(1),
+            estimatedFare: estFare
+        });
+        alert("⏱️ Ride request sent! Waiting for driver confirmation...");
+    }
+}
+
+// Listen for Rider Response
+socket.on('ride-request-response', (res) => {
+    if (res.status === 'accepted') {
+        alert(`🎉 RIDE ACCEPTED!\n\n${res.riderName} (${res.plateNumber}) is on the way!\nContact: ${res.riderContact}`);
+    } else {
+        alert(`❌ Ride declined by driver. Please pick another nearby Pragya.`);
+    }
+});
             map.flyTo({ center: [lng, lat], zoom: 17, pitch: 45, speed: 1.2 });
         }
 
