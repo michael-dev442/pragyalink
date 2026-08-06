@@ -302,5 +302,47 @@ socket.on('incoming-ride-request', (req) => {
     });
 });
     </script>
+    <div class="glass-card p-6 rounded-3xl shadow-2xl border-l-4 border-rose-500 space-y-3">
+    <div class="flex justify-between items-center">
+        <div>
+            <h3 class="text-base font-extrabold text-white flex items-center gap-2">
+                🚨 Emergency Mechanic Assistance
+            </h3>
+            <p class="text-xs text-slate-400">Stranded or experiencing vehicle failure? Alert nearby mechanics.</p>
+        </div>
+        <button onclick="triggerSOS()" class="bg-rose-600 hover:bg-rose-500 text-white font-black px-5 py-2.5 rounded-xl text-xs transition shadow-lg animate-pulse">
+            🚨 TRIGGER SOS ALERT
+        </button>
+    </div>
+</div>
+
+<script>
+    function triggerSOS() {
+        if (!isOnline || !watchId) {
+            alert("⚠️ Please tap 'GO ONLINE' first so mechanics can pinpoint your GPS location!");
+            return;
+        }
+
+        const issue = prompt("Describe vehicle issue (e.g. Flat tire, Broken Clutch Cable, Engine failure):");
+        if (!issue) return;
+
+        const currentCoords = document.getElementById('latLngVal').innerText.split(',');
+        const lat = parseFloat(currentCoords[0]);
+        const lng = parseFloat(currentCoords[1]);
+
+        socket.emit('send-mechanic-sos', {
+            riderName: currentRiderName,
+            issue: issue,
+            lat: lat,
+            lng: lng
+        });
+
+        alert("🚨 EMERGENCY SOS BROADCAST SENT! Nearby mechanics have been notified with your GPS coordinates.");
+    }
+
+    socket.on('mechanic-en-route', (data) => {
+        alert(`🛠️ MECHANIC DISPATCHED!\n\n${data.mechanicName} is on the way!\n📞 Contact: ${data.mechanicContact}\n⏱️ Estimated Arrival: ${data.eta}`);
+    });
+</script>
 </body>
 </html>

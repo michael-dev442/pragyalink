@@ -226,6 +226,69 @@
             await fetch('/api/logout', { method: 'POST' });
             location.reload();
         }
+		    const sosMarkers = {};
+
+socket.on('mechanic-distress-alert', (sos) => {
+    // 1. Play Alert Sound / Alert Banner
+    alert(`🚨 NEW ROADSIDE DISTRESS CALL!\n\nDriver: ${sos.riderName}\nVehicle: ${sos.vehicleType} (${sos.plateNumber})\nIssue: ${sos.issue}\nTime: ${sos.timestamp}`);
+
+    // 2. Add Flashing Beacon to Mechanic 3D Map
+    const el = document.createElement('div');
+    el.className = 'text-3xl animate-bounce cursor-pointer';
+    el.innerHTML = '🚨';
+
+    const popupHTML = `
+        <div class="space-y-1.5 text-xs">
+            <div class="font-extrabold text-rose-400 text-sm">🚨 BREAKDOWN ALERT</div>
+            <div class="text-white font-bold">${sos.riderName} (${sos.plateNumber})</div>
+            <div class="text-slate-300">Issue: <strong class="text-amber-400">${sos.issue}</strong></div>
+            <div class="text-slate-300">📞 <a href="tel:${sos.contact}" class="underline text-sky-300">${sos.contact}</a></div>
+            <button onclick="acceptSosDispatch('${sos.sosId}', '${sos.riderName}')" class="w-full mt-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black py-1.5 rounded-xl text-xs transition">
+                🛠️ Accept & Dispatch Mobile Van
+            </button>
+        </div>
+    `;
+
+    const popup = new maplibregl.Popup({ offset: 25 }).setHTML(popupHTML);
+
+    const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([sos.lng, sos.lat])
+        .setPopup(popup)
+        .addTo(map);
+
+    map.flyTo({ center: [sos.lng, sos.lat], zoom: 16 });
+
+    // 3. Add to Breakdown Sidebar Queue
+    const queue = document.getElementById('repairQueue');
+    const sosCard = document.createElement('div');
+    sosCard.className = "bg-rose-950/40 p-4 rounded-2xl border border-rose-500/40 space-y-2 animate-pulse";
+    sosCard.innerHTML = `
+        <div class="flex justify-between items-start">
+            <span class="text-xs font-bold text-rose-400">🚨 ${sos.vehicleType} • ${sos.plateNumber}</span>
+            <span class="text-[10px] bg-rose-500 text-white px-2 py-0.5 rounded font-bold">${sos.timestamp}</span>
+        </div>
+        <div class="text-sm font-extrabold text-white">Rider: ${sos.riderName}</div>
+        <div class="text-xs text-amber-300">Fault: ${sos.issue}</div>
+        <button onclick="acceptSosDispatch('${sos.sosId}', '${sos.riderName}')" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-2 rounded-xl text-xs transition">
+            🛠️ Dispatch Assistance
+        </button>
+    `;
+    queue.prepend(sosCard);
+});
+
+function acceptSosDispatch(sosId, riderName) {
+    const eta = prompt(`Dispatching roadside mobile to ${riderName}. Enter estimated arrival time (e.g. 10 mins):`, "10 mins");
+    if (!eta) return;
+
+    socket.emit('dispatch-mechanic-response', {
+        sosId: sosId,
+        mechanicName: 'Central Pragya Workshop',
+        mechanicContact: '0240000000',
+        eta: eta
+    });
+
+    alert(`✅ Mobile unit dispatched! Confirmation sent to ${riderName}.`);
+}
     </script>
 </body>
 </html>

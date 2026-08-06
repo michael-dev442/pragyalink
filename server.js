@@ -153,6 +153,30 @@ socket.on('request-ride', (payload) => {
         socket.emit('ride-error', 'Rider is no longer online.');
     }
 });
+	// Phase C: Emergency Mechanic SOS Handshake
+socket.on('send-mechanic-sos', (sosData) => {
+    // Broadcast SOS distress beacon to all mechanics on the network
+    io.emit('mechanic-distress-alert', {
+        sosId: socket.id,
+        riderName: sosData.riderName || 'Pragya Rider',
+        contact: sosData.contact || 'N/A',
+        plateNumber: sosData.plateNumber || 'N/A',
+        vehicleType: sosData.vehicleType || 'Bajaj RE',
+        issue: sosData.issue || 'Roadside Mechanical Breakdown',
+        lat: sosData.lat,
+        lng: sosData.lng,
+        timestamp: new Date().toLocaleTimeString()
+    });
+});
+
+socket.on('dispatch-mechanic-response', (res) => {
+    // Notify the stranded rider that help is coming
+    io.to(res.sosId).emit('mechanic-en-route', {
+        mechanicName: res.mechanicName,
+        mechanicContact: res.mechanicContact,
+        eta: res.eta || '10-15 mins'
+    });
+});
 
 // Rider Accept/Decline Response
 socket.on('respond-ride-request', (data) => {
