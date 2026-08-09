@@ -98,18 +98,18 @@
         let passengerPos = { lat: 6.6885, lng: -1.6244 }; // Default initial fallback center
         let maxRadiusKm = 5;
 
-        // Initialize MapLibre with Global Carto Vector Style & Dynamic Zoom Depth
-        const map = new maplibregl.Map({
-            container: 'map',
-            style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-            center: [passengerPos.lng, passengerPos.lat],
-            zoom: 15,
-            minZoom: 1,      // Zoom out to see all continents & countries
-            maxZoom: 20,     // Deep street level & building zoom worldwide
-            pitch: 50,       // 3D Perspective Tilt
-            bearing: 0,
-            antialias: true
-        });
+        // Switch style URL to complete raw OpenStreetMap vector data
+const map = new maplibregl.Map({
+    container: 'map',
+    style: 'https://tiles.openfreemap.org/styles/liberty', // Complete, unthrottled global OpenStreetMap details
+    center: [passengerPos.lng, passengerPos.lat],
+    zoom: 16,
+    minZoom: 1,
+    maxZoom: 20,
+    pitch: 50,
+    bearing: 0,
+    antialias: true
+});
 
         map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
 
