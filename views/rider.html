@@ -152,6 +152,8 @@
         let currentRiderData = null;
         let totalEarningsGhs = 0.00;
         let completedRidesCount = 0;
+        let driverMarker = null;
+        let targetDestinationMarker = null;
 
         // Standardized 3D OpenFreeMap Vector Engine
         const map = new maplibregl.Map({
@@ -172,7 +174,6 @@
             map.resize();
             const style = map.getStyle();
 
-            // High contrast text labels styling
             if (style && style.layers) {
                 style.layers.forEach((layer) => {
                     if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
@@ -205,13 +206,34 @@
 
         window.addEventListener('resize', () => map.resize());
 
+        // Driver Location Icon with Settings Gear Badge
+        function updateDriverLocationMarker(lat, lng) {
+            if (driverMarker) {
+                driverMarker.setLngLat([lng, lat]);
+            } else {
+                const el = document.createElement('div');
+                el.className = 'relative flex items-center justify-center cursor-pointer';
+                el.innerHTML = `
+                    <div class="relative flex items-center justify-center">
+                        <span class="text-4xl filter drop-shadow-xl animate-pulse">🛺</span>
+                        <span class="absolute -top-1 -right-1 bg-slate-900 border border-emerald-400 text-xs p-0.5 rounded-full shadow-lg animate-spin" style="animation-duration: 8s;">⚙️</span>
+                    </div>
+                `;
+
+                driverMarker = new maplibregl.Marker({ element: el })
+                    .setLngLat([lng, lat])
+                    .setPopup(new maplibregl.Popup().setHTML('<b style="color:#10b981;">⚙️ Your Live Vehicle Position</b>'))
+                    .addTo(map);
+            }
+        }
+
         // GPS Location Tracking & Real-Time Broadcast
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition((pos) => {
                 riderPos.lat = pos.coords.latitude;
                 riderPos.lng = pos.coords.longitude;
 
-                map.flyTo({ center: [riderPos.lng, riderPos.lat], zoom: 16.5, pitch: 50 });
+                updateDriverLocationMarker(riderPos.lat, riderPos.lng);
 
                 if (currentRiderData) {
                     socket.emit('update-rider-location', {
@@ -243,14 +265,7 @@
             document.getElementById('driverCardPlate').innerText = `Plate: ${currentRiderData.plateNumber}`;
             document.getElementById('driverCardContact').innerText = `📞 ${currentRiderData.contact}`;
 
-            // Add Driver Vehicle Marker on 3D Map
-            const rEl = document.createElement('div');
-            rEl.className = 'text-3xl filter drop-shadow-lg animate-bounce';
-            rEl.innerHTML = '🛺';
-            new maplibregl.Marker({ element: rEl })
-                .setLngLat([riderPos.lng, riderPos.lat])
-                .addTo(map);
-
+            updateDriverLocationMarker(riderPos.lat, riderPos.lng);
             alert(`✅ Driver Profile Active! You are now visible to passengers nearby.`);
         }
 
@@ -293,16 +308,28 @@
             document.getElementById('totalEarnings').innerText = `GH₵ ${totalEarningsGhs.toFixed(2)}`;
             document.getElementById('ridesCompleted').innerText = completedRidesCount;
 
+            // Remove existing destination pin if present
+            if (targetDestinationMarker) {
+                targetDestinationMarker.remove();
+            }
+
+            // Create Target Destination Pin (🎯) on Passenger Pickup Spot
+            const targetEl = document.createElement('div');
+            targetEl.className = 'relative flex items-center justify-center cursor-pointer';
+            targetEl.innerHTML = `
+                <div class="relative flex items-center justify-center animate-bounce">
+                    <span class="text-4xl filter drop-shadow-2xl">🎯</span>
+                    <span class="absolute -top-2 -right-2 bg-red-500 text-white font-black text-[10px] px-1.5 py-0.5 rounded-full shadow-lg">TARGET</span>
+                </div>
+            `;
+
+            targetDestinationMarker = new maplibregl.Marker({ element: targetEl })
+                .setLngLat([pickupLng, pickupLat])
+                .setPopup(new maplibregl.Popup().setHTML('<b style="color:#ef4444;">🎯 Target Pickup Destination</b>'))
+                .addTo(map);
+
             // Fly camera over to Passenger Pickup Coordinates
             map.flyTo({ center: [pickupLng, pickupLat], zoom: 18, pitch: 60, bearing: 20, speed: 1.2 });
-
-            const pEl = document.createElement('div');
-            pEl.className = 'text-3xl animate-bounce filter drop-shadow-lg';
-            pEl.innerHTML = '👤';
-            new maplibregl.Marker({ element: pEl })
-                .setLngLat([pickupLng, pickupLat])
-                .setPopup(new maplibregl.Popup().setHTML('<b style="color:#10b981;">Passenger Pickup Spot</b>'))
-                .addTo(map);
 
             // Fetch live OSRM route line from Driver location to Passenger
             try {
@@ -319,7 +346,7 @@
                     });
 
                     const etaMins = Math.round(data.routes[0].duration / 60);
-                    alert(`🎉 RIDE ACCEPTED!\n\n🗺️ Live Pickup Route streaming on 3D map.\nEst. Arrival: ~${etaMins} mins.`);
+                    alert(`🎉 RIDE ACCEPTED!\n\n🗺️ Live Pickup Route streaming to Target Destination (🎯).\nEst. Arrival: ~${etaMins} mins.`);
                 }
             } catch (err) {
                 map.getSource('pickup-route').setData({
