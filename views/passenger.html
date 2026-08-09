@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Passenger Radar | PragyaLink Ghana</title>
+    <title>3D Passenger Radar | PragyaLink Ghana</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -21,7 +21,7 @@
             width: 100%;
             height: 100%;
             min-height: 400px;
-            background-color: #1e293b; /* Dark fallback background while tiles load */
+            background-color: #0f172a;
         }
         .glass-panel {
             background: rgba(15, 23, 42, 0.94);
@@ -43,16 +43,16 @@
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
         <div class="flex items-center space-x-2">
             <a href="/" class="text-xl font-black text-white">Pragya<span class="text-emerald-400">Link 🇬🇭</span></a>
-            <span class="bg-emerald-500/20 text-emerald-300 text-xs font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
-                Live Radar
+            <span class="bg-emerald-500/20 text-emerald-300 text-xs font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 3D Ultra-Detail Radar
             </span>
         </div>
         
         <div class="flex items-center space-x-2">
             <select id="radiusSelect" onchange="updateRadius(this.value)" class="bg-slate-800 text-xs font-bold text-sky-300 border border-slate-700 px-2.5 py-1.5 rounded-lg focus:outline-none">
                 <option value="2">2 km</option>
-                <option value="5" selected>5 km</option>
-                <option value="10">10 km</option>
+                <option value="3" selected>3 km</option>
+                <option value="5">5 km</option>
             </select>
             <a href="/rider" class="text-xs bg-emerald-500 text-slate-950 font-black px-3 py-1.5 rounded-lg hover:bg-emerald-400 transition">
                 Driver Console
@@ -88,55 +88,77 @@
     <script>
         const socket = io();
         const markers = {};
-        let passengerPos = { lat: 6.6885, lng: -1.6244 }; // Default Kumasi/Nkawie center fallback
-        let maxRadiusKm = 5;
+        let passengerPos = { lat: 6.6885, lng: -1.6244 }; // Default Kumasi/Nkawie fallback
+        let maxRadiusKm = 3;
 
-        // Initialize MapLibre with High-Reliability OSM Raster Style
+        // Initialize MapLibre with High-Detail Vector Tiles & 3D Pitch
         const map = new maplibregl.Map({
             container: 'map',
-            style: {
-                'version': 8,
-                'sources': {
-                    'osm-tiles': {
-                        'type': 'raster',
-                        'tiles': [
-                            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
-                        ],
-                        'tileSize': 256,
-                        'attribution': '&copy; OpenStreetMap contributors'
-                    }
-                },
-                'layers': [
-                    {
-                        'id': 'osm-tiles-layer',
-                        'type': 'raster',
-                        'source': 'osm-tiles',
-                        'minzoom': 0,
-                        'maxzoom': 19
-                    }
-                ]
-            },
+            style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json', // High-detail Carto Voyager 3D Vector Style
             center: [passengerPos.lng, passengerPos.lat],
-            zoom: 14
+            zoom: 16.5,
+            pitch: 55,       // 3D Perspective Tilt
+            bearing: -17.6,  // Dynamic 3D Camera Angle
+            antialias: true
         });
 
-        map.addControl(new maplibregl.NavigationControl());
+        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
 
-        // FORCE MAP RESIZE AFTER DOM RENDER
+        // Enable 3D Buildings Layer once map loads
         map.on('load', () => {
             map.resize();
+
+            // Insert 3D Building Extrusions
+            const layers = map.getStyle().layers;
+            let labelLayerId;
+            for (let i = 0; i < layers.length; i++) {
+                if (layers[i].type === 'symbol' && layers[i].layout && layers[i].layout['text-field']) {
+                    labelLayerId = layers[i].id;
+                    break;
+                }
+            }
+
+            if (!map.getLayer('3d-buildings')) {
+                map.addLayer(
+                    {
+                        'id': '3d-buildings',
+                        'source': 'carto',
+                        'source-layer': 'building',
+                        'type': 'fill-extrusion',
+                        'minzoom': 14,
+                        'paint': {
+                            'fill-extrusion-color': '#1e293b',
+                            'fill-extrusion-height': [
+                                'interpolate',
+                                ['linear'],
+                                ['zoom'],
+                                14, 0,
+                                15.05, ['get', 'render_height']
+                            ],
+                            'fill-extrusion-base': [
+                                'interpolate',
+                                ['linear'],
+                                ['zoom'],
+                                14, 0,
+                                15.05, ['get', 'render_min_height']
+                            ],
+                            'fill-extrusion-opacity': 0.75
+                        }
+                    },
+                    labelLayerId
+                );
+            }
         });
+
         window.addEventListener('resize', () => map.resize());
 
-        // GPS Location Auto-Detection
+        // GPS Auto-Detection
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition((pos) => {
                 passengerPos.lat = pos.coords.latitude;
                 passengerPos.lng = pos.coords.longitude;
                 
-                map.flyTo({ center: [passengerPos.lng, passengerPos.lat], zoom: 15 });
+                map.flyTo({ center: [passengerPos.lng, passengerPos.lat], zoom: 16.5, pitch: 55 });
                 map.resize();
 
                 const pEl = document.createElement('div');
@@ -182,10 +204,10 @@
                     <div class="flex justify-between items-center gap-2">
                         <span class="font-extrabold text-emerald-400 text-sm">🛺 ${vehicleType || 'Bajaj RE'}</span>
                         <span class="bg-emerald-500/20 text-emerald-300 font-mono font-bold text-[10px] px-2 py-0.5 rounded border border-emerald-500/30">
-                            ${distKm < 1 ? Math.round(distKm * 1000) + 'm' : distKm.toFixed(1) + 'km'}
+                            ${distKm < 1 ? Math.round(distKm * 1000) + 'm away' : distKm.toFixed(1) + 'km away'}
                         </span>
                     </div>
-                    <div class="text-white font-bold">${fullName || username}</div>
+                    <div class="text-white font-bold text-sm">${fullName || username}</div>
                     <div class="text-slate-300">📞 <a href="tel:${contact}" class="underline text-sky-300 font-bold">${contact || 'N/A'}</a></div>
                     <div class="text-slate-400">Plate: <span class="text-amber-400 font-mono font-bold">${plateNumber || 'N/A'}</span></div>
                     <div class="text-emerald-400 font-bold">Est. Fare: GH₵ ${estFare}</div>
@@ -201,7 +223,7 @@
                 markers[socketId].data = { ...rider, distKm, estFare };
             } else {
                 const el = document.createElement('div');
-                el.className = 'text-3xl cursor-pointer hover:scale-125 transition-transform';
+                el.className = 'text-3xl cursor-pointer hover:scale-125 transition-transform filter drop-shadow-lg';
                 el.innerHTML = '🛺';
 
                 const popup = new maplibregl.Popup({ offset: 25 }).setHTML(popupHTML);
@@ -251,12 +273,21 @@
                             </div>
                             <div>📞 Contact: <a href="tel:${r.contact}" class="text-sky-400 font-bold underline">${r.contact || 'N/A'}</a></div>
                         </div>
-                        <button onclick="requestRideDirect('${r.username}', '${r.estFare}', '${r.distKm.toFixed(1)}')" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow-md">
-                            🛺 Request Ride
-                        </button>
+                        <div class="grid grid-cols-2 gap-2 pt-1">
+                            <button onclick="flyToRider(${r.lng}, ${r.lat})" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs border border-slate-700 transition">
+                                📍 3D Focus
+                            </button>
+                            <button onclick="requestRideDirect('${r.username}', '${r.estFare}', '${r.distKm.toFixed(1)}')" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow-md">
+                                🛺 Request
+                            </button>
+                        </div>
                     </div>
                 `;
             }).join('');
+        }
+
+        function flyToRider(lng, lat) {
+            map.flyTo({ center: [lng, lat], zoom: 18, pitch: 65, bearing: 30, speed: 1.2 });
         }
 
         function requestRideDirect(riderName, fare, dist) {
