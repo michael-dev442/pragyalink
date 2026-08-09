@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Mechanic Dispatch & Live Guidance | PragyaLink</title>
+    <title>3D Mechanic Dispatch | PragyaLink</title>
     
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#ef4444">
@@ -14,37 +14,54 @@
     <script src="/socket.io/socket.io.js"></script>
 
     <style>
-        html, body {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-        }
-        #map {
-            width: 100%;
-            height: 100%;
-            min-height: 400px;
-            background-color: #0f172a;
-        }
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.94);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-        }
-        .maplibregl-popup-content {
-            background: #0f172a !important;
-            color: #f8fafc !important;
-            border-radius: 16px;
-            border: 1px solid rgba(239, 68, 68, 0.4);
-            padding: 14px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-        }
-        .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { 
-            border-top-color: #0f172a !important; 
-        }
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #map { width: 100%; height: 100%; min-height: 400px; background-color: #0f172a; }
+        .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
+        .maplibregl-popup-content { background: #0f172a !important; color: #f8fafc !important; border-radius: 16px; border: 1px solid rgba(239, 68, 68, 0.4); padding: 14px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); }
+        .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: #0f172a !important; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
+
+    <div id="signupModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-red-500/30 shadow-2xl space-y-4">
+            <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
+                <span class="text-3xl">🛠️</span>
+                <div>
+                    <h2 class="text-xl font-black text-white">Workshop Registration</h2>
+                    <p class="text-xs text-slate-400">Register your shop to receive roadside SOS calls</p>
+                </div>
+            </div>
+
+            <form id="workshopForm" onsubmit="registerWorkshop(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Workshop / Garage Name *</label>
+                    <input type="text" id="shopName" required placeholder="e.g. Master Kwame Auto Repairs" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Owner / Lead Mechanic Name *</label>
+                    <input type="text" id="ownerName" required placeholder="e.g. Kwame Mensah" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold font-mono text-red-400 mb-1">🚨 Shop Emergency Contact (Mandatory) *</label>
+                    <input type="tel" id="shopContact" required placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-red-500/50 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500 font-mono font-bold">
+                    <p class="text-[10px] text-slate-400 mt-1">Drivers will use this number to call your shop during breakdowns.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Specialization</label>
+                    <select id="specialty" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none">
+                        <option value="Pragya & Bajaj RE Master">Pragya & Bajaj RE Master</option>
+                        <option value="Engine & Transmission Specialist">Engine & Transmission Specialist</option>
+                        <option value="Tires, Chains & Brake Doctor">Tires, Chains & Brake Doctor</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="w-full bg-red-500 hover:bg-red-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg text-sm mt-2">
+                    ✅ Register & Go Active
+                </button>
+            </form>
+        </div>
+    </div>
 
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
         <div class="flex items-center space-x-2 sm:space-x-3">
@@ -65,7 +82,6 @@
     </header>
 
     <div class="flex-1 relative flex flex-col md:flex-row min-h-0 w-full">
-        
         <div class="flex-1 relative h-full w-full">
             <div id="map"></div>
         </div>
@@ -92,13 +108,13 @@
     <script>
         const socket = io();
         const sosMarkers = {};
-        let workshopPos = { lat: 6.6885, lng: -1.6244 }; // Default Kumasi center fallback
+        let workshopPos = { lat: 6.6885, lng: -1.6244 };
+        let workshopData = null;
         let isOnline = true;
 
-        // Initialize MapLibre with OpenFreeMap High-Detail 3D Vector Style (Unified with Passenger Engine)
         const map = new maplibregl.Map({
             container: 'map',
-            style: 'https://tiles.openfreemap.org/styles/liberty', // Complete, unthrottled OpenStreetMap vectors
+            style: 'https://tiles.openfreemap.org/styles/liberty',
             center: [workshopPos.lng, workshopPos.lat],
             zoom: 16,
             minZoom: 1,
@@ -110,7 +126,6 @@
 
         map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
 
-        // Load Event: Apply High-Contrast Text Labels & 3D Building Extrusions
         map.on('load', () => {
             map.resize();
             const style = map.getStyle();
@@ -118,10 +133,7 @@
             if (style && style.layers) {
                 style.layers.forEach((layer) => {
                     if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
-                        map.setLayoutProperty(layer.id, 'text-size', [
-                            'interpolate', ['linear'], ['zoom'],
-                            2, 10, 10, 13, 16, 16, 20, 22
-                        ]);
+                        map.setLayoutProperty(layer.id, 'text-size', ['interpolate', ['linear'], ['zoom'], 2, 10, 10, 13, 16, 16, 20, 22]);
                         map.setPaintProperty(layer.id, 'text-halo-color', '#000000');
                         map.setPaintProperty(layer.id, 'text-halo-width', 2.5);
                         map.setPaintProperty(layer.id, 'text-color', '#ffffff');
@@ -129,119 +141,75 @@
                 });
             }
 
-            // Global 3D Building Extrusions
-            let firstSymbolId;
-            if (style && style.layers) {
-                for (const layer of style.layers) {
-                    if (layer.type === 'symbol') {
-                        firstSymbolId = layer.id;
-                        break;
-                    }
-                }
-            }
-
-            if (!map.getLayer('3d-buildings')) {
-                map.addLayer({
-                    'id': '3d-buildings',
-                    'source': 'openfreemap',
-                    'source-layer': 'building',
-                    'type': 'fill-extrusion',
-                    'minzoom': 14,
-                    'paint': {
-                        'fill-extrusion-color': '#1e293b',
-                        'fill-extrusion-height': [
-                            'interpolate', ['linear'], ['zoom'],
-                            14, 0, 15.05, ['get', 'render_height']
-                        ],
-                        'fill-extrusion-base': [
-                            'interpolate', ['linear'], ['zoom'],
-                            14, 0, 15.05, ['get', 'render_min_height']
-                        ],
-                        'fill-extrusion-opacity': 0.7
-                    }
-                }, firstSymbolId);
-            }
-
-            // Prepare Live Guidance Route GeoJSON Source
             map.addSource('guidance-route', {
                 'type': 'geojson',
-                'data': {
-                    'type': 'Feature',
-                    'properties': {},
-                    'geometry': {
-                        'type': 'LineString',
-                        'coordinates': []
-                    }
-                }
+                'data': { 'type': 'Feature', 'properties': {}, 'geometry': { 'type': 'LineString', 'coordinates': [] } }
             });
 
-            // Glowing Red Rescue Navigation Line Layer
             map.addLayer({
                 'id': 'guidance-route-line',
                 'type': 'line',
                 'source': 'guidance-route',
-                'layout': {
-                    'line-join': 'round',
-                    'line-cap': 'round'
-                },
-                'paint': {
-                    'line-color': '#ef4444',
-                    'line-width': 6,
-                    'line-opacity': 0.9
-                }
+                'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                'paint': { 'line-color': '#ef4444', 'line-width': 6, 'line-opacity': 0.9 }
             });
         });
 
         window.addEventListener('resize', () => map.resize());
 
-        // Auto-detect Workshop GPS Location
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition((pos) => {
                 workshopPos.lat = pos.coords.latitude;
                 workshopPos.lng = pos.coords.longitude;
-                
                 map.flyTo({ center: [workshopPos.lng, workshopPos.lat], zoom: 16, pitch: 50 });
-
-                // Workshop Location Marker
-                const wEl = document.createElement('div');
-                wEl.className = 'text-3xl filter drop-shadow-lg animate-bounce';
-                wEl.innerHTML = '🛠️';
-                new maplibregl.Marker({ element: wEl })
-                    .setLngLat([workshopPos.lng, workshopPos.lat])
-                    .addTo(map);
-
-                // Register Workshop with Socket Server
-                socket.emit('register-workshop', {
-                    name: 'Central Pragya Workshop',
-                    lat: workshopPos.lat,
-                    lng: workshopPos.lng
-                });
             });
         }
 
-        // Spherical Haversine Distance Formula (in KM)
+        function registerWorkshop(e) {
+            e.preventDefault();
+            workshopData = {
+                shopName: document.getElementById('shopName').value,
+                ownerName: document.getElementById('ownerName').value,
+                emergencyContact: document.getElementById('shopContact').value,
+                specialty: document.getElementById('specialty').value,
+                lat: workshopPos.lat,
+                lng: workshopPos.lng
+            };
+
+            socket.emit('register-workshop', workshopData);
+
+            document.getElementById('signupModal').classList.add('hidden');
+
+            const wEl = document.createElement('div');
+            wEl.className = 'text-3xl filter drop-shadow-lg animate-bounce';
+            wEl.innerHTML = '🛠️';
+            
+            const shopPopup = new maplibregl.Popup({ offset: 25 }).setHTML(`
+                <div class="text-xs space-y-1">
+                    <div class="font-extrabold text-red-400 text-sm">🛠️ ${workshopData.shopName}</div>
+                    <div class="text-white">Owner: ${workshopData.ownerName}</div>
+                    <div class="text-emerald-400 font-bold">📞 SOS: <a href="tel:${workshopData.emergencyContact}" class="underline">${workshopData.emergencyContact}</a></div>
+                    <div class="text-slate-400">${workshopData.specialty}</div>
+                </div>
+            `);
+
+            new maplibregl.Marker({ element: wEl })
+                .setLngLat([workshopPos.lng, workshopPos.lat])
+                .setPopup(shopPopup)
+                .addTo(map);
+
+            alert(`✅ ${workshopData.shopName} is now registered & active on the network!`);
+        }
+
         function calculateDistanceKm(lat1, lon1, lat2, lon2) {
             const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         }
 
-        // Listen for Real-Time Breakdown SOS Beacons from Stranded Drivers
-        socket.on('driver-sos-alert', (sosData) => {
-            addOrUpdateSosBeacon(sosData);
-        });
-
-        socket.on('sos-resolved', (driverUsername) => {
-            if (sosMarkers[driverUsername]) {
-                sosMarkers[driverUsername].marker.remove();
-                delete sosMarkers[driverUsername];
-                renderSosQueue();
-            }
-        });
+        socket.on('driver-sos-alert', (sosData) => addOrUpdateSosBeacon(sosData));
 
         function addOrUpdateSosBeacon(sosData) {
             const { username, fullName, contact, plateNumber, issue, lat, lng } = sosData;
@@ -256,7 +224,7 @@
                         </span>
                     </div>
                     <div class="text-white font-bold text-sm">${fullName || username}</div>
-                    <div class="text-amber-300 font-bold">Issue: ${issue || 'General Engine Failure'}</div>
+                    <div class="text-amber-300 font-bold">Issue: ${issue || 'General Breakdown'}</div>
                     <div class="text-slate-300">📞 <a href="tel:${contact}" class="underline text-sky-300 font-bold">${contact || 'N/A'}</a></div>
                     <div class="text-slate-400">Plate: <span class="text-amber-400 font-mono font-bold">${plateNumber || 'N/A'}</span></div>
                     <button onclick="streamLiveGuidance(${lat}, ${lng}, '${username}')" class="w-full mt-2 bg-red-500 hover:bg-red-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow-md">
@@ -275,19 +243,13 @@
                 el.innerHTML = '🚨';
 
                 const popup = new maplibregl.Popup({ offset: 25 }).setHTML(popupHTML);
-                const marker = new maplibregl.Marker({ element: el })
-                    .setLngLat([lng, lat])
-                    .setPopup(popup)
-                    .addTo(map);
+                const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
 
                 sosMarkers[username] = { marker, popup, data: { ...sosData, distKm } };
             }
 
             renderSosQueue();
-            
-            // Audio Chime Alert for Mechanic
-            const alertAudio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-            alertAudio.play().catch(() => {});
+            new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play().catch(() => {});
         }
 
         function renderSosQueue() {
@@ -320,9 +282,7 @@
                         </div>
 
                         <div class="text-xs space-y-1 text-slate-300">
-                            <div class="flex justify-between">
-                                <span>📍 Location: <strong class="text-white">${formattedDist}</strong></span>
-                            </div>
+                            <div>📍 Location: <strong class="text-white">${formattedDist}</strong></div>
                             <div>📞 Contact: <a href="tel:${s.contact}" class="text-sky-400 font-bold underline">${s.contact || 'N/A'}</a></div>
                         </div>
 
@@ -343,60 +303,36 @@
             map.flyTo({ center: [lng, lat], zoom: 18, pitch: 65, bearing: 30, speed: 1.2 });
         }
 
-        // Live Stream Guidance Routing Engine (Draws exact route line on 3D map)
         async function streamLiveGuidance(targetLat, targetLng, username) {
             flyToTarget(targetLng, targetLat);
 
             try {
-                // Fetch dynamic OSRM routing stream between Workshop and Faulty Vehicle
                 const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${workshopPos.lng},${workshopPos.lat};${targetLng},${targetLat}?overview=full&geometries=geojson`);
                 const data = await response.json();
 
                 if (data.routes && data.routes.length > 0) {
                     const routeCoordinates = data.routes[0].geometry.coordinates;
-
-                    // Update Map GeoJSON source to render glowing red route line
                     map.getSource('guidance-route').setData({
                         'type': 'Feature',
                         'properties': {},
-                        'geometry': {
-                            'type': 'LineString',
-                            'coordinates': routeCoordinates
-                        }
+                        'geometry': { 'type': 'LineString', 'coordinates': routeCoordinates }
                     });
-
-                    const distKm = (data.routes[0].distance / 1000).toFixed(1);
-                    const durationMin = Math.round(data.routes[0].duration / 60);
-
-                    alert(`🗺️ LIVE STREAM GUIDANCE ACTIVE!\n\nDistance to Vehicle: ${distKm} km\nEst. Rescue Arrival: ~${durationMin} mins\n\nRed guidance vector line drawn on 3D map!`);
+                    alert(`🗺️ LIVE RESCUE STREAM ACTIVE!\n\nDistance to Vehicle: ${(data.routes[0].distance / 1000).toFixed(1)} km\nEst. Arrival: ~${Math.round(data.routes[0].duration / 60)} mins`);
                 }
             } catch (err) {
-                // Fallback straight-line vector routing
                 map.getSource('guidance-route').setData({
                     'type': 'Feature',
                     'properties': {},
-                    'geometry': {
-                        'type': 'LineString',
-                        'coordinates': [
-                            [workshopPos.lng, workshopPos.lat],
-                            [targetLng, targetLat]
-                        ]
-                    }
+                    'geometry': { 'type': 'LineString', 'coordinates': [[workshopPos.lng, workshopPos.lat], [targetLng, targetLat]] }
                 });
-                alert("🗺️ Streaming direct vector route line to faulty vehicle location!");
             }
         }
 
         function toggleWorkshopStatus() {
             isOnline = !isOnline;
             const btn = document.getElementById('toggleWorkshopBtn');
-            if (isOnline) {
-                btn.className = "text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3 py-1.5 rounded-lg transition shadow-md";
-                btn.innerText = "🟢 Workshop Active";
-            } else {
-                btn.className = "text-xs bg-slate-700 text-slate-300 font-bold px-3 py-1.5 rounded-lg transition";
-                btn.innerText = "🔴 Workshop Offline";
-            }
+            btn.className = isOnline ? "text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3 py-1.5 rounded-lg transition shadow-md" : "text-xs bg-slate-700 text-slate-300 font-bold px-3 py-1.5 rounded-lg transition";
+            btn.innerText = isOnline ? "🟢 Workshop Active" : "🔴 Workshop Offline";
         }
     </script>
 </body>
