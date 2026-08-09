@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Passenger Radar | PragyaLink Ghana</title>
     
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#10b981">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
@@ -34,27 +37,31 @@
             border-radius: 16px;
             border: 1px solid rgba(56, 189, 248, 0.3);
             padding: 14px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
         }
-        .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: #0f172a !important; }
+        .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { 
+            border-top-color: #0f172a !important; 
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
 
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
-        <div class="flex items-center space-x-2">
-            <a href="/" class="text-xl font-black text-white">Pragya<span class="text-emerald-400">Link 🇬🇭</span></a>
-            <span class="bg-emerald-500/20 text-emerald-300 text-xs font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1.5">
+        <div class="flex items-center space-x-2 sm:space-x-3">
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-emerald-400">Link 🇬🇭</span></a>
+            <span class="bg-emerald-500/20 text-emerald-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 3D Ultra-Detail Radar
             </span>
         </div>
         
         <div class="flex items-center space-x-2">
             <select id="radiusSelect" onchange="updateRadius(this.value)" class="bg-slate-800 text-xs font-bold text-sky-300 border border-slate-700 px-2.5 py-1.5 rounded-lg focus:outline-none">
-                <option value="2">2 km</option>
-                <option value="3" selected>3 km</option>
-                <option value="5">5 km</option>
+                <option value="2">2 km Radius</option>
+                <option value="3" selected>3 km Radius</option>
+                <option value="5">5 km Radius</option>
+                <option value="10">10 km Radius</option>
             </select>
-            <a href="/rider" class="text-xs bg-emerald-500 text-slate-950 font-black px-3 py-1.5 rounded-lg hover:bg-emerald-400 transition">
+            <a href="/rider" class="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3 py-1.5 rounded-lg transition shadow-md">
                 Driver Console
             </a>
         </div>
@@ -70,16 +77,16 @@
             <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-800">
                 <div>
                     <h2 class="text-sm sm:text-base font-black text-white">Active Drivers</h2>
-                    <p class="text-[10px] text-slate-400">Nearby Pragya & Bajaj riders</p>
+                    <p class="text-[10px] text-slate-400">Filtered within operational distance</p>
                 </div>
                 <span id="activeCount" class="bg-emerald-500/20 text-emerald-400 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-emerald-500/30">
                     0 Nearby
                 </span>
             </div>
 
-            <div id="riderList" class="space-y-3 flex-1 overflow-y-auto">
+            <div id="riderList" class="space-y-3 flex-1 overflow-y-auto pr-1">
                 <div id="emptyMsg" class="text-xs text-slate-400 text-center py-8">
-                    Scanning area for active drivers...
+                    Scanning for active Pragya drivers in your operational area...
                 </div>
             </div>
         </aside>
@@ -88,33 +95,58 @@
     <script>
         const socket = io();
         const markers = {};
-        let passengerPos = { lat: 6.6885, lng: -1.6244 }; // Default Kumasi/Nkawie fallback
+        let passengerPos = { lat: 6.6885, lng: -1.6244 }; // Kumasi/Nkawie fallback center
         let maxRadiusKm = 3;
 
-        // Initialize MapLibre with High-Detail Vector Tiles & 3D Pitch
+        // Initialize MapLibre with High-Detail Carto Vector Style
         const map = new maplibregl.Map({
             container: 'map',
-            style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json', // High-detail Carto Voyager 3D Vector Style
+            style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
             center: [passengerPos.lng, passengerPos.lat],
             zoom: 16.5,
-            pitch: 55,       // 3D Perspective Tilt
-            bearing: -17.6,  // Dynamic 3D Camera Angle
+            pitch: 55,       // 3D Tilt Angle
+            bearing: -17.6,  // Dynamic Perspective Heading
             antialias: true
         });
 
         map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
 
-        // Enable 3D Buildings Layer once map loads
+        // Map Load Event: Enhance Street Labels Visibility & Insert 3D Buildings
         map.on('load', () => {
             map.resize();
 
-            // Insert 3D Building Extrusions
-            const layers = map.getStyle().layers;
-            let labelLayerId;
-            for (let i = 0; i < layers.length; i++) {
-                if (layers[i].type === 'symbol' && layers[i].layout && layers[i].layout['text-field']) {
-                    labelLayerId = layers[i].id;
-                    break;
+            const style = map.getStyle();
+            
+            // 1. DYNAMICALLY ENHANCE ALL TEXT & STREET LABELS FOR MAXIMUM VISIBILITY
+            if (style && style.layers) {
+                style.layers.forEach((layer) => {
+                    if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
+                        // Dynamic text scaling based on zoom depth
+                        map.setLayoutProperty(layer.id, 'text-size', [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            10, 12,
+                            16, 16,
+                            19, 20
+                        ]);
+
+                        // High-contrast text halos (black outlines, crisp white text)
+                        map.setPaintProperty(layer.id, 'text-halo-color', '#000000');
+                        map.setPaintProperty(layer.id, 'text-halo-width', 2.5);
+                        map.setPaintProperty(layer.id, 'text-color', '#ffffff');
+                    }
+                });
+            }
+
+            // 2. INSERT 3D BUILDINGS LAYER UNDERNEATH TEXT LABELS
+            let firstSymbolId;
+            if (style && style.layers) {
+                for (const layer of style.layers) {
+                    if (layer.type === 'symbol') {
+                        firstSymbolId = layer.id;
+                        break;
+                    }
                 }
             }
 
@@ -142,17 +174,17 @@
                                 14, 0,
                                 15.05, ['get', 'render_min_height']
                             ],
-                            'fill-extrusion-opacity': 0.75
+                            'fill-extrusion-opacity': 0.7
                         }
                     },
-                    labelLayerId
+                    firstSymbolId
                 );
             }
         });
 
         window.addEventListener('resize', () => map.resize());
 
-        // GPS Auto-Detection
+        // Auto-detect Passenger GPS Location
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition((pos) => {
                 passengerPos.lat = pos.coords.latitude;
@@ -161,22 +193,32 @@
                 map.flyTo({ center: [passengerPos.lng, passengerPos.lat], zoom: 16.5, pitch: 55 });
                 map.resize();
 
+                // Add Passenger Flashing GPS Pin
                 const pEl = document.createElement('div');
                 pEl.className = 'w-4 h-4 bg-sky-500 rounded-full border-2 border-white shadow-lg animate-ping';
                 new maplibregl.Marker({ element: pEl })
                     .setLngLat([passengerPos.lng, passengerPos.lat])
                     .addTo(map);
-            });
+            }, () => console.log("Using location fallback center."));
         }
 
+        // Haversine Spherical Distance Formula (in KM)
         function calculateDistanceKm(lat1, lon1, lat2, lon2) {
-            const R = 6371;
+            const R = 6371; // Earth's radius in km
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
                       Math.sin(dLon / 2) * Math.sin(dLon / 2);
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+        }
+
+        // GHS Fare Calculation Logic (GH₵ 5.00 Base + GH₵ 2.50 / km)
+        function calculateFareGHS(distKm) {
+            const baseFare = 5.00;
+            const perKmRate = 2.50;
+            const fare = baseFare + (distKm * perKmRate);
+            return fare.toFixed(2);
         }
 
         function updateRadius(val) {
@@ -197,7 +239,7 @@
         function updateOrAddRider(rider) {
             const { socketId, username, fullName, contact, vehicleType, vehicleColor, plateNumber, lat, lng } = rider;
             const distKm = calculateDistanceKm(passengerPos.lat, passengerPos.lng, lat, lng);
-            const estFare = (5 + (distKm * 2.5)).toFixed(2);
+            const estFare = calculateFareGHS(distKm);
 
             const popupHTML = `
                 <div class="space-y-1.5 text-xs">
@@ -210,7 +252,7 @@
                     <div class="text-white font-bold text-sm">${fullName || username}</div>
                     <div class="text-slate-300">📞 <a href="tel:${contact}" class="underline text-sky-300 font-bold">${contact || 'N/A'}</a></div>
                     <div class="text-slate-400">Plate: <span class="text-amber-400 font-mono font-bold">${plateNumber || 'N/A'}</span></div>
-                    <div class="text-emerald-400 font-bold">Est. Fare: GH₵ ${estFare}</div>
+                    <div class="text-emerald-400 font-bold">Est. Fare: GH₵ ${estFare} (Cash / MoMo)</div>
                     <button onclick="requestRideDirect('${username}', '${estFare}', '${distKm.toFixed(1)}')" class="w-full mt-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow-md">
                         🛺 Request Ride
                     </button>
@@ -227,7 +269,10 @@
                 el.innerHTML = '🛺';
 
                 const popup = new maplibregl.Popup({ offset: 25 }).setHTML(popupHTML);
-                const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
+                const marker = new maplibregl.Marker({ element: el })
+                    .setLngLat([lng, lat])
+                    .setPopup(popup)
+                    .addTo(map);
 
                 markers[socketId] = { marker, popup, data: { ...rider, distKm, estFare } };
             }
@@ -242,19 +287,21 @@
 
             count.innerText = `${keys.length} Nearby`;
 
+            // Toggle map marker visibility based on Haversine distance geofence
             Object.keys(markers).forEach(id => {
                 markers[id].marker.getElement().style.display = markers[id].data.distKm <= maxRadiusKm ? 'block' : 'none';
             });
 
             if (keys.length === 0) {
-                list.innerHTML = `<div class="text-xs text-slate-400 text-center py-8">No active Pragya drivers found within ${maxRadiusKm}km.</div>`;
+                list.innerHTML = `<div class="text-xs text-slate-400 text-center py-8">No active Pragya drivers found within ${maxRadiusKm}km. Try expanding your search radius!</div>`;
                 return;
             }
 
             list.innerHTML = keys.map(id => {
                 const r = markers[id].data;
+                const formattedDist = r.distKm < 1 ? `${Math.round(r.distKm * 1000)} meters away` : `${r.distKm.toFixed(1)} km away`;
                 return `
-                    <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2 hover:border-emerald-500/50 transition">
+                    <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2 hover:border-emerald-500/50 transition shadow-md">
                         <div class="flex justify-between items-start">
                             <div>
                                 <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30">
@@ -266,13 +313,16 @@
                                 ${r.plateNumber || 'N/A'}
                             </span>
                         </div>
+
                         <div class="text-xs space-y-1 text-slate-300">
                             <div class="flex justify-between">
-                                <span>🎨 ${r.vehicleColor || 'Yellow'}</span>
-                                <span class="text-emerald-400 font-bold">GH₵ ${r.estFare}</span>
+                                <span>🎨 Color: <strong class="text-white">${r.vehicleColor || 'Yellow'}</strong></span>
+                                <span class="text-emerald-400 font-bold">${formattedDist}</span>
                             </div>
                             <div>📞 Contact: <a href="tel:${r.contact}" class="text-sky-400 font-bold underline">${r.contact || 'N/A'}</a></div>
+                            <div class="text-emerald-400 font-bold">Estimated Fare: GH₵ ${r.estFare}</div>
                         </div>
+
                         <div class="grid grid-cols-2 gap-2 pt-1">
                             <button onclick="flyToRider(${r.lng}, ${r.lat})" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs border border-slate-700 transition">
                                 📍 3D Focus
@@ -291,8 +341,14 @@
         }
 
         function requestRideDirect(riderName, fare, dist) {
-            const payMethod = confirm(`🛺 Confirm Request to ${riderName}?\n\nDistance: ${dist} km\nFare: GH₵ ${fare}\n\nPress OK to send request.`);
-            if (payMethod) {
+            const confirmRequest = confirm(
+                `🛺 Confirm Ride Request to ${riderName}?\n\n` +
+                `📏 Distance: ${dist} km away\n` +
+                `💰 Estimated Fare: GH₵ ${fare}\n\n` +
+                `Press OK to send dispatch request directly to driver.`
+            );
+
+            if (confirmRequest) {
                 socket.emit('request-ride', {
                     targetRiderUsername: riderName,
                     passengerName: 'Passenger',
@@ -301,15 +357,16 @@
                     distanceKm: dist,
                     estimatedFare: fare
                 });
-                alert("⏱️ Ride request sent to driver! Waiting for response...");
+                alert("⏱️ Ride request sent to driver! Waiting for confirmation...");
             }
         }
 
+        // Handle Live Driver Dispatch Response
         socket.on('ride-request-response', (res) => {
             if (res.status === 'accepted') {
                 alert(`🎉 RIDE ACCEPTED!\n\nDriver: ${res.riderName}\nPlate: ${res.plateNumber}\nPhone: ${res.riderContact}\n\nDriver is heading to your position!`);
             } else {
-                alert(`❌ Driver declined. Select another nearby driver.`);
+                alert(`❌ Driver declined. Please choose another nearby Pragya.`);
             }
         });
     </script>
