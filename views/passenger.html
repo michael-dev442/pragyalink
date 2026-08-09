@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Passenger Radar | PragyaLink Ghana</title>
+    <title>Global 3D Passenger Radar | PragyaLink</title>
     
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#10b981">
@@ -48,18 +48,18 @@
 
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
         <div class="flex items-center space-x-2 sm:space-x-3">
-            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-emerald-400">Link 🇬🇭</span></a>
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-emerald-400">Link 🌍</span></a>
             <span class="bg-emerald-500/20 text-emerald-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 3D Ultra-Detail Radar
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Global Coverage
             </span>
         </div>
         
         <div class="flex items-center space-x-2">
             <select id="radiusSelect" onchange="updateRadius(this.value)" class="bg-slate-800 text-xs font-bold text-sky-300 border border-slate-700 px-2.5 py-1.5 rounded-lg focus:outline-none">
                 <option value="2">2 km Radius</option>
-                <option value="3" selected>3 km Radius</option>
-                <option value="5">5 km Radius</option>
+                <option value="5" selected>5 km Radius</option>
                 <option value="10">10 km Radius</option>
+                <option value="50">50 km Radius</option>
             </select>
             <a href="/rider" class="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3 py-1.5 rounded-lg transition shadow-md">
                 Driver Console
@@ -77,7 +77,7 @@
             <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-800">
                 <div>
                     <h2 class="text-sm sm:text-base font-black text-white">Active Drivers</h2>
-                    <p class="text-[10px] text-slate-400">Filtered within operational distance</p>
+                    <p class="text-[10px] text-slate-400">Worldwide Live Tracking</p>
                 </div>
                 <span id="activeCount" class="bg-emerald-500/20 text-emerald-400 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-emerald-500/30">
                     0 Nearby
@@ -86,7 +86,7 @@
 
             <div id="riderList" class="space-y-3 flex-1 overflow-y-auto pr-1">
                 <div id="emptyMsg" class="text-xs text-slate-400 text-center py-8">
-                    Scanning for active Pragya drivers in your operational area...
+                    Scanning area for active drivers...
                 </div>
             </div>
         </aside>
@@ -95,43 +95,44 @@
     <script>
         const socket = io();
         const markers = {};
-        let passengerPos = { lat: 6.6885, lng: -1.6244 }; // Kumasi/Nkawie fallback center
-        let maxRadiusKm = 3;
+        let passengerPos = { lat: 6.6885, lng: -1.6244 }; // Default initial fallback center
+        let maxRadiusKm = 5;
 
-        // Initialize MapLibre with High-Detail Carto Vector Style
+        // Initialize MapLibre with Global Carto Vector Style & Dynamic Zoom Depth
         const map = new maplibregl.Map({
             container: 'map',
             style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
             center: [passengerPos.lng, passengerPos.lat],
-            zoom: 16.5,
-            pitch: 55,       // 3D Tilt Angle
-            bearing: -17.6,  // Dynamic Perspective Heading
+            zoom: 15,
+            minZoom: 1,      // Zoom out to see all continents & countries
+            maxZoom: 20,     // Deep street level & building zoom worldwide
+            pitch: 50,       // 3D Perspective Tilt
+            bearing: 0,
             antialias: true
         });
 
         map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
 
-        // Map Load Event: Enhance Street Labels Visibility & Insert 3D Buildings
+        // Map Load Event: Enhance Global Street Labels Visibility & Insert 3D Buildings
         map.on('load', () => {
             map.resize();
 
             const style = map.getStyle();
             
-            // 1. DYNAMICALLY ENHANCE ALL TEXT & STREET LABELS FOR MAXIMUM VISIBILITY
             if (style && style.layers) {
                 style.layers.forEach((layer) => {
                     if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
-                        // Dynamic text scaling based on zoom depth
+                        // High contrast labels on global zoom levels
                         map.setLayoutProperty(layer.id, 'text-size', [
                             'interpolate',
                             ['linear'],
                             ['zoom'],
-                            10, 12,
+                            2, 10,
+                            10, 13,
                             16, 16,
-                            19, 20
+                            20, 22
                         ]);
 
-                        // High-contrast text halos (black outlines, crisp white text)
                         map.setPaintProperty(layer.id, 'text-halo-color', '#000000');
                         map.setPaintProperty(layer.id, 'text-halo-width', 2.5);
                         map.setPaintProperty(layer.id, 'text-color', '#ffffff');
@@ -139,7 +140,7 @@
                 });
             }
 
-            // 2. INSERT 3D BUILDINGS LAYER UNDERNEATH TEXT LABELS
+            // Global 3D Building Layer
             let firstSymbolId;
             if (style && style.layers) {
                 for (const layer of style.layers) {
@@ -184,27 +185,26 @@
 
         window.addEventListener('resize', () => map.resize());
 
-        // Auto-detect Passenger GPS Location
+        // Global Geolocation Detection
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition((pos) => {
                 passengerPos.lat = pos.coords.latitude;
                 passengerPos.lng = pos.coords.longitude;
                 
-                map.flyTo({ center: [passengerPos.lng, passengerPos.lat], zoom: 16.5, pitch: 55 });
+                map.flyTo({ center: [passengerPos.lng, passengerPos.lat], zoom: 16, pitch: 50 });
                 map.resize();
 
-                // Add Passenger Flashing GPS Pin
                 const pEl = document.createElement('div');
                 pEl.className = 'w-4 h-4 bg-sky-500 rounded-full border-2 border-white shadow-lg animate-ping';
                 new maplibregl.Marker({ element: pEl })
                     .setLngLat([passengerPos.lng, passengerPos.lat])
                     .addTo(map);
-            }, () => console.log("Using location fallback center."));
+            }, () => console.log("Using default map center. Navigable worldwide."));
         }
 
-        // Haversine Spherical Distance Formula (in KM)
+        // Spherical Distance Calculation
         function calculateDistanceKm(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Earth's radius in km
+            const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -213,7 +213,6 @@
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         }
 
-        // GHS Fare Calculation Logic (GH₵ 5.00 Base + GH₵ 2.50 / km)
         function calculateFareGHS(distKm) {
             const baseFare = 5.00;
             const perKmRate = 2.50;
@@ -252,7 +251,7 @@
                     <div class="text-white font-bold text-sm">${fullName || username}</div>
                     <div class="text-slate-300">📞 <a href="tel:${contact}" class="underline text-sky-300 font-bold">${contact || 'N/A'}</a></div>
                     <div class="text-slate-400">Plate: <span class="text-amber-400 font-mono font-bold">${plateNumber || 'N/A'}</span></div>
-                    <div class="text-emerald-400 font-bold">Est. Fare: GH₵ ${estFare} (Cash / MoMo)</div>
+                    <div class="text-emerald-400 font-bold">Est. Fare: GH₵ ${estFare}</div>
                     <button onclick="requestRideDirect('${username}', '${estFare}', '${distKm.toFixed(1)}')" class="w-full mt-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow-md">
                         🛺 Request Ride
                     </button>
@@ -287,13 +286,12 @@
 
             count.innerText = `${keys.length} Nearby`;
 
-            // Toggle map marker visibility based on Haversine distance geofence
             Object.keys(markers).forEach(id => {
                 markers[id].marker.getElement().style.display = markers[id].data.distKm <= maxRadiusKm ? 'block' : 'none';
             });
 
             if (keys.length === 0) {
-                list.innerHTML = `<div class="text-xs text-slate-400 text-center py-8">No active Pragya drivers found within ${maxRadiusKm}km. Try expanding your search radius!</div>`;
+                list.innerHTML = `<div class="text-xs text-slate-400 text-center py-8">No active drivers found within ${maxRadiusKm}km radius.</div>`;
                 return;
             }
 
@@ -320,7 +318,7 @@
                                 <span class="text-emerald-400 font-bold">${formattedDist}</span>
                             </div>
                             <div>📞 Contact: <a href="tel:${r.contact}" class="text-sky-400 font-bold underline">${r.contact || 'N/A'}</a></div>
-                            <div class="text-emerald-400 font-bold">Estimated Fare: GH₵ ${r.estFare}</div>
+                            <div class="text-emerald-400 font-bold">Est. Fare: GH₵ ${r.estFare}</div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-2 pt-1">
@@ -361,7 +359,6 @@
             }
         }
 
-        // Handle Live Driver Dispatch Response
         socket.on('ride-request-response', (res) => {
             if (res.status === 'accepted') {
                 alert(`🎉 RIDE ACCEPTED!\n\nDriver: ${res.riderName}\nPlate: ${res.plateNumber}\nPhone: ${res.riderContact}\n\nDriver is heading to your position!`);
