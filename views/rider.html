@@ -3,346 +3,360 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pragya Rider Hub | PragyaLink</title>
+    <title>3D Driver Console | PragyaLink Ghana</title>
+    
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#10b981">
+
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="/socket.io/socket.io.js"></script>
+
     <style>
-        .glass-card {
-            background: rgba(15, 23, 42, 0.92);
-            backdrop-filter: blur(14px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-        }
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #map { width: 100%; height: 100%; min-height: 400px; background-color: #0f172a; }
+        .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
+        .maplibregl-popup-content { background: #0f172a !important; color: #f8fafc !important; border-radius: 16px; border: 1px solid rgba(16, 185, 129, 0.4); padding: 14px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); }
+        .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: #0f172a !important; }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex flex-col">
+<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
 
-    <header class="bg-slate-800 border-b border-slate-700 px-6 py-3.5 flex justify-between items-center z-10 shadow-md">
-        <div class="flex items-center space-x-3">
-            <a href="/" class="text-2xl font-black text-white tracking-wide">Pragya<span class="text-emerald-400">Rider</span></a>
-            <span class="bg-emerald-500/20 text-emerald-300 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-500/30">
-                🛺 Driver Console
+    <div id="driverModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-emerald-500/30 shadow-2xl space-y-4">
+            <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
+                <span class="text-3xl">🛺</span>
+                <div>
+                    <h2 class="text-xl font-black text-white">Driver Console Access</h2>
+                    <p class="text-xs text-slate-400">Set up your vehicle details to go online</p>
+                </div>
+            </div>
+
+            <form id="driverForm" onsubmit="registerRider(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Full Name *</label>
+                    <input type="text" id="fullName" required placeholder="e.g. Kwame Mensah" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Phone Number (MoMo Enabled) *</label>
+                    <input type="tel" id="contact" required placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1">Vehicle Type</label>
+                        <select id="vehicleType" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none">
+                            <option value="Bajaj RE">Bajaj RE</option>
+                            <option value="TVS King">TVS King</option>
+                            <option value="Mahindra Alfa">Mahindra Alfa</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1">Plate Number *</label>
+                        <input type="text" id="plateNumber" required placeholder="e.g. M-24-AS" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono uppercase">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg text-sm mt-2">
+                    🚀 Start Driving & Go Live
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="sosModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-red-500/40 shadow-2xl space-y-4">
+            <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
+                <span class="text-3xl">🚨</span>
+                <div>
+                    <h2 class="text-xl font-black text-white">Emergency Breakdown SOS</h2>
+                    <p class="text-xs text-slate-400">Broadcast your GPS location to nearby workshops</p>
+                </div>
+            </div>
+
+            <form onsubmit="sendBreakdownSos(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Select Issue *</label>
+                    <select id="sosIssue" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none">
+                        <option value="Engine Failure / Won't Start">Engine Failure / Won't Start</option>
+                        <option value="Flat Tire / Rim Damage">Flat Tire / Rim Damage</option>
+                        <option value="Snapped Chain / Transmission Fault">Snapped Chain / Transmission Fault</option>
+                        <option value="Brake Pad / Cable Failure">Brake Pad / Cable Failure</option>
+                    </select>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeSosModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="w-1/2 bg-red-500 hover:bg-red-400 text-slate-950 font-black py-2.5 rounded-xl text-xs transition shadow-lg">
+                        🚨 Broadcast SOS
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
+        <div class="flex items-center space-x-2 sm:space-x-3">
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-emerald-400">Driver 🛺</span></a>
+            <span id="statusBadge" class="bg-emerald-500/20 text-emerald-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Online & Active
             </span>
         </div>
         
-        <div class="flex items-center space-x-3">
-            <span id="userGreeting" class="text-xs text-emerald-400 font-bold hidden sm:inline"></span>
-            <button id="authBtn" onclick="openAuthModal()" class="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3.5 py-2 rounded-lg font-bold transition">
-                Log In / Sign Up
+        <div class="flex items-center space-x-2">
+            <button onclick="openSosModal()" class="text-xs bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-slate-950 font-black px-3 py-1.5 rounded-lg border border-red-500/30 transition shadow-md flex items-center gap-1">
+                🚨 Breakdown SOS
             </button>
-            <a href="/" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3.5 py-2 rounded-lg font-semibold transition">
-                Home Hub
+            <a href="/mechanic" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg transition border border-slate-700">
+                Workshops
             </a>
         </div>
     </header>
 
-    <main class="flex-1 p-6 max-w-4xl mx-auto w-full space-y-6">
-        <div class="glass-card p-6 rounded-3xl shadow-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-                <h2 class="text-xl font-extrabold text-white">Broadcast Live GPS Location</h2>
-                <p id="statusSub" class="text-xs text-slate-400">Turn on to let nearby passengers track your tricycle in real-time</p>
-                <div id="gpsCoords" class="text-[11px] font-mono text-emerald-400 mt-1 hidden">GPS Active: <span id="latLngVal">0.0, 0.0</span></div>
-            </div>
-            <button id="toggleDutyBtn" onclick="toggleDuty()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-6 py-3 rounded-2xl font-black transition shadow-lg text-sm w-full sm:w-auto">
-                🟢 GO ONLINE (START GPS)
-            </button>
+    <div class="flex-1 relative flex flex-col md:flex-row min-h-0 w-full">
+        <div class="flex-1 relative h-full w-full">
+            <div id="map"></div>
         </div>
 
-        <div class="glass-card p-6 rounded-3xl shadow-2xl space-y-4">
-            <h3 class="text-base font-bold text-white border-b border-slate-700 pb-3">🛺 Live Passenger Pickup Queue</h3>
-            
-            <div id="requestList" class="space-y-3">
-                <div class="bg-slate-800/80 p-4 rounded-2xl border border-slate-700 flex justify-between items-center">
-                    <div>
-                        <div class="text-sm font-bold text-white">Pickup Request: Nkawie Market Circle</div>
-                        <div class="text-xs text-slate-400">Passenger waiting near Main Station • 2 mins away</div>
-                    </div>
-                    <button onclick="acceptRide()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition">
-                        Accept Ride
-                    </button>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <div id="authModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
-        <div class="glass-card w-full max-w-md p-6 rounded-3xl relative shadow-2xl max-h-[90vh] overflow-y-auto">
-            <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white font-bold text-lg">✕</button>
-            
-            <div class="flex border-b border-slate-700 mb-6">
-                <button id="tabLogin" onclick="switchAuthTab('login')" class="flex-1 py-2 font-bold text-sm text-emerald-400 border-b-2 border-emerald-400">Log In</button>
-                <button id="tabSignup" onclick="switchAuthTab('signup')" class="flex-1 py-2 font-bold text-sm text-slate-400">Sign Up</button>
+        <aside class="w-full md:w-80 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4">
+            <div class="border-b border-slate-800 pb-3">
+                <h2 class="text-base font-black text-white">Shift Summary</h2>
+                <p class="text-[10px] text-slate-400">Real-time daily earnings and stats</p>
             </div>
 
-            <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Username</label>
-                    <input type="text" id="loginUser" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-400">
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-bold">Est. Earnings</span>
+                    <div id="totalEarnings" class="text-lg font-black text-emerald-400 font-mono">GH₵ 0.00</div>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Password</label>
-                    <input type="password" id="loginPass" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-400">
+                <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-bold">Rides Done</span>
+                    <div id="ridesCompleted" class="text-lg font-black text-sky-400 font-mono">0</div>
                 </div>
-                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg transition text-sm">
-                    Log In to Rider Console
-                </button>
-            </form>
+            </div>
 
-            <form id="signupForm" onsubmit="handleSignup(event)" class="space-y-3 hidden">
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Full Name</label>
-                    <input type="text" id="signName" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-400">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Phone Contact</label>
-                    <input type="tel" id="signPhone" placeholder="024XXXXXXX" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-400">
-                </div>
-                
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-300 mb-1">Vehicle Type</label>
-                        <select id="signVehicleType" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-400">
-                            <option value="Bajaj RE">Bajaj RE</option>
-                            <option value="TVS King">TVS King</option>
-                            <option value="Piaggio Ape">Piaggio Ape</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-300 mb-1">Vehicle Color</label>
-                        <input type="text" id="signVehicleColor" placeholder="Yellow, Yellow/Black..." required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-400">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Number Plate</label>
-                    <input type="text" id="signPlate" placeholder="M-24-AS..." required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-400">
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Username</label>
-                    <input type="text" id="signUser" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-400">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Password</label>
-                    <input type="password" id="signPass" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-400">
-                </div>
-                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg transition text-sm">
-                    Register Rider Account
-                </button>
-            </form>
-        </div>
+            <div class="bg-slate-900/80 p-3 rounded-2xl border border-slate-800/80 text-xs space-y-2">
+                <div class="font-bold text-slate-300">Driver Profile</div>
+                <div id="driverCardName" class="text-white font-extrabold text-sm">Not Registered</div>
+                <div id="driverCardPlate" class="text-amber-400 font-mono font-bold">---</div>
+                <div id="driverCardContact" class="text-slate-400 font-mono">---</div>
+            </div>
+        </aside>
     </div>
 
     <script>
         const socket = io();
-        let isOnline = false;
-        let watchId = null;
-        let currentRiderName = 'Pragya Rider';
+        let riderPos = { lat: 6.6885, lng: -1.6244 };
+        let currentRiderData = null;
+        let totalEarningsGhs = 0.00;
+        let completedRidesCount = 0;
 
-        document.addEventListener('DOMContentLoaded', checkUserSession);
-
-        function toggleDuty() {
-            isOnline = !isOnline;
-            const btn = document.getElementById('toggleDutyBtn');
-            const coordsContainer = document.getElementById('gpsCoords');
-
-            if (isOnline) {
-                if (!navigator.geolocation) {
-                    alert("❌ Your browser does not support GPS location tracking.");
-                    isOnline = false;
-                    return;
-                }
-
-                btn.innerText = "🔴 GO OFFLINE";
-                btn.className = "bg-rose-500 hover:bg-rose-400 text-white px-6 py-3 rounded-2xl font-black transition shadow-lg text-sm w-full sm:w-auto";
-                coordsContainer.classList.remove('hidden');
-
-                watchId = navigator.geolocation.watchPosition(
-                    (pos) => {
-                        const lat = pos.coords.latitude;
-                        const lng = pos.coords.longitude;
-                        document.getElementById('latLngVal').innerText = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-
-                        socket.emit('update-location', {
-                            name: currentRiderName,
-                            lat: lat,
-                            lng: lng
-                        });
-                    },
-                    (err) => {
-                        let msg = "Could not access location.";
-                        if (err.code === err.PERMISSION_DENIED) {
-                            msg = "⚠️ GPS Permission Blocked! Tap the Lock icon 🔒 in your browser address bar -> Site Settings -> Allow Location, then refresh.";
-                        } else if (err.code === err.POSITION_UNAVAILABLE) {
-                            msg = "⚠️ GPS Signal unavailable. Please enable Device Location (GPS) in your phone settings.";
-                        } else if (err.code === err.TIMEOUT) {
-                            msg = "⚠️ Location request timed out. Retrying...";
-                        }
-                        alert(msg);
-                        console.error("GPS Error:", err);
-                    },
-                    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-                );
-
-            } else {
-                btn.innerText = "🟢 GO ONLINE (START GPS)";
-                btn.className = "bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-6 py-3 rounded-2xl font-black transition shadow-lg text-sm w-full sm:w-auto";
-                coordsContainer.classList.add('hidden');
-
-                if (watchId !== null) {
-                    navigator.geolocation.clearWatch(watchId);
-                    watchId = null;
-                }
-            }
-        }
-
-        function acceptRide() { alert('Ride accepted! GPS route generated.'); }
-
-        async function checkUserSession() {
-            try {
-                const res = await fetch('/api/me');
-                const data = await res.json();
-
-                if (data.success) {
-                    currentRiderName = data.user.username;
-                    document.getElementById('userGreeting').innerText = `👤 Rider: ${data.user.username}`;
-                    document.getElementById('userGreeting').classList.remove('hidden');
-                    const authBtn = document.getElementById('authBtn');
-                    authBtn.innerText = 'Log Out';
-                    authBtn.onclick = logout;
-                } else {
-                    openAuthModal();
-                }
-            } catch (err) { openAuthModal(); }
-        }
-
-        function openAuthModal() { document.getElementById('authModal').classList.remove('hidden'); }
-        function closeAuthModal() { document.getElementById('authModal').classList.add('hidden'); }
-
-        function switchAuthTab(tab) {
-            if (tab === 'login') {
-                document.getElementById('loginForm').classList.remove('hidden');
-                document.getElementById('signupForm').classList.add('hidden');
-                document.getElementById('tabLogin').className = "flex-1 py-2 font-bold text-sm text-emerald-400 border-b-2 border-emerald-400";
-                document.getElementById('tabSignup').className = "flex-1 py-2 font-bold text-sm text-slate-400";
-            } else {
-                document.getElementById('loginForm').classList.add('hidden');
-                document.getElementById('signupForm').classList.remove('hidden');
-                document.getElementById('tabSignup').className = "flex-1 py-2 font-bold text-sm text-emerald-400 border-b-2 border-emerald-400";
-                document.getElementById('tabLogin').className = "flex-1 py-2 font-bold text-sm text-slate-400";
-            }
-        }
-
-        async function handleLogin(e) {
-            e.preventDefault();
-            const username = document.getElementById('loginUser').value;
-            const password = document.getElementById('loginPass').value;
-
-            const res = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            const data = await res.json();
-            if (data.success) { closeAuthModal(); checkUserSession(); } 
-            else { alert(data.error || 'Login failed'); }
-        }
-
-        async function handleSignup(e) {
-            e.preventDefault();
-            const fullName = document.getElementById('signName').value;
-            const contact = document.getElementById('signPhone').value;
-            const vehicleType = document.getElementById('signVehicleType').value;
-            const vehicleColor = document.getElementById('signVehicleColor').value;
-            const plateNumber = document.getElementById('signPlate').value;
-            const username = document.getElementById('signUser').value;
-            const password = document.getElementById('signPass').value;
-
-            const res = await fetch('/api/signup', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    fullName, 
-                    contact, 
-                    vehicleType, 
-                    vehicleColor, 
-                    plateNumber, 
-                    username, 
-                    password, 
-                    role: 'rider' 
-                })
-            });
-
-            const data = await res.json();
-            if (data.success) { closeAuthModal(); checkUserSession(); } 
-            else { alert(data.error || 'Registration failed'); }
-        }
-
-        async function logout() {
-            await fetch('/api/logout', { method: 'POST' });
-            location.reload();
-        }
-		    // Phase B: Incoming Dispatch Modal for Rider
-socket.on('incoming-ride-request', (req) => {
-    const accept = confirm(
-        `🚨 INCOMING RIDE REQUEST!\n\n` +
-        `👤 Passenger: ${req.passengerName}\n` +
-        `📞 Contact: ${req.passengerContact}\n` +
-        `📏 Distance: ${req.distanceKm} km away\n` +
-        `💰 Estimated Fare: GH₵ ${req.estimatedFare}\n\n` +
-        `Do you want to accept this ride?`
-    );
-
-    socket.emit('respond-ride-request', {
-        passengerSocketId: req.requestingPassengerSocketId,
-        status: accept ? 'accepted' : 'declined',
-        riderName: currentRiderName,
-        riderContact: '024XXXXXXX', // Pull from user session
-        plateNumber: 'M-24-AS'
-    });
-});
-    </script>
-    <div class="glass-card p-6 rounded-3xl shadow-2xl border-l-4 border-rose-500 space-y-3">
-    <div class="flex justify-between items-center">
-        <div>
-            <h3 class="text-base font-extrabold text-white flex items-center gap-2">
-                🚨 Emergency Mechanic Assistance
-            </h3>
-            <p class="text-xs text-slate-400">Stranded or experiencing vehicle failure? Alert nearby mechanics.</p>
-        </div>
-        <button onclick="triggerSOS()" class="bg-rose-600 hover:bg-rose-500 text-white font-black px-5 py-2.5 rounded-xl text-xs transition shadow-lg animate-pulse">
-            🚨 TRIGGER SOS ALERT
-        </button>
-    </div>
-</div>
-
-<script>
-    function triggerSOS() {
-        if (!isOnline || !watchId) {
-            alert("⚠️ Please tap 'GO ONLINE' first so mechanics can pinpoint your GPS location!");
-            return;
-        }
-
-        const issue = prompt("Describe vehicle issue (e.g. Flat tire, Broken Clutch Cable, Engine failure):");
-        if (!issue) return;
-
-        const currentCoords = document.getElementById('latLngVal').innerText.split(',');
-        const lat = parseFloat(currentCoords[0]);
-        const lng = parseFloat(currentCoords[1]);
-
-        socket.emit('send-mechanic-sos', {
-            riderName: currentRiderName,
-            issue: issue,
-            lat: lat,
-            lng: lng
+        // Standardized 3D OpenFreeMap Vector Engine
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://tiles.openfreemap.org/styles/liberty',
+            center: [riderPos.lng, riderPos.lat],
+            zoom: 16,
+            minZoom: 1,
+            maxZoom: 20,
+            pitch: 50,
+            bearing: 0,
+            antialias: true
         });
 
-        alert("🚨 EMERGENCY SOS BROADCAST SENT! Nearby mechanics have been notified with your GPS coordinates.");
-    }
+        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
 
-    socket.on('mechanic-en-route', (data) => {
-        alert(`🛠️ MECHANIC DISPATCHED!\n\n${data.mechanicName} is on the way!\n📞 Contact: ${data.mechanicContact}\n⏱️ Estimated Arrival: ${data.eta}`);
-    });
-</script>
+        map.on('load', () => {
+            map.resize();
+            const style = map.getStyle();
+
+            // High contrast text labels styling
+            if (style && style.layers) {
+                style.layers.forEach((layer) => {
+                    if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
+                        map.setLayoutProperty(layer.id, 'text-size', ['interpolate', ['linear'], ['zoom'], 2, 10, 10, 13, 16, 16, 20, 22]);
+                        map.setPaintProperty(layer.id, 'text-halo-color', '#000000');
+                        map.setPaintProperty(layer.id, 'text-halo-width', 2.5);
+                        map.setPaintProperty(layer.id, 'text-color', '#ffffff');
+                    }
+                });
+            }
+
+            // Prepare GeoJSON layer source for Live Route Guidance Line
+            map.addSource('pickup-route', {
+                'type': 'geojson',
+                'data': { 'type': 'Feature', 'properties': {}, 'geometry': { 'type': 'LineString', 'coordinates': [] } }
+            });
+
+            map.addLayer({
+                'id': 'pickup-route-line',
+                'type': 'line',
+                'source': 'pickup-route',
+                'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                'paint': {
+                    'line-color': '#10b981',
+                    'line-width': 6,
+                    'line-opacity': 0.9
+                }
+            });
+        });
+
+        window.addEventListener('resize', () => map.resize());
+
+        // GPS Location Tracking & Real-Time Broadcast
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition((pos) => {
+                riderPos.lat = pos.coords.latitude;
+                riderPos.lng = pos.coords.longitude;
+
+                map.flyTo({ center: [riderPos.lng, riderPos.lat], zoom: 16.5, pitch: 50 });
+
+                if (currentRiderData) {
+                    socket.emit('update-rider-location', {
+                        ...currentRiderData,
+                        lat: riderPos.lat,
+                        lng: riderPos.lng
+                    });
+                }
+            }, () => console.log("Position error"), { enableHighAccuracy: true });
+        }
+
+        // Rider Profile Registration
+        function registerRider(e) {
+            e.preventDefault();
+            currentRiderData = {
+                username: document.getElementById('fullName').value.toLowerCase().replace(/\s+/g, '_'),
+                fullName: document.getElementById('fullName').value,
+                contact: document.getElementById('contact').value,
+                vehicleType: document.getElementById('vehicleType').value,
+                plateNumber: document.getElementById('plateNumber').value.toUpperCase(),
+                lat: riderPos.lat,
+                lng: riderPos.lng
+            };
+
+            socket.emit('register-rider', currentRiderData);
+
+            document.getElementById('driverModal').classList.add('hidden');
+            document.getElementById('driverCardName').innerText = currentRiderData.fullName;
+            document.getElementById('driverCardPlate').innerText = `Plate: ${currentRiderData.plateNumber}`;
+            document.getElementById('driverCardContact').innerText = `📞 ${currentRiderData.contact}`;
+
+            // Add Driver Vehicle Marker on 3D Map
+            const rEl = document.createElement('div');
+            rEl.className = 'text-3xl filter drop-shadow-lg animate-bounce';
+            rEl.innerHTML = '🛺';
+            new maplibregl.Marker({ element: rEl })
+                .setLngLat([riderPos.lng, riderPos.lat])
+                .addTo(map);
+
+            alert(`✅ Driver Profile Active! You are now visible to passengers nearby.`);
+        }
+
+        // Listen for incoming ride dispatch requests from passengers
+        socket.on('incoming-ride-request', (req) => {
+            const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+            audio.play().catch(() => {});
+
+            const confirmAccept = confirm(
+                `🛺 NEW PASSENGER RIDE DISPATCH!\n\n` +
+                `Passenger: ${req.passengerName || 'Passenger'}\n` +
+                `Distance: ${req.distanceKm} km away\n` +
+                `Estimated Fare: GH₵ ${req.estimatedFare}\n\n` +
+                `Tap OK to accept ride and start 3D navigation route.`
+            );
+
+            if (confirmAccept) {
+                acceptRide(req.passengerSocketId, req.pickupLat, req.pickupLng, req.estimatedFare);
+            } else {
+                socket.emit('accept-ride-request', {
+                    passengerSocketId: req.passengerSocketId,
+                    status: 'declined'
+                });
+            }
+        });
+
+        // Accept Ride Handler & Stream Turn-by-Turn Route Line
+        async function acceptRide(passengerSocketId, pickupLat, pickupLng, fareGhs) {
+            socket.emit('accept-ride-request', {
+                passengerSocketId: passengerSocketId,
+                status: 'accepted',
+                riderName: currentRiderData ? currentRiderData.fullName : 'Pragya Driver',
+                plateNumber: currentRiderData ? currentRiderData.plateNumber : 'N/A',
+                riderContact: currentRiderData ? currentRiderData.contact : 'N/A'
+            });
+
+            // Update Shift Stats
+            totalEarningsGhs += parseFloat(fareGhs || 0);
+            completedRidesCount++;
+            document.getElementById('totalEarnings').innerText = `GH₵ ${totalEarningsGhs.toFixed(2)}`;
+            document.getElementById('ridesCompleted').innerText = completedRidesCount;
+
+            // Fly camera over to Passenger Pickup Coordinates
+            map.flyTo({ center: [pickupLng, pickupLat], zoom: 18, pitch: 60, bearing: 20, speed: 1.2 });
+
+            const pEl = document.createElement('div');
+            pEl.className = 'text-3xl animate-bounce filter drop-shadow-lg';
+            pEl.innerHTML = '👤';
+            new maplibregl.Marker({ element: pEl })
+                .setLngLat([pickupLng, pickupLat])
+                .setPopup(new maplibregl.Popup().setHTML('<b style="color:#10b981;">Passenger Pickup Spot</b>'))
+                .addTo(map);
+
+            // Fetch live OSRM route line from Driver location to Passenger
+            try {
+                const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${riderPos.lng},${riderPos.lat};${pickupLng},${pickupLat}?overview=full&geometries=geojson`);
+                const data = await response.json();
+
+                if (data.routes && data.routes.length > 0) {
+                    const routeCoordinates = data.routes[0].geometry.coordinates;
+
+                    map.getSource('pickup-route').setData({
+                        'type': 'Feature',
+                        'properties': {},
+                        'geometry': { 'type': 'LineString', 'coordinates': routeCoordinates }
+                    });
+
+                    const etaMins = Math.round(data.routes[0].duration / 60);
+                    alert(`🎉 RIDE ACCEPTED!\n\n🗺️ Live Pickup Route streaming on 3D map.\nEst. Arrival: ~${etaMins} mins.`);
+                }
+            } catch (err) {
+                map.getSource('pickup-route').setData({
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': { 'type': 'LineString', 'coordinates': [[riderPos.lng, riderPos.lat], [pickupLng, pickupLat]] }
+                });
+            }
+        }
+
+        // Breakdown SOS Modal Handlers
+        function openSosModal() { document.getElementById('sosModal').classList.remove('hidden'); }
+        function closeSosModal() { document.getElementById('sosModal').classList.add('hidden'); }
+
+        function sendBreakdownSos(e) {
+            e.preventDefault();
+            const issueSelect = document.getElementById('sosIssue').value;
+
+            if (!currentRiderData) {
+                alert("Please register your driver profile first before sending an SOS!");
+                closeSosModal();
+                return;
+            }
+
+            socket.emit('driver-sos', {
+                username: currentRiderData.username,
+                fullName: currentRiderData.fullName,
+                contact: currentRiderData.contact,
+                plateNumber: currentRiderData.plateNumber,
+                issue: issueSelect,
+                lat: riderPos.lat,
+                lng: riderPos.lng
+            });
+
+            closeSosModal();
+            alert(`🚨 EMERGENCY BREAKDOWN BEACON SENT!\n\nNearby workshops have received your exact GPS position and issue details.`);
+        }
+    </script>
 </body>
 </html>
