@@ -79,34 +79,34 @@
         let maxRadiusKm = 3;
 
         // High-Detail Raster & Vector Street Map (Carto Voyager style with rich landmarks & buildings)
-        const map = new maplibregl.Map({
-            container: 'map',
-            style: {
-                'version': 8,
-                'sources': {
-                    'raster-tiles': {
-                        'type': 'raster',
-                        'tiles': [
-                            'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png'
-                        ],
-                        'tileSize': 256,
-                        'attribution': '&copy; OpenStreetMap contributors &copy; CARTO'
-                    }
-                },
-                'layers': [
-                    {
-                        'id': 'simple-tiles',
-                        'type': 'raster',
-                        'source': 'raster-tiles',
-                        'minzoom': 0,
-                        'maxzoom': 19
-                    }
-                ]
-            },
-            center: [passengerPos.lng, passengerPos.lat],
-            zoom: 15,
-            pitch: 30
-        });
+        // High-Reliability Map Tile Engine (OpenStreetMap Base)
+const map = new maplibregl.Map({
+    container: 'map',
+    style: {
+        'version': 8,
+        'sources': {
+            'osm-tiles': {
+                'type': 'raster',
+                'tiles': [
+                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+                ],
+                'tileSize': 256,
+                'attribution': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }
+        },
+        'layers': [
+            {
+                'id': 'osm-tiles-layer',
+                'type': 'raster',
+                'source': 'osm-tiles',
+                'minzoom': 0,
+                'maxzoom': 19
+            }
+        ]
+    },
+    center: [passengerPos.lng, passengerPos.lat],
+    zoom: 14
+});
 
         map.addControl(new maplibregl.NavigationControl());
 
