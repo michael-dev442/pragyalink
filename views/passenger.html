@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Passenger Radar | PragyaLink</title>
+    <title>Passenger Radar | PragyaLink Ghana</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -11,8 +11,20 @@
     <script src="/socket.io/socket.io.js"></script>
 
     <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            min-height: 400px;
+            background-color: #1e293b; /* Dark fallback background while tiles load */
+        }
         .glass-panel {
-            background: rgba(15, 23, 42, 0.92);
+            background: rgba(15, 23, 42, 0.94);
             backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.12);
         }
@@ -22,51 +34,52 @@
             border-radius: 16px;
             border: 1px solid rgba(56, 189, 248, 0.3);
             padding: 14px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
         }
         .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: #0f172a !important; }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col overflow-hidden">
+<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
 
-    <header class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex justify-between items-center z-20 shadow-xl">
-        <div class="flex items-center space-x-3">
-            <a href="/" class="text-2xl font-black text-white tracking-wider">Pragya<span class="text-sky-400">Link</span></a>
-            <span class="bg-sky-500/20 text-sky-300 text-xs font-bold px-2.5 py-1 rounded-full border border-sky-500/30 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Dynamic 3km Radar
+    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
+        <div class="flex items-center space-x-2">
+            <a href="/" class="text-xl font-black text-white">Pragya<span class="text-emerald-400">Link 🇬🇭</span></a>
+            <span class="bg-emerald-500/20 text-emerald-300 text-xs font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                Live Radar
             </span>
         </div>
         
-        <div class="flex items-center space-x-3">
-            <select id="radiusSelect" onchange="updateRadius(this.value)" class="bg-slate-800 text-xs font-bold text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg focus:outline-none">
-                <option value="2">2 km Radius</option>
-                <option value="3" selected>3 km Radius</option>
-                <option value="5">5 km Radius</option>
+        <div class="flex items-center space-x-2">
+            <select id="radiusSelect" onchange="updateRadius(this.value)" class="bg-slate-800 text-xs font-bold text-sky-300 border border-slate-700 px-2.5 py-1.5 rounded-lg focus:outline-none">
+                <option value="2">2 km</option>
+                <option value="5" selected>5 km</option>
+                <option value="10">10 km</option>
             </select>
-            <a href="/" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition">
-                Home Hub
+            <a href="/rider" class="text-xs bg-emerald-500 text-slate-950 font-black px-3 py-1.5 rounded-lg hover:bg-emerald-400 transition">
+                Driver Console
             </a>
         </div>
     </header>
 
-    <div class="flex-1 relative flex flex-col md:flex-row">
+    <div class="flex-1 relative flex flex-col md:flex-row min-h-0 w-full">
         
-        <div id="map" class="flex-1 h-full w-full"></div>
+        <div class="flex-1 relative h-full w-full">
+            <div id="map"></div>
+        </div>
 
-        <aside class="w-full md:w-96 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-5 flex flex-col z-10 shadow-2xl max-h-[45vh] md:max-h-full overflow-y-auto">
-            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+        <aside class="w-full md:w-96 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl max-h-[40vh] md:max-h-full overflow-y-auto shrink-0">
+            <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-800">
                 <div>
-                    <h2 class="text-base font-black text-white">Nearby Tricycles</h2>
-                    <p class="text-[11px] text-slate-400">Filtered within operational distance</p>
+                    <h2 class="text-sm sm:text-base font-black text-white">Active Drivers</h2>
+                    <p class="text-[10px] text-slate-400">Nearby Pragya & Bajaj riders</p>
                 </div>
                 <span id="activeCount" class="bg-emerald-500/20 text-emerald-400 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-emerald-500/30">
                     0 Nearby
                 </span>
             </div>
 
-            <div id="riderList" class="space-y-3 flex-1 overflow-y-auto pr-1">
+            <div id="riderList" class="space-y-3 flex-1 overflow-y-auto">
                 <div id="emptyMsg" class="text-xs text-slate-400 text-center py-8">
-                    Scanning for active Pragya drivers in your 3km radius...
+                    Scanning area for active drivers...
                 </div>
             </div>
         </aside>
@@ -76,48 +89,56 @@
         const socket = io();
         const markers = {};
         let passengerPos = { lat: 6.6885, lng: -1.6244 }; // Default Kumasi/Nkawie center fallback
-        let maxRadiusKm = 3;
+        let maxRadiusKm = 5;
 
-        // High-Detail Raster & Vector Street Map (Carto Voyager style with rich landmarks & buildings)
-        // High-Reliability Map Tile Engine (OpenStreetMap Base)
-const map = new maplibregl.Map({
-    container: 'map',
-    style: {
-        'version': 8,
-        'sources': {
-            'osm-tiles': {
-                'type': 'raster',
-                'tiles': [
-                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-                ],
-                'tileSize': 256,
-                'attribution': '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }
-        },
-        'layers': [
-            {
-                'id': 'osm-tiles-layer',
-                'type': 'raster',
-                'source': 'osm-tiles',
-                'minzoom': 0,
-                'maxzoom': 19
-            }
-        ]
-    },
-    center: [passengerPos.lng, passengerPos.lat],
-    zoom: 14
-});
+        // Initialize MapLibre with High-Reliability OSM Raster Style
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                'version': 8,
+                'sources': {
+                    'osm-tiles': {
+                        'type': 'raster',
+                        'tiles': [
+                            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                        ],
+                        'tileSize': 256,
+                        'attribution': '&copy; OpenStreetMap contributors'
+                    }
+                },
+                'layers': [
+                    {
+                        'id': 'osm-tiles-layer',
+                        'type': 'raster',
+                        'source': 'osm-tiles',
+                        'minzoom': 0,
+                        'maxzoom': 19
+                    }
+                ]
+            },
+            center: [passengerPos.lng, passengerPos.lat],
+            zoom: 14
+        });
 
         map.addControl(new maplibregl.NavigationControl());
 
-        // Auto-detect Passenger GPS Location
+        // FORCE MAP RESIZE AFTER DOM RENDER
+        map.on('load', () => {
+            map.resize();
+        });
+        window.addEventListener('resize', () => map.resize());
+
+        // GPS Location Auto-Detection
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition((pos) => {
                 passengerPos.lat = pos.coords.latitude;
                 passengerPos.lng = pos.coords.longitude;
+                
                 map.flyTo({ center: [passengerPos.lng, passengerPos.lat], zoom: 15 });
+                map.resize();
 
-                // Add Passenger Location Pin
                 const pEl = document.createElement('div');
                 pEl.className = 'w-4 h-4 bg-sky-500 rounded-full border-2 border-white shadow-lg animate-ping';
                 new maplibregl.Marker({ element: pEl })
@@ -126,16 +147,14 @@ const map = new maplibregl.Map({
             });
         }
 
-        // Haversine Spherical Distance Formula (in KM)
         function calculateDistanceKm(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Earth's radius in km
+            const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
                       Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return R * c;
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         }
 
         function updateRadius(val) {
@@ -143,14 +162,8 @@ const map = new maplibregl.Map({
             renderFilteredRiders();
         }
 
-        socket.on('current-riders', (riders) => {
-            riders.forEach(updateOrAddRider);
-        });
-
-        socket.on('rider-location-updated', (rider) => {
-            updateOrAddRider(rider);
-        });
-
+        socket.on('current-riders', (riders) => riders.forEach(updateOrAddRider));
+        socket.on('rider-location-updated', (rider) => updateOrAddRider(rider));
         socket.on('rider-disconnected', (socketId) => {
             if (markers[socketId]) {
                 markers[socketId].marker.remove();
@@ -162,20 +175,21 @@ const map = new maplibregl.Map({
         function updateOrAddRider(rider) {
             const { socketId, username, fullName, contact, vehicleType, vehicleColor, plateNumber, lat, lng } = rider;
             const distKm = calculateDistanceKm(passengerPos.lat, passengerPos.lng, lat, lng);
+            const estFare = (5 + (distKm * 2.5)).toFixed(2);
 
             const popupHTML = `
                 <div class="space-y-1.5 text-xs">
                     <div class="flex justify-between items-center gap-2">
-                        <span class="font-extrabold text-sky-400 text-sm">🛺 ${vehicleType || 'Bajaj RE'}</span>
+                        <span class="font-extrabold text-emerald-400 text-sm">🛺 ${vehicleType || 'Bajaj RE'}</span>
                         <span class="bg-emerald-500/20 text-emerald-300 font-mono font-bold text-[10px] px-2 py-0.5 rounded border border-emerald-500/30">
-                            ${distKm < 1 ? Math.round(distKm * 1000) + 'm away' : distKm.toFixed(1) + 'km away'}
+                            ${distKm < 1 ? Math.round(distKm * 1000) + 'm' : distKm.toFixed(1) + 'km'}
                         </span>
                     </div>
-                    <div class="text-white font-bold text-sm">${fullName || username}</div>
-                    <div class="text-slate-300">📞 <a href="tel:${contact}" class="underline text-sky-300 font-semibold">${contact || 'N/A'}</a></div>
+                    <div class="text-white font-bold">${fullName || username}</div>
+                    <div class="text-slate-300">📞 <a href="tel:${contact}" class="underline text-sky-300 font-bold">${contact || 'N/A'}</a></div>
                     <div class="text-slate-400">Plate: <span class="text-amber-400 font-mono font-bold">${plateNumber || 'N/A'}</span></div>
-                    <div class="text-slate-400">Color: ${vehicleColor || 'Yellow'}</div>
-                    <button onclick="requestRideDirect('${username}')" class="w-full mt-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow-md">
+                    <div class="text-emerald-400 font-bold">Est. Fare: GH₵ ${estFare}</div>
+                    <button onclick="requestRideDirect('${username}', '${estFare}', '${distKm.toFixed(1)}')" class="w-full mt-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow-md">
                         🛺 Request Ride
                     </button>
                 </div>
@@ -184,20 +198,16 @@ const map = new maplibregl.Map({
             if (markers[socketId]) {
                 markers[socketId].marker.setLngLat([lng, lat]);
                 markers[socketId].popup.setHTML(popupHTML);
-                markers[socketId].data = { ...rider, distKm };
+                markers[socketId].data = { ...rider, distKm, estFare };
             } else {
                 const el = document.createElement('div');
-                el.className = 'text-3xl cursor-pointer hover:scale-125 transition-transform filter drop-shadow-md';
+                el.className = 'text-3xl cursor-pointer hover:scale-125 transition-transform';
                 el.innerHTML = '🛺';
 
                 const popup = new maplibregl.Popup({ offset: 25 }).setHTML(popupHTML);
+                const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
 
-                const marker = new maplibregl.Marker({ element: el })
-                    .setLngLat([lng, lat])
-                    .setPopup(popup)
-                    .addTo(map);
-
-                markers[socketId] = { marker, popup, data: { ...rider, distKm } };
+                markers[socketId] = { marker, popup, data: { ...rider, distKm, estFare } };
             }
 
             renderFilteredRiders();
@@ -206,112 +216,71 @@ const map = new maplibregl.Map({
         function renderFilteredRiders() {
             const list = document.getElementById('riderList');
             const count = document.getElementById('activeCount');
-            
-            // Apply Haversine Distance Geofence Filter
-            const nearbyKeys = Object.keys(markers).filter(id => markers[id].data.distKm <= maxRadiusKm);
+            const keys = Object.keys(markers).filter(id => markers[id].data.distKm <= maxRadiusKm);
 
-            count.innerText = `${nearbyKeys.length} Within ${maxRadiusKm}km`;
+            count.innerText = `${keys.length} Nearby`;
 
-            // Hide markers outside radius from map view
             Object.keys(markers).forEach(id => {
-                if (markers[id].data.distKm <= maxRadiusKm) {
-                    markers[id].marker.getElement().style.display = 'block';
-                } else {
-                    markers[id].marker.getElement().style.display = 'none';
-                }
+                markers[id].marker.getElement().style.display = markers[id].data.distKm <= maxRadiusKm ? 'block' : 'none';
             });
 
-            if (nearbyKeys.length === 0) {
-                list.innerHTML = `<div class="text-xs text-slate-400 text-center py-8">No active tricycles found within ${maxRadiusKm}km. Try expanding your search radius!</div>`;
+            if (keys.length === 0) {
+                list.innerHTML = `<div class="text-xs text-slate-400 text-center py-8">No active Pragya drivers found within ${maxRadiusKm}km.</div>`;
                 return;
             }
 
-            list.innerHTML = nearbyKeys.map(id => {
+            list.innerHTML = keys.map(id => {
                 const r = markers[id].data;
-                const formattedDist = r.distKm < 1 ? `${Math.round(r.distKm * 1000)} meters away` : `${r.distKm.toFixed(1)} km away`;
                 return `
-                    <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 space-y-2.5 hover:border-sky-500/50 transition shadow-md">
+                    <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2 hover:border-emerald-500/50 transition">
                         <div class="flex justify-between items-start">
                             <div>
-                                <span class="bg-sky-500/20 text-sky-400 text-[10px] font-bold px-2 py-0.5 rounded border border-sky-500/30">
+                                <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30">
                                     ${r.vehicleType || 'Bajaj RE'}
                                 </span>
                                 <h3 class="font-extrabold text-sm text-white mt-1">${r.fullName || r.username}</h3>
                             </div>
-                            <span class="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
+                            <span class="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
                                 ${r.plateNumber || 'N/A'}
                             </span>
                         </div>
-
                         <div class="text-xs space-y-1 text-slate-300">
                             <div class="flex justify-between">
-                                <span>🎨 Color: <strong class="text-white">${r.vehicleColor || 'Yellow'}</strong></span>
-                                <span class="text-emerald-400 font-bold">${formattedDist}</span>
+                                <span>🎨 ${r.vehicleColor || 'Yellow'}</span>
+                                <span class="text-emerald-400 font-bold">GH₵ ${r.estFare}</span>
                             </div>
                             <div>📞 Contact: <a href="tel:${r.contact}" class="text-sky-400 font-bold underline">${r.contact || 'N/A'}</a></div>
                         </div>
-
-                        <div class="grid grid-cols-2 gap-2 pt-1">
-                            <button onclick="flyToRider(${r.lng}, ${r.lat})" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs border border-slate-700 transition">
-                                📍 Locate
-                            </button>
-                            <button onclick="requestRideDirect('${r.username}')" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow-md">
-                                🛺 Request
-                            </button>
-                        </div>
+                        <button onclick="requestRideDirect('${r.username}', '${r.estFare}', '${r.distKm.toFixed(1)}')" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow-md">
+                            🛺 Request Ride
+                        </button>
                     </div>
                 `;
             }).join('');
         }
 
-         // GHS Fare Calculation Logic (Base Rate + Distance)
-function calculateFareGHS(distKm) {
-    const baseFare = 5.00;     // GH₵ 5.00 base rate
-    const perKmRate = 2.50;    // GH₵ 2.50 per km
-    const fare = baseFare + (distKm * perKmRate);
-    return fare.toFixed(2);
-}
+        function requestRideDirect(riderName, fare, dist) {
+            const payMethod = confirm(`🛺 Confirm Request to ${riderName}?\n\nDistance: ${dist} km\nFare: GH₵ ${fare}\n\nPress OK to send request.`);
+            if (payMethod) {
+                socket.emit('request-ride', {
+                    targetRiderUsername: riderName,
+                    passengerName: 'Passenger',
+                    pickupLat: passengerPos.lat,
+                    pickupLng: passengerPos.lng,
+                    distanceKm: dist,
+                    estimatedFare: fare
+                });
+                alert("⏱️ Ride request sent to driver! Waiting for response...");
+            }
+        }
 
-function requestRideDirect(targetRiderUsername) {
-    const targetRider = Object.values(markers).find(m => m.data.username === targetRiderUsername);
-    if (!targetRider) return alert("Driver not found.");
-
-    const dist = targetRider.data.distKm;
-    const estFare = calculateFareGHS(dist);
-
-    const confirmRequest = confirm(
-        `🛺 Request ride from ${targetRider.data.fullName || targetRiderUsername}?\n\n` +
-        `📏 Distance: ${dist < 1 ? Math.round(dist * 1000) + 'm' : dist.toFixed(1) + 'km'}\n` +
-        `💰 Estimated Fare: GH₵ ${estFare}`
-    );
-
-    if (confirmRequest) {
-        socket.emit('request-ride', {
-            targetRiderUsername: targetRiderUsername,
-            passengerName: 'Passenger (' + (passengerPos.lat.toFixed(3)) + ')',
-            pickupLat: passengerPos.lat,
-            pickupLng: passengerPos.lng,
-            distanceKm: dist.toFixed(1),
-            estimatedFare: estFare
+        socket.on('ride-request-response', (res) => {
+            if (res.status === 'accepted') {
+                alert(`🎉 RIDE ACCEPTED!\n\nDriver: ${res.riderName}\nPlate: ${res.plateNumber}\nPhone: ${res.riderContact}\n\nDriver is heading to your position!`);
+            } else {
+                alert(`❌ Driver declined. Select another nearby driver.`);
+            }
         });
-        alert("⏱️ Ride request sent! Waiting for driver confirmation...");
-    }
-}
-
-// Listen for Rider Response
-socket.on('ride-request-response', (res) => {
-    if (res.status === 'accepted') {
-        alert(`🎉 RIDE ACCEPTED!\n\n${res.riderName} (${res.plateNumber}) is on the way!\nContact: ${res.riderContact}`);
-    } else {
-        alert(`❌ Ride declined by driver. Please pick another nearby Pragya.`);
-    }
-});
-            map.flyTo({ center: [lng, lat], zoom: 17, pitch: 45, speed: 1.2 });
-        }
-
-        function requestRideDirect(riderName) {
-            alert(`🚀 Ride request dispatched to ${riderName}! (Phase B Real-Time Handshake ready)`);
-        }
     </script>
 </body>
 </html>
