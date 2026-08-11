@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fleet Owner Portal | PragyaLink Ghana</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #map { width: 100%; height: 100%; min-height: 400px; background-color: #0f172a; }
+        .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
+
+    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
+        <div class="flex items-center space-x-3">
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-amber-400">Fleet 📊</span></a>
+            <span class="bg-amber-500/20 text-amber-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-amber-500/30">
+                Work-and-Pay Control Center
+            </span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <a href="/rider" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
+                Driver Console
+            </a>
+        </div>
+    </header>
+
+    <div class="flex-1 relative flex flex-col md:flex-row min-h-0 w-full">
+        <div class="flex-1 relative h-full w-full">
+            <div id="map"></div>
+        </div>
+
+        <aside class="w-full md:w-96 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
+            <div class="border-b border-slate-800 pb-3">
+                <h2 class="text-base font-black text-white">Fleet Summary</h2>
+                <p class="text-[10px] text-slate-400">Real-time driver activity and lease targets</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-bold">Active Vehicles</span>
+                    <div id="activeCount" class="text-xl font-black text-emerald-400 font-mono">0</div>
+                </div>
+                <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-bold">Total Fleet Distance</span>
+                    <div id="fleetDistance" class="text-xl font-black text-amber-400 font-mono">0.0 km</div>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Live Fleet Vehicles</h3>
+                    <span class="text-[10px] text-slate-500 font-mono">Auto-Syncing</span>
+                </div>
+                <div id="fleetList" class="space-y-2">
+                    <div class="text-xs text-slate-500 italic p-3 text-center border border-dashed border-slate-800 rounded-xl">
+                        Waiting for active drivers on the network...
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        const socket = io();
+        const fleetMarkers = {};
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://tiles.openfreemap.org/styles/liberty',
+            center: [-1.6244, 6.6885], // Kumasi
+            zoom: 13,
+            pitch: 45
+        });
+
+        map.addControl(new maplibregl.NavigationControl());
+
+        // Sync Active Drivers to Dashboard
+        socket.on('current-riders', (riders) => {
+            renderFleet(riders);
+        });
+
+        socket.on('rider-location-updated', (rider) => {
+            updateSingleRiderMarker(rider);
+        });
+
+        socket.on('rider-disconnected', (socketId) => {
+            if (fleetMarkers[socketId]) {
+                fleetMarkers[socketId].remove();
+                delete fleetMarkers[socketId];
+            }
+        });
+
+        function renderFleet(riders) {
+            document.getElementById('activeCount').innerText = riders.length;
+            const fleetListEl = document.getElementById('fleetList');
+
+            if (riders.length === 0) {
+                fleetListEl.innerHTML = `<div class="text-xs text-slate-500 italic p-3 text-center border border-dashed border-slate-800 rounded-xl">No active tricycles online right now.</div>`;
+                return;
+            }
+
+            fleetListEl.innerHTML = '';
+            let totalKm = 0;
+
+            riders.forEach(rider => {
+                updateSingleRiderMarker(rider);
+
+                const currentKm = rider.passport ? rider.passport.currentServiceKm : 0;
+                const lifetimeKm = rider.passport ? rider.passport.totalLifetimeKm : 0;
+                totalKm += lifetimeKm;
+
+                const card = document.createElement('div');
+                card.className = "bg-slate-900/80 p-3 rounded-2xl border border-slate-800 space-y-2 text-xs";
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-extrabold text-white">${rider.fullName || 'Driver'}</span>
+                        <span class="font-mono text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">${rider.plateNumber || 'M-24-AS'}</span>
+                    </div>
+                    <div class="text-[11px] text-slate-400 flex justify-between">
+                        <span>Vehicle: <strong class="text-slate-200">${rider.vehicleType || 'Bajaj RE'}</strong></span>
+                        <span>Service Status: <strong class="${currentKm >= 1500 ? 'text-red-400 font-bold' : 'text-emerald-400'}">${currentKm >= 1500 ? 'Service Overdue' : 'OK'}</strong></span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div class="bg-amber-400 h-full" style="width: ${Math.min(100, (currentKm / 1500) * 100)}%;"></div>
+                    </div>
+                `;
+                fleetListEl.appendChild(card);
+            });
+
+            document.getElementById('fleetDistance').innerText = `${totalKm.toFixed(1)} km`;
+        }
+
+        function updateSingleRiderMarker(rider) {
+            if (!rider.lat || !rider.lng) return;
+
+            if (fleetMarkers[rider.socketId]) {
+                fleetMarkers[rider.socketId].setLngLat([rider.lng, rider.lat]);
+            } else {
+                const el = document.createElement('div');
+                el.className = 'text-3xl filter drop-shadow-lg cursor-pointer animate-pulse';
+                el.innerText = '🛺';
+
+                fleetMarkers[rider.socketId] = new maplibregl.Marker({ element: el })
+                    .setLngLat([rider.lng, rider.lat])
+                    .setPopup(new maplibregl.Popup().setHTML(`<b style="color:#f59e0b;">🛺 ${rider.fullName || 'Fleet Vehicle'}</b><br><span style="font-family:monospace;">Plate: ${rider.plateNumber}</span>`))
+                    .addTo(map);
+            }
+        }
+    </script>
+</body>
+</html>
