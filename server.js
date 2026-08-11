@@ -5,89 +5,145 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors: { origin: "*" }
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// Serve HTML Views
+// HTML Views
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views', 'passenger.html')));
 app.get('/passenger', (req, res) => res.sendFile(path.join(__dirname, 'views', 'passenger.html')));
 app.get('/rider', (req, res) => res.sendFile(path.join(__dirname, 'views', 'rider.html')));
 app.get('/mechanic', (req, res) => res.sendFile(path.join(__dirname, 'views', 'mechanic.html')));
 
-// In-Memory Data Stores
-const activeRiders = {};     // { socketId: { username, fullName, contact, vehicleType, plateNumber, lat, lng } }
-const activeWorkshops = {};  // { socketId: { shopName, ownerName, emergencyContact, specialty, lat, lng } }
+// Data Stores
+const activeRiders = {};     
+const activeWorkshops = {};  
+const servicePassports = {}; // { plateNumber: { currentServiceKm, totalLifetimeKm, serviceHistory: [] } }
+
+// Helper: Distance calculation (Haversine Formula)
+function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; 
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
 
 io.on('connection', (socket) => {
-    console.log(`🔌 New client connected: ${socket.id}`);
+    console.log(`🔌 Client connected: ${socket.id}`);
 
-    // Send current active riders immediately to newly connected passengers
     socket.emit('current-riders', Object.values(activeRiders));
 
-    // 1. Driver Registration
+    // 1. Register Driver
     socket.on('register-rider', (riderData) => {
-        activeRiders[socket.id] = { ...riderData, socketId: socket.id };
-        console.log(`🛺 Driver registered: ${riderData.fullName || riderData.username} (${socket.id})`);
+        const plate = riderData.plateNumber.toUpperCase();
         
-        // Broadcast new driver to all passengers
+        // Initialize Passport if first time
+        if (!servicePassports[plate]) {
+            servicePassports[plate] = {
+                currentServiceKm: 0.0,
+                totalLifetimeKm: 0.0,
+                serviceHistory: []
+            };
+        }
+
+        activeRiders[socket.id] = { 
+            ...riderData, 
+            socketId: socket.id,
+            passport: servicePassports[plate]
+        };
+
+        console.log(`🛺 Driver active: ${riderData.fullName} [Plate: ${plate}]`);
+        
+        // Send initial passport state back to driver
+        socket.emit('passport-update', servicePassports[plate]);
         io.emit('rider-location-updated', activeRiders[socket.id]);
     });
 
-    // 2. Driver Continuous GPS Location Update
+    // 2. Continuous Location Update & GPS Mileage Calculator
     socket.on('update-rider-location', (riderData) => {
-        if (activeRiders[socket.id]) {
-            activeRiders[socket.id].lat = riderData.lat;
-            activeRiders[socket.id].lng = riderData.lng;
+        const rider = activeRiders[socket.id];
+        
+        if (rider && rider.lat && rider.lng) {
+            // Calculate delta distance moved
+            const deltaKm = calculateDistanceKm(rider.lat, rider.lng, riderData.lat, riderData.lng);
+            
+            // Avoid erratic GPS jumps (only count realistic movement between 5m and 2km per ping)
+            if (deltaKm > 0.005 && deltaKm < 2.0) {
+                const plate = rider.plateNumber.toUpperCase();
+                if (servicePassports[plate]) {
+                    servicePassports[plate].currentServiceKm += deltaKm;
+                    servicePassports[plate].totalLifetimeKm += deltaKm;
+
+                    // Send updated passport numbers to driver
+                    socket.emit('passport-update', servicePassports[plate]);
+                }
+            }
+
+            rider.lat = riderData.lat;
+            rider.lng = riderData.lng;
         } else {
             activeRiders[socket.id] = { ...riderData, socketId: socket.id };
         }
         
-        // Broadcast updated position to all connected passengers in real-time
         io.emit('rider-location-updated', activeRiders[socket.id]);
     });
 
-    // 3. Passenger Ride Request Dispatch
-    socket.on('request-ride', (requestData) => {
-        console.log(`📡 Passenger requesting ride from: ${requestData.targetRiderUsername}`);
-        
-        // Find targeted rider by socket or username
-        let targetSocketId = Object.keys(activeRiders).find(
-            id => activeRiders[id].username === requestData.targetRiderUsername
-        );
+    // 3. Workshop Verifies & Resets Service Counter
+    socket.on('verify-service-reset', (data) => {
+        const plate = data.plateNumber.toUpperCase();
+        if (servicePassports[plate]) {
+            const serviceEntry = {
+                date: new Date().toLocaleDateString(),
+                mileageAtService: servicePassports[plate].currentServiceKm.toFixed(1),
+                workshopName: data.workshopName || 'Authorized Workshop',
+                type: data.serviceType || 'Oil & Filter Routine Service'
+            };
 
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('incoming-ride-request', {
-                ...requestData,
-                passengerSocketId: socket.id
-            });
+            servicePassports[plate].serviceHistory.push(serviceEntry);
+            servicePassports[plate].currentServiceKm = 0.0; // Reset 1,500km counter
+
+            console.log(`✅ Service Verified for ${plate} by ${data.workshopName}`);
+
+            // Find rider socket if online and push reset alert
+            const riderSocketId = Object.keys(activeRiders).find(
+                id => activeRiders[id].plateNumber.toUpperCase() === plate
+            );
+
+            if (riderSocketId) {
+                io.to(riderSocketId).emit('passport-update', servicePassports[plate]);
+                io.to(riderSocketId).emit('service-verified-alert', serviceEntry);
+            }
         }
     });
 
-    // 4. Driver Acceptance/Declination Response
-    socket.on('accept-ride-request', (responseData) => {
-        io.to(responseData.passengerSocketId).emit('ride-request-response', responseData);
+    // Standard Dispatch & SOS Events
+    socket.on('request-ride', (reqData) => {
+        let targetSocketId = Object.keys(activeRiders).find(
+            id => activeRiders[id].username === reqData.targetRiderUsername
+        );
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('incoming-ride-request', { ...reqData, passengerSocketId: socket.id });
+        }
     });
 
-    // 5. Workshop Registration
+    socket.on('accept-ride-request', (resData) => {
+        io.to(resData.passengerSocketId).emit('ride-request-response', resData);
+    });
+
     socket.on('register-workshop', (shopData) => {
         activeWorkshops[socket.id] = { ...shopData, socketId: socket.id };
-        console.log(`🛠️ Workshop registered: ${shopData.shopName}`);
         io.emit('workshop-registered', activeWorkshops[socket.id]);
     });
 
-    // 6. Driver Breakdown SOS
     socket.on('driver-sos', (sosData) => {
-        console.log(`🚨 SOS Alert from driver: ${sosData.fullName || sosData.username}`);
         io.emit('driver-sos-alert', { ...sosData, socketId: socket.id });
     });
 
-    // 7. Handle Disconnections
     socket.on('disconnect', () => {
-        console.log(`❌ Client disconnected: ${socket.id}`);
         if (activeRiders[socket.id]) {
             delete activeRiders[socket.id];
             io.emit('rider-disconnected', socket.id);
@@ -99,6 +155,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`🚀 PragyaLink Server running on port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`🚀 PragyaLink Server running on port ${PORT}`));
