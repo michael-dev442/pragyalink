@@ -11,7 +11,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
 // HTML Views
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views', 'passenger.html')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views', 'index.html')));
 app.get('/passenger', (req, res) => res.sendFile(path.join(__dirname, 'views', 'passenger.html')));
 app.get('/rider', (req, res) => res.sendFile(path.join(__dirname, 'views', 'rider.html')));
 app.get('/mechanic', (req, res) => res.sendFile(path.join(__dirname, 'views', 'mechanic.html')));
@@ -22,7 +22,6 @@ const activeRiders = {};
 const activeWorkshops = {};  
 const servicePassports = {}; 
 
-// Helper: Distance calculation (Haversine Formula)
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
     const R = 6371; 
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -38,7 +37,6 @@ io.on('connection', (socket) => {
 
     socket.emit('current-riders', Object.values(activeRiders));
 
-    // 1. Register Driver
     socket.on('register-rider', (riderData) => {
         const plate = riderData.plateNumber.toUpperCase();
         
@@ -63,7 +61,6 @@ io.on('connection', (socket) => {
         io.emit('current-riders', Object.values(activeRiders));
     });
 
-    // 2. Continuous Location Update & GPS Mileage Calculator
     socket.on('update-rider-location', (riderData) => {
         const rider = activeRiders[socket.id];
         
@@ -90,7 +87,6 @@ io.on('connection', (socket) => {
         io.emit('current-riders', Object.values(activeRiders));
     });
 
-    // 3. Workshop Verifies & Resets Service Counter
     socket.on('verify-service-reset', (data) => {
         const plate = data.plateNumber.toUpperCase();
         if (servicePassports[plate]) {
