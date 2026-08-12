@@ -19,6 +19,30 @@
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
 
+    <div id="ownerAuthModal" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-amber-500/30 shadow-2xl space-y-4">
+            <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
+                <span class="text-3xl">🔑</span>
+                <div>
+                    <h2 class="text-xl font-black text-white">Fleet Access Key</h2>
+                    <p class="text-xs text-slate-400">Enter your Fleet Phone / Code to access your assets</p>
+                </div>
+            </div>
+
+            <form onsubmit="authenticateOwnerSession(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Fleet Owner Phone / Key *</label>
+                    <input type="tel" id="ownerAccessKey" required placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
+                    <span id="authError" class="text-[10px] text-red-400 hidden font-semibold">⚠️ Enter a valid Ghana phone number or fleet key</span>
+                </div>
+
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg text-sm mt-2">
+                    🔓 Access My Fleet Portal
+                </button>
+            </form>
+        </div>
+    </div>
+
     <div id="addVehicleModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
         <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-amber-500/30 shadow-2xl space-y-4">
             <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
@@ -33,7 +57,6 @@
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Plate Number *</label>
                     <input type="text" id="regPlate" required placeholder="e.g. M-24-AS" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono uppercase">
-                    <span id="regPlateError" class="text-[10px] text-red-400 hidden font-semibold">⚠️ Invalid Ghana plate format (e.g. M-24-AS)</span>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Chassis / VIN Serial *</label>
@@ -53,11 +76,6 @@
                         <input type="number" id="regTarget" required placeholder="120" value="120" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
                     </div>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Assigned Driver Phone</label>
-                    <input type="tel" id="regDriverPhone" placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
-                    <span id="regPhoneError" class="text-[10px] text-red-400 hidden font-semibold">⚠️ Invalid 10-digit Ghana phone number</span>
-                </div>
 
                 <div class="flex gap-2 pt-2">
                     <button type="button" onclick="closeAddVehicleModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition">
@@ -74,8 +92,8 @@
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
         <div class="flex items-center space-x-3">
             <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-amber-400">Fleet 📊</span></a>
-            <span class="bg-amber-500/20 text-amber-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-amber-500/30">
-                Work-and-Pay Control Center
+            <span id="activeKeyBadge" class="bg-amber-500/20 text-amber-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-amber-500/30">
+                Key: Not Set
             </span>
         </div>
         
@@ -87,9 +105,6 @@
                 📥 Bulk CSV Import
                 <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="handleBulkCsvUpload(event)">
             </label>
-            <a href="/rider" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
-                Driver Console
-            </a>
         </div>
     </header>
 
@@ -100,26 +115,26 @@
 
         <aside class="w-full md:w-96 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
             <div class="border-b border-slate-800 pb-3">
-                <h2 class="text-base font-black text-white">Fleet Summary</h2>
-                <p class="text-[10px] text-slate-400">Real-time driver activity and lease target progress</p>
+                <h2 class="text-base font-black text-white">My Fleet Summary</h2>
+                <p class="text-[10px] text-slate-400">Filtered real-time telemetry for your registered drivers</p>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold">Active Fleet</span>
+                    <span class="text-[10px] text-slate-400 uppercase font-bold">My Active Fleet</span>
                     <div id="activeCount" class="text-xl font-black text-emerald-400 font-mono">0</div>
                 </div>
                 <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold">Total Fleet Distance</span>
+                    <span class="text-[10px] text-slate-400 uppercase font-bold">Fleet Total Distance</span>
                     <div id="fleetDistance" class="text-xl font-black text-amber-400 font-mono">0.0 km</div>
                 </div>
             </div>
 
             <div class="space-y-3">
-                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Live Vehicles</h3>
+                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">My Vehicles</h3>
                 <div id="fleetList" class="space-y-2">
                     <div class="text-xs text-slate-500 italic p-3 text-center border border-dashed border-slate-800 rounded-xl">
-                        Waiting for active drivers on the network...
+                        Waiting for assigned drivers to log in...
                     </div>
                 </div>
             </div>
@@ -129,6 +144,7 @@
     <script>
         const socket = io();
         const fleetMarkers = {};
+        let currentOwnerKey = "";
 
         const ghanaPhoneRegex = /^(?:\+233|0)[23579]\d{8}$/;
         const plateRegex = /^[A-Z]{1,3}[-\s]?\d{1,4}[-\s]?[A-Z]{0,2}\d{0,2}$/i;
@@ -143,53 +159,36 @@
 
         map.addControl(new maplibregl.NavigationControl());
 
+        function authenticateOwnerSession(e) {
+            e.preventDefault();
+            const keyInput = document.getElementById('ownerAccessKey');
+            if (!keyInput.value.trim()) return;
+
+            currentOwnerKey = keyInput.value.trim();
+            socket.emit('register-owner-session', currentOwnerKey);
+
+            document.getElementById('activeKeyBadge').innerText = `Key: ${currentOwnerKey}`;
+            document.getElementById('ownerAuthModal').classList.add('hidden');
+        }
+
         function openAddVehicleModal() { document.getElementById('addVehicleModal').classList.remove('hidden'); }
         function closeAddVehicleModal() { document.getElementById('addVehicleModal').classList.add('hidden'); }
 
         function registerFleetVehicle(e) {
             e.preventDefault();
-
-            const regPlate = document.getElementById('regPlate');
-            const regDriverPhone = document.getElementById('regDriverPhone');
-            const regPlateError = document.getElementById('regPlateError');
-            const regPhoneError = document.getElementById('regPhoneError');
-
-            let isValid = true;
-
-            if (!plateRegex.test(regPlate.value.trim()) || regPlate.value.trim().length < 4) {
-                regPlate.classList.add('input-error');
-                regPlateError.classList.remove('hidden');
-                isValid = false;
-            } else {
-                regPlate.classList.remove('input-error');
-                regPlateError.classList.add('hidden');
-            }
-
-            if (regDriverPhone.value.trim() !== '' && !ghanaPhoneRegex.test(regDriverPhone.value.trim())) {
-                regDriverPhone.classList.add('input-error');
-                regPhoneError.classList.remove('hidden');
-                isValid = false;
-            } else {
-                regDriverPhone.classList.remove('input-error');
-                regPhoneError.classList.add('hidden');
-            }
-
-            if (!isValid) return;
-
             const vehicleData = {
-                plateNumber: regPlate.value.trim().toUpperCase(),
+                plateNumber: document.getElementById('regPlate').value.trim().toUpperCase(),
                 vin: document.getElementById('regVin').value.trim().toUpperCase(),
                 model: document.getElementById('regModel').value,
                 dailyTargetGhs: parseFloat(document.getElementById('regTarget').value),
-                assignedDriverPhone: regDriverPhone.value.trim()
+                ownerCode: currentOwnerKey
             };
 
             socket.emit('owner-register-vehicle', vehicleData);
             closeAddVehicleModal();
-            alert(`✅ Vehicle ${vehicleData.plateNumber} Registered to Fleet Registry!`);
+            alert(`✅ Vehicle ${vehicleData.plateNumber} bound to Fleet Key ${currentOwnerKey}!`);
         }
 
-        // Bulk CSV Upload Handler with Line-by-Line Validation
         function handleBulkCsvUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -198,42 +197,38 @@
             reader.onload = function(e) {
                 const lines = e.target.result.split('\n');
                 let count = 0;
-                let skipped = 0;
 
                 for (let i = 1; i < lines.length; i++) {
                     const line = lines[i].trim();
                     if (!line) continue;
 
-                    const [plateNumber, vin, model, dailyTargetGhs, assignedDriverPhone] = line.split(',');
+                    const [plateNumber, vin, model, dailyTargetGhs] = line.split(',');
 
-                    if (plateNumber && plateRegex.test(plateNumber.trim()) && plateNumber.trim().length >= 4) {
+                    if (plateNumber && plateRegex.test(plateNumber.trim())) {
                         socket.emit('owner-register-vehicle', {
                             plateNumber: plateNumber.trim().toUpperCase(),
                             vin: vin ? vin.trim().toUpperCase() : 'N/A',
                             model: model ? model.trim() : 'Bajaj RE',
                             dailyTargetGhs: parseFloat(dailyTargetGhs) || 120,
-                            assignedDriverPhone: assignedDriverPhone ? assignedDriverPhone.trim() : ''
+                            ownerCode: currentOwnerKey
                         });
                         count++;
-                    } else {
-                        skipped++;
                     }
                 }
 
-                alert(`🎉 BULK IMPORT COMPLETED!\n\n✅ Registered: ${count} vehicles\n⚠️ Skipped Invalid Rows: ${skipped}`);
+                alert(`🎉 BULK IMPORT SUCCESS!\n\nRegistered ${count} vehicles under Fleet Key: ${currentOwnerKey}`);
             };
             reader.readAsText(file);
         }
 
         socket.on('current-riders', (riders) => { renderFleet(riders); });
-        socket.on('rider-location-updated', (rider) => { updateSingleRiderMarker(rider); });
 
         function renderFleet(riders) {
             document.getElementById('activeCount').innerText = riders.length;
             const fleetListEl = document.getElementById('fleetList');
 
             if (riders.length === 0) {
-                fleetListEl.innerHTML = `<div class="text-xs text-slate-500 italic p-3 text-center border border-dashed border-slate-800 rounded-xl">No active tricycles online right now.</div>`;
+                fleetListEl.innerHTML = `<div class="text-xs text-slate-500 italic p-3 text-center border border-dashed border-slate-800 rounded-xl">No active tricycles found for Fleet Key: ${currentOwnerKey}</div>`;
                 return;
             }
 

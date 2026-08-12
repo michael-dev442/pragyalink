@@ -21,6 +21,7 @@ app.get('/owner', (req, res) => res.sendFile(path.join(__dirname, 'views', 'owne
 const activeRiders = {};     
 const activeWorkshops = {};  
 const servicePassports = {}; 
+const fleetOwnerSockets = {}; // Tracks socketId -> fleetOwnerCode
 
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
     const R = 6371; 
@@ -32,10 +33,33 @@ function calculateDistanceKm(lat1, lon1, lat2, lon2) {
     return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
+// Broadcasts ONLY relevant vehicles to a specific Fleet Owner
+function emitFleetToOwner(ownerSocketId) {
+    const fleetCode = fleetOwnerSockets[ownerSocketId];
+    if (!fleetCode) return;
+
+    const myFleet = Object.values(activeRiders).filter(
+        rider => rider.ownerCode && rider.ownerCode.trim() === fleetCode.trim()
+    );
+
+    io.to(ownerSocketId).emit('current-riders', myFleet);
+}
+
+function broadcastFleetUpdates() {
+    Object.keys(fleetOwnerSockets).forEach(socketId => {
+        emitFleetToOwner(socketId);
+    });
+}
+
 io.on('connection', (socket) => {
     console.log(`🔌 Client connected: ${socket.id}`);
 
-    socket.emit('current-riders', Object.values(activeRiders));
+    // Fleet Owner Authentication / Filter Registration
+    socket.on('register-owner-session', (ownerCode) => {
+        fleetOwnerSockets[socket.id] = ownerCode.trim();
+        console.log(`👑 Fleet Owner Session Authenticated: ${ownerCode.trim()} [Socket: ${socket.id}]`);
+        emitFleetToOwner(socket.id);
+    });
 
     // Fleet Owner Asset Pre-Registration
     socket.on('owner-register-vehicle', (vData) => {
@@ -47,14 +71,15 @@ io.on('connection', (socket) => {
                 vin: vData.vin,
                 model: vData.model,
                 dailyLeaseTarget: vData.dailyTargetGhs || 120,
-                assignedDriverPhone: vData.assignedDriverPhone,
+                ownerCode: vData.ownerCode || '',
                 serviceHistory: []
             };
         } else {
             servicePassports[plate].vin = vData.vin;
             servicePassports[plate].dailyLeaseTarget = vData.dailyTargetGhs;
+            servicePassports[plate].ownerCode = vData.ownerCode;
         }
-        console.log(`📋 Fleet Vehicle Registered: ${plate} [Target: GH₵ ${vData.dailyTargetGhs}]`);
+        console.log(`📋 Fleet Vehicle Registered: ${plate} [Owner Code: ${vData.ownerCode}]`);
     });
 
     socket.on('register-rider', (riderData) => {
@@ -77,11 +102,13 @@ io.on('connection', (socket) => {
             passport: servicePassports[plate]
         };
 
-        console.log(`🛺 Driver active: ${riderData.fullName} [Plate: ${plate}]`);
+        console.log(`🛺 Driver active: ${riderData.fullName} [Plate: ${plate}] [Fleet Code: ${riderData.ownerCode}]`);
         
         socket.emit('passport-update', servicePassports[plate]);
+        
+        // Broadcast to passengers (all drivers) & filtered to owners
         io.emit('rider-location-updated', activeRiders[socket.id]);
-        io.emit('current-riders', Object.values(activeRiders));
+        broadcastFleetUpdates();
     });
 
     socket.on('update-rider-location', (riderData) => {
@@ -95,7 +122,6 @@ io.on('connection', (socket) => {
                 if (servicePassports[plate]) {
                     servicePassports[plate].currentServiceKm += deltaKm;
                     servicePassports[plate].totalLifetimeKm += deltaKm;
-
                     socket.emit('passport-update', servicePassports[plate]);
                 }
             }
@@ -107,12 +133,9 @@ io.on('connection', (socket) => {
         }
         
         io.emit('rider-location-updated', activeRiders[socket.id]);
-        io.emit('current-riders', Object.values(activeRiders));
+        broadcastFleetUpdates();
     });
 
-    // --- REAL-WORLD TRIP WORKFLOW EVENTS ---
-
-    // 1. Dispatch Request (Passenger requests pickup)
     socket.on('request-ride', (reqData) => {
         let targetSocketId = Object.keys(activeRiders).find(
             id => activeRiders[id].username === reqData.targetRiderUsername
@@ -122,29 +145,25 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 2. Driver Accepts Dispatch & Head to Pickup
     socket.on('accept-ride-request', (resData) => {
         const rider = activeRiders[socket.id];
         if (rider) {
             rider.status = 'EN_ROUTE';
             io.emit('rider-location-updated', rider);
-            io.emit('current-riders', Object.values(activeRiders));
+            broadcastFleetUpdates();
         }
         io.to(resData.passengerSocketId).emit('ride-request-response', resData);
     });
 
-    // 3. Driver Arrives & Passenger Boards (Start Trip)
     socket.on('start-trip', (tripData) => {
         const rider = activeRiders[socket.id];
         if (rider) {
             rider.status = 'ON_TRIP';
-            rider.activeTripStart = { lat: rider.lat, lng: rider.lng };
             io.emit('rider-location-updated', rider);
-            io.emit('current-riders', Object.values(activeRiders));
+            broadcastFleetUpdates();
         }
     });
 
-    // 4. Drop-off Destination Reached (End Trip & Calculate Fare)
     socket.on('end-trip', (tripData) => {
         const rider = activeRiders[socket.id];
         if (rider) {
@@ -163,53 +182,18 @@ io.on('connection', (socket) => {
             }
 
             io.emit('rider-location-updated', rider);
-            io.emit('current-riders', Object.values(activeRiders));
+            broadcastFleetUpdates();
         }
-    });
-
-    socket.on('verify-service-reset', (data) => {
-        const plate = data.plateNumber.toUpperCase();
-        if (servicePassports[plate]) {
-            const serviceEntry = {
-                date: new Date().toLocaleDateString(),
-                mileageAtService: servicePassports[plate].currentServiceKm.toFixed(1),
-                workshopName: data.workshopName || 'Authorized Workshop',
-                type: data.serviceType || 'Oil & Filter Routine Service'
-            };
-
-            servicePassports[plate].serviceHistory.push(serviceEntry);
-            servicePassports[plate].currentServiceKm = 0.0;
-
-            const riderSocketId = Object.keys(activeRiders).find(
-                id => activeRiders[id].plateNumber.toUpperCase() === plate
-            );
-
-            if (riderSocketId) {
-                io.to(riderSocketId).emit('passport-update', servicePassports[plate]);
-                io.to(riderSocketId).emit('service-verified-alert', serviceEntry);
-            }
-            
-            io.emit('current-riders', Object.values(activeRiders));
-        }
-    });
-
-    socket.on('register-workshop', (shopData) => {
-        activeWorkshops[socket.id] = { ...shopData, socketId: socket.id };
-        io.emit('workshop-registered', activeWorkshops[socket.id]);
-    });
-
-    socket.on('driver-sos', (sosData) => {
-        io.emit('driver-sos-alert', { ...sosData, socketId: socket.id });
     });
 
     socket.on('disconnect', () => {
         if (activeRiders[socket.id]) {
             delete activeRiders[socket.id];
             io.emit('rider-disconnected', socket.id);
-            io.emit('current-riders', Object.values(activeRiders));
+            broadcastFleetUpdates();
         }
-        if (activeWorkshops[socket.id]) {
-            delete activeWorkshops[socket.id];
+        if (fleetOwnerSockets[socket.id]) {
+            delete fleetOwnerSockets[socket.id];
         }
     });
 });
