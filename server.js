@@ -37,6 +37,26 @@ io.on('connection', (socket) => {
 
     socket.emit('current-riders', Object.values(activeRiders));
 
+    // Fleet Owner Asset Pre-Registration
+    socket.on('owner-register-vehicle', (vData) => {
+        const plate = vData.plateNumber.toUpperCase();
+        if (!servicePassports[plate]) {
+            servicePassports[plate] = {
+                currentServiceKm: 0.0,
+                totalLifetimeKm: 0.0,
+                vin: vData.vin,
+                model: vData.model,
+                dailyLeaseTarget: vData.dailyTargetGhs || 120,
+                assignedDriverPhone: vData.assignedDriverPhone,
+                serviceHistory: []
+            };
+        } else {
+            servicePassports[plate].vin = vData.vin;
+            servicePassports[plate].dailyLeaseTarget = vData.dailyTargetGhs;
+        }
+        console.log(`📋 Fleet Vehicle Registered: ${plate} [Target: GH₵ ${vData.dailyTargetGhs}]`);
+    });
+
     socket.on('register-rider', (riderData) => {
         const plate = riderData.plateNumber.toUpperCase();
         
@@ -44,6 +64,7 @@ io.on('connection', (socket) => {
             servicePassports[plate] = {
                 currentServiceKm: 0.0,
                 totalLifetimeKm: 0.0,
+                dailyLeaseTarget: 120,
                 serviceHistory: []
             };
         }

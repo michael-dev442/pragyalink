@@ -18,6 +18,56 @@
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
 
+    <div id="addVehicleModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-amber-500/30 shadow-2xl space-y-4">
+            <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
+                <span class="text-3xl">🛺</span>
+                <div>
+                    <h2 class="text-xl font-black text-white">Register Fleet Vehicle</h2>
+                    <p class="text-xs text-slate-400">Add asset for Work-and-Pay tracking</p>
+                </div>
+            </div>
+
+            <form onsubmit="registerFleetVehicle(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Plate Number *</label>
+                    <input type="text" id="regPlate" required placeholder="e.g. M-24-AS" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono uppercase">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Chassis / VIN Serial *</label>
+                    <input type="text" id="regVin" required placeholder="e.g. MD2A25AY4MW123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono uppercase">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1">Vehicle Model</label>
+                        <select id="regModel" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none">
+                            <option value="Bajaj RE">Bajaj RE</option>
+                            <option value="TVS King">TVS King</option>
+                            <option value="Mahindra Alfa">Mahindra Alfa</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1">Daily Target (GH₵) *</label>
+                        <input type="number" id="regTarget" required placeholder="120" value="120" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Assigned Driver Phone</label>
+                    <input type="tel" id="regDriverPhone" placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeAddVehicleModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="w-1/2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs transition shadow-lg">
+                        ➕ Save Vehicle
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
         <div class="flex items-center space-x-3">
             <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-amber-400">Fleet 📊</span></a>
@@ -26,6 +76,9 @@
             </span>
         </div>
         <div class="flex items-center space-x-2">
+            <button onclick="openAddVehicleModal()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                ➕ Add Vehicle
+            </button>
             <a href="/rider" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
                 Driver Console
             </a>
@@ -38,9 +91,14 @@
         </div>
 
         <aside class="w-full md:w-96 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
-            <div class="border-b border-slate-800 pb-3">
-                <h2 class="text-base font-black text-white">Fleet Summary</h2>
-                <p class="text-[10px] text-slate-400">Real-time driver activity and lease targets</p>
+            <div class="border-b border-slate-800 pb-3 flex justify-between items-center">
+                <div>
+                    <h2 class="text-base font-black text-white">Fleet Summary</h2>
+                    <p class="text-[10px] text-slate-400">Real-time driver activity and lease targets</p>
+                </div>
+                <button onclick="openAddVehicleModal()" class="text-[10px] bg-amber-500 text-slate-950 font-black px-2.5 py-1 rounded-lg">
+                    + Asset
+                </button>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
@@ -75,14 +133,31 @@
         const map = new maplibregl.Map({
             container: 'map',
             style: 'https://tiles.openfreemap.org/styles/liberty',
-            center: [-1.6244, 6.6885], // Kumasi
+            center: [-1.6244, 6.6885],
             zoom: 13,
             pitch: 45
         });
 
         map.addControl(new maplibregl.NavigationControl());
 
-        // Sync Active Drivers to Dashboard
+        function openAddVehicleModal() { document.getElementById('addVehicleModal').classList.remove('hidden'); }
+        function closeAddVehicleModal() { document.getElementById('addVehicleModal').classList.add('hidden'); }
+
+        function registerFleetVehicle(e) {
+            e.preventDefault();
+            const vehicleData = {
+                plateNumber: document.getElementById('regPlate').value.toUpperCase(),
+                vin: document.getElementById('regVin').value.toUpperCase(),
+                model: document.getElementById('regModel').value,
+                dailyTargetGhs: parseFloat(document.getElementById('regTarget').value),
+                assignedDriverPhone: document.getElementById('regDriverPhone').value
+            };
+
+            socket.emit('owner-register-vehicle', vehicleData);
+            closeAddVehicleModal();
+            alert(`✅ Vehicle ${vehicleData.plateNumber} Registered to Fleet Database!`);
+        }
+
         socket.on('current-riders', (riders) => {
             renderFleet(riders);
         });
@@ -115,6 +190,7 @@
 
                 const currentKm = rider.passport ? rider.passport.currentServiceKm : 0;
                 const lifetimeKm = rider.passport ? rider.passport.totalLifetimeKm : 0;
+                const target = rider.passport ? (rider.passport.dailyLeaseTarget || 120) : 120;
                 totalKm += lifetimeKm;
 
                 const card = document.createElement('div');
@@ -125,8 +201,12 @@
                         <span class="font-mono text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">${rider.plateNumber || 'M-24-AS'}</span>
                     </div>
                     <div class="text-[11px] text-slate-400 flex justify-between">
-                        <span>Vehicle: <strong class="text-slate-200">${rider.vehicleType || 'Bajaj RE'}</strong></span>
-                        <span>Service Status: <strong class="${currentKm >= 1500 ? 'text-red-400 font-bold' : 'text-emerald-400'}">${currentKm >= 1500 ? 'Service Overdue' : 'OK'}</strong></span>
+                        <span>Model: <strong class="text-slate-200">${rider.vehicleType || 'Bajaj RE'}</strong></span>
+                        <span>Target: <strong class="text-emerald-400 font-mono">GH₵ ${target}/day</strong></span>
+                    </div>
+                    <div class="text-[11px] text-slate-400 flex justify-between">
+                        <span>Contact: <a href="tel:${rider.contact}" class="text-sky-400 underline font-mono">${rider.contact || 'N/A'}</a></span>
+                        <span>Service: <strong class="${currentKm >= 1500 ? 'text-red-400 font-bold animate-pulse' : 'text-emerald-400'}">${currentKm >= 1500 ? 'Overdue' : 'OK'}</strong></span>
                     </div>
                     <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
                         <div class="bg-amber-400 h-full" style="width: ${Math.min(100, (currentKm / 1500) * 100)}%;"></div>
@@ -150,7 +230,11 @@
 
                 fleetMarkers[rider.socketId] = new maplibregl.Marker({ element: el })
                     .setLngLat([rider.lng, rider.lat])
-                    .setPopup(new maplibregl.Popup().setHTML(`<b style="color:#f59e0b;">🛺 ${rider.fullName || 'Fleet Vehicle'}</b><br><span style="font-family:monospace;">Plate: ${rider.plateNumber}</span>`))
+                    .setPopup(new maplibregl.Popup().setHTML(`
+                        <b style="color:#f59e0b;">🛺 ${rider.fullName || 'Fleet Vehicle'}</b><br>
+                        <span style="font-family:monospace;">Plate: ${rider.plateNumber}</span><br>
+                        <a href="tel:${rider.contact}" style="color:#38bdf8; font-weight:bold;">📞 Call: ${rider.contact}</a>
+                    `))
                     .addTo(map);
             }
         }
