@@ -38,10 +38,25 @@
                     <label class="block text-xs font-bold text-slate-300 mb-1">Full Name *</label>
                     <input type="text" id="fullName" required placeholder="e.g. Kwame Mensah" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
                 </div>
+
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Phone Number (MoMo Enabled) *</label>
                     <input type="tel" id="contact" required placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono">
                 </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Ownership Mode</label>
+                    <select id="ownershipType" onchange="toggleFleetCodeInput()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+                        <option value="owner_operator">👤 I own this Pragya (Owner-Operator)</option>
+                        <option value="lease_driver">🤝 Work-and-Pay / Leased Driver</option>
+                    </select>
+                </div>
+
+                <div id="fleetCodeGroup" class="hidden">
+                    <label class="block text-xs font-bold text-amber-400 mb-1">Fleet Owner Phone / Code *</label>
+                    <input type="text" id="ownerCode" placeholder="e.g. 0244001122" class="w-full bg-slate-900 border border-amber-500/50 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none">
+                </div>
+
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="block text-xs font-bold text-slate-300 mb-1">Vehicle Type</label>
@@ -137,6 +152,16 @@
                 </div>
             </div>
 
+            <div id="leaseTargetCard" class="hidden bg-slate-900/90 p-3 rounded-2xl border border-amber-500/30 space-y-1">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="font-bold text-amber-400">📊 Daily Lease Goal</span>
+                    <span id="leaseTargetText" class="font-mono text-white">GH₵ 0 / GH₵ 120</span>
+                </div>
+                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div id="leaseProgressBar" class="bg-amber-400 h-full transition-all duration-500" style="width: 0%;"></div>
+                </div>
+            </div>
+
             <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
                 <div class="flex justify-between items-center">
                     <span class="text-xs font-black text-white flex items-center gap-1">🛠️ Digital Service Passport</span>
@@ -164,6 +189,7 @@
                 <div id="driverCardName" class="text-white font-extrabold text-sm">Not Registered</div>
                 <div id="driverCardPlate" class="text-amber-400 font-mono font-bold">---</div>
                 <div id="driverCardContact" class="text-slate-400 font-mono">---</div>
+                <div id="driverOwnershipTag" class="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded inline-block">Owner-Operator</div>
             </div>
         </aside>
     </div>
@@ -182,45 +208,20 @@
             style: 'https://tiles.openfreemap.org/styles/liberty',
             center: [riderPos.lng, riderPos.lat],
             zoom: 16,
-            minZoom: 1,
-            maxZoom: 20,
-            pitch: 50,
-            bearing: 0,
-            antialias: true
+            pitch: 50
         });
 
         map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
 
-        map.on('load', () => {
-            map.resize();
-            const style = map.getStyle();
-
-            if (style && style.layers) {
-                style.layers.forEach((layer) => {
-                    if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
-                        map.setLayoutProperty(layer.id, 'text-size', ['interpolate', ['linear'], ['zoom'], 2, 10, 10, 13, 16, 16, 20, 22]);
-                        map.setPaintProperty(layer.id, 'text-halo-color', '#000000');
-                        map.setPaintProperty(layer.id, 'text-halo-width', 2.5);
-                        map.setPaintProperty(layer.id, 'text-color', '#ffffff');
-                    }
-                });
+        function toggleFleetCodeInput() {
+            const type = document.getElementById('ownershipType').value;
+            const fleetGroup = document.getElementById('fleetCodeGroup');
+            if (type === 'lease_driver') {
+                fleetGroup.classList.remove('hidden');
+            } else {
+                fleetGroup.classList.add('hidden');
             }
-
-            map.addSource('pickup-route', {
-                'type': 'geojson',
-                'data': { 'type': 'Feature', 'properties': {}, 'geometry': { 'type': 'LineString', 'coordinates': [] } }
-            });
-
-            map.addLayer({
-                'id': 'pickup-route-line',
-                'type': 'line',
-                'source': 'pickup-route',
-                'layout': { 'line-join': 'round', 'line-cap': 'round' },
-                'paint': { 'line-color': '#10b981', 'line-width': 6, 'line-opacity': 0.9 }
-            });
-        });
-
-        window.addEventListener('resize', () => map.resize());
+        }
 
         function updateDriverLocationMarker(lat, lng) {
             if (driverMarker) {
@@ -261,10 +262,15 @@
 
         function registerRider(e) {
             e.preventDefault();
+            const ownership = document.getElementById('ownershipType').value;
+            const ownerCode = document.getElementById('ownerCode').value;
+
             currentRiderData = {
                 username: document.getElementById('fullName').value.toLowerCase().replace(/\s+/g, '_'),
                 fullName: document.getElementById('fullName').value,
                 contact: document.getElementById('contact').value,
+                ownershipType: ownership,
+                ownerCode: ownerCode,
                 vehicleType: document.getElementById('vehicleType').value,
                 plateNumber: document.getElementById('plateNumber').value.toUpperCase(),
                 lat: riderPos.lat,
@@ -277,21 +283,30 @@
             document.getElementById('driverCardName').innerText = currentRiderData.fullName;
             document.getElementById('driverCardPlate').innerText = `Plate: ${currentRiderData.plateNumber}`;
             document.getElementById('driverCardContact').innerText = `📞 ${currentRiderData.contact}`;
+            
+            const ownershipTag = document.getElementById('driverOwnershipTag');
+            if (ownership === 'lease_driver') {
+                ownershipTag.innerText = "Work-and-Pay Driver";
+                ownershipTag.className = "text-[10px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded inline-block";
+                document.getElementById('leaseTargetCard').classList.remove('hidden');
+            } else {
+                ownershipTag.innerText = "Owner-Operator";
+                ownershipTag.className = "text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded inline-block";
+            }
 
             updateDriverLocationMarker(riderPos.lat, riderPos.lng);
-            alert(`✅ Driver Profile Active! Digital Service Passport Linked.`);
+            alert(`✅ Profile Active! Digital Service Passport Linked.`);
         }
 
         socket.on('passport-update', (passport) => {
             const currentKm = passport.currentServiceKm || 0;
             const lifetimeKm = passport.totalLifetimeKm || 0;
-            const maxKm = 1500;
-
-            const percentage = Math.min(100, (currentKm / maxKm) * 100);
+            const target = passport.dailyLeaseTarget || 120;
 
             document.getElementById('serviceKmText').innerText = `${currentKm.toFixed(1)} / 1,500 km`;
             document.getElementById('lifetimeKmText').innerText = `${lifetimeKm.toFixed(1)} km`;
             
+            const percentage = Math.min(100, (currentKm / 1500) * 100);
             const progressBar = document.getElementById('serviceProgressBar');
             const statusTag = document.getElementById('serviceStatusTag');
 
@@ -310,10 +325,11 @@
                 statusTag.className = "text-[9px] font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30";
                 statusTag.innerText = "Service Overdue!";
             }
-        });
 
-        socket.on('service-verified-alert', (serviceEntry) => {
-            alert(`✅ SERVICE VERIFIED & PASSPORT RESET!\n\nWorkshop: ${serviceEntry.workshopName}\nType: ${serviceEntry.type}\nDate: ${serviceEntry.date}\n\nYour 1,500 km service counter has been reset.`);
+            // Update Lease Target Goal
+            document.getElementById('leaseTargetText').innerText = `GH₵ ${totalEarningsGhs.toFixed(0)} / GH₵ ${target}`;
+            const targetPct = Math.min(100, (totalEarningsGhs / target) * 100);
+            document.getElementById('leaseProgressBar').style.width = `${targetPct}%`;
         });
 
         socket.on('incoming-ride-request', (req) => {
@@ -366,27 +382,6 @@
                 .addTo(map);
 
             map.flyTo({ center: [pickupLng, pickupLat], zoom: 18, pitch: 60, bearing: 20, speed: 1.2 });
-
-            try {
-                const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${riderPos.lng},${riderPos.lat};${pickupLng},${pickupLat}?overview=full&geometries=geojson`);
-                const data = await response.json();
-
-                if (data.routes && data.routes.length > 0) {
-                    map.getSource('pickup-route').setData({
-                        'type': 'Feature',
-                        'properties': {},
-                        'geometry': { 'type': 'LineString', 'coordinates': data.routes[0].geometry.coordinates }
-                    });
-                    const etaMins = Math.round(data.routes[0].duration / 60);
-                    alert(`🎉 RIDE ACCEPTED!\n\n🗺️ Live Pickup Route streaming to Target Destination (🎯).\nEst. Arrival: ~${etaMins} mins.`);
-                }
-            } catch (err) {
-                map.getSource('pickup-route').setData({
-                    'type': 'Feature',
-                    'properties': {},
-                    'geometry': { 'type': 'LineString', 'coordinates': [[riderPos.lng, riderPos.lat], [pickupLng, pickupLat]] }
-                });
-            }
         }
 
         function openSosModal() { document.getElementById('sosModal').classList.remove('hidden'); }
