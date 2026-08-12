@@ -14,6 +14,7 @@
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
         #map { width: 100%; height: 100%; min-height: 400px; background-color: #0f172a; }
         .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
+        .input-error { border-color: #ef4444 !important; background-color: rgba(239, 68, 68, 0.1) !important; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
@@ -32,6 +33,7 @@
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Plate Number *</label>
                     <input type="text" id="regPlate" required placeholder="e.g. M-24-AS" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono uppercase">
+                    <span id="regPlateError" class="text-[10px] text-red-400 hidden font-semibold">⚠️ Invalid Ghana plate format (e.g. M-24-AS)</span>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Chassis / VIN Serial *</label>
@@ -50,6 +52,11 @@
                         <label class="block text-xs font-bold text-slate-300 mb-1">Daily Target (GH₵) *</label>
                         <input type="number" id="regTarget" required placeholder="120" value="120" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
                     </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Assigned Driver Phone</label>
+                    <input type="tel" id="regDriverPhone" placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
+                    <span id="regPhoneError" class="text-[10px] text-red-400 hidden font-semibold">⚠️ Invalid 10-digit Ghana phone number</span>
                 </div>
 
                 <div class="flex gap-2 pt-2">
@@ -123,6 +130,9 @@
         const socket = io();
         const fleetMarkers = {};
 
+        const ghanaPhoneRegex = /^(?:\+233|0)[23579]\d{8}$/;
+        const plateRegex = /^[A-Z]{1,3}[-\s]?\d{1,4}[-\s]?[A-Z]{0,2}\d{0,2}$/i;
+
         const map = new maplibregl.Map({
             container: 'map',
             style: 'https://tiles.openfreemap.org/styles/liberty',
@@ -138,39 +148,79 @@
 
         function registerFleetVehicle(e) {
             e.preventDefault();
+
+            const regPlate = document.getElementById('regPlate');
+            const regDriverPhone = document.getElementById('regDriverPhone');
+            const regPlateError = document.getElementById('regPlateError');
+            const regPhoneError = document.getElementById('regPhoneError');
+
+            let isValid = true;
+
+            if (!plateRegex.test(regPlate.value.trim()) || regPlate.value.trim().length < 4) {
+                regPlate.classList.add('input-error');
+                regPlateError.classList.remove('hidden');
+                isValid = false;
+            } else {
+                regPlate.classList.remove('input-error');
+                regPlateError.classList.add('hidden');
+            }
+
+            if (regDriverPhone.value.trim() !== '' && !ghanaPhoneRegex.test(regDriverPhone.value.trim())) {
+                regDriverPhone.classList.add('input-error');
+                regPhoneError.classList.remove('hidden');
+                isValid = false;
+            } else {
+                regDriverPhone.classList.remove('input-error');
+                regPhoneError.classList.add('hidden');
+            }
+
+            if (!isValid) return;
+
             const vehicleData = {
-                plateNumber: document.getElementById('regPlate').value.toUpperCase(),
-                vin: document.getElementById('regVin').value.toUpperCase(),
+                plateNumber: regPlate.value.trim().toUpperCase(),
+                vin: document.getElementById('regVin').value.trim().toUpperCase(),
                 model: document.getElementById('regModel').value,
                 dailyTargetGhs: parseFloat(document.getElementById('regTarget').value),
-                assignedDriverPhone: document.getElementById('regDriverPhone').value
+                assignedDriverPhone: regDriverPhone.value.trim()
             };
+
             socket.emit('owner-register-vehicle', vehicleData);
             closeAddVehicleModal();
+            alert(`✅ Vehicle ${vehicleData.plateNumber} Registered to Fleet Registry!`);
         }
 
+        // Bulk CSV Upload Handler with Line-by-Line Validation
         function handleBulkCsvUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
+
             const reader = new FileReader();
             reader.onload = function(e) {
                 const lines = e.target.result.split('\n');
                 let count = 0;
+                let skipped = 0;
+
                 for (let i = 1; i < lines.length; i++) {
                     const line = lines[i].trim();
                     if (!line) continue;
-                    const [plateNumber, vin, model, dailyTargetGhs] = line.split(',');
-                    if (plateNumber) {
+
+                    const [plateNumber, vin, model, dailyTargetGhs, assignedDriverPhone] = line.split(',');
+
+                    if (plateNumber && plateRegex.test(plateNumber.trim()) && plateNumber.trim().length >= 4) {
                         socket.emit('owner-register-vehicle', {
                             plateNumber: plateNumber.trim().toUpperCase(),
                             vin: vin ? vin.trim().toUpperCase() : 'N/A',
                             model: model ? model.trim() : 'Bajaj RE',
-                            dailyTargetGhs: parseFloat(dailyTargetGhs) || 120
+                            dailyTargetGhs: parseFloat(dailyTargetGhs) || 120,
+                            assignedDriverPhone: assignedDriverPhone ? assignedDriverPhone.trim() : ''
                         });
                         count++;
+                    } else {
+                        skipped++;
                     }
                 }
-                alert(`🎉 BULK IMPORT SUCCESS!\n\nRegistered ${count} vehicles into fleet passports.`);
+
+                alert(`🎉 BULK IMPORT COMPLETED!\n\n✅ Registered: ${count} vehicles\n⚠️ Skipped Invalid Rows: ${skipped}`);
             };
             reader.readAsText(file);
         }

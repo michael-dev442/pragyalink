@@ -14,6 +14,7 @@
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
         #map { width: 100%; height: 100%; min-height: 400px; background-color: #0f172a; }
         .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
+        .input-error { border-color: #ef4444 !important; background-color: rgba(239, 68, 68, 0.1) !important; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
@@ -35,8 +36,9 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Phone Number *</label>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Phone Number (MoMo Enabled) *</label>
                     <input type="tel" id="contact" required placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono">
+                    <span id="phoneError" class="text-[10px] text-red-400 hidden font-semibold">⚠️ Enter a valid 10-digit Ghana phone number (e.g. 0244123456)</span>
                 </div>
 
                 <div>
@@ -48,7 +50,7 @@
                 </div>
 
                 <div id="fleetCodeGroup" class="hidden">
-                    <label class="block text-xs font-bold text-amber-400 mb-1">Fleet Owner Phone / Code</label>
+                    <label class="block text-xs font-bold text-amber-400 mb-1">Fleet Owner Phone / Code *</label>
                     <input type="text" id="ownerCode" placeholder="e.g. 0244001122" class="w-full bg-slate-900 border border-amber-500/50 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none">
                 </div>
 
@@ -64,6 +66,7 @@
                     <div>
                         <label class="block text-xs font-bold text-slate-300 mb-1">Plate Number *</label>
                         <input type="text" id="plateNumber" required placeholder="e.g. M-24-AS" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono uppercase">
+                        <span id="plateError" class="text-[10px] text-red-400 hidden font-semibold">⚠️ Enter valid plate format (e.g. M-24-AS or AS-1234-24)</span>
                     </div>
                 </div>
 
@@ -95,13 +98,11 @@
         </div>
 
         <aside class="w-full md:w-80 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
-            
             <div id="activeTripCard" class="bg-slate-900/90 p-4 rounded-2xl border border-sky-500/40 space-y-3">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-2">
                     <span class="text-xs font-black text-sky-400">📍 Trip Control Center</span>
                     <span id="tripStatusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Idle / Waiting</span>
                 </div>
-
                 <div id="tripActionArea" class="space-y-2 text-xs">
                     <p class="text-slate-400 italic text-[11px]">No active passenger on board. Waiting for ride dispatches...</p>
                 </div>
@@ -141,8 +142,11 @@
         let riderPos = { lat: 6.6885, lng: -1.6244 };
         let currentRiderData = null;
         let activePassengerSocketId = null;
-        let activeTripStartPos = null;
         let driverMarker = null;
+
+        // Validation Regex
+        const ghanaPhoneRegex = /^(?:\+233|0)[23579]\d{8}$/;
+        const plateRegex = /^[A-Z]{1,3}[-\s]?\d{1,4}[-\s]?[A-Z]{0,2}\d{0,2}$/i;
 
         const map = new maplibregl.Map({
             container: 'map',
@@ -180,14 +184,47 @@
 
         function registerRider(e) {
             e.preventDefault();
+
+            const contactInput = document.getElementById('contact');
+            const plateInput = document.getElementById('plateNumber');
+            const phoneError = document.getElementById('phoneError');
+            const plateError = document.getElementById('plateError');
+
+            let isValid = true;
+
+            // Validate Ghana Phone Number
+            if (!ghanaPhoneRegex.test(contactInput.value.trim())) {
+                contactInput.classList.add('input-error');
+                phoneError.classList.remove('hidden');
+                isValid = false;
+            } else {
+                contactInput.classList.remove('input-error');
+                phoneError.classList.add('hidden');
+            }
+
+            // Validate Vehicle Plate Number
+            if (!plateRegex.test(plateInput.value.trim()) || plateInput.value.trim().length < 4) {
+                plateInput.classList.add('input-error');
+                plateError.classList.remove('hidden');
+                isValid = false;
+            } else {
+                plateInput.classList.remove('input-error');
+                plateError.classList.add('hidden');
+            }
+
+            if (!isValid) {
+                alert("⚠️ Please correct the highlighted errors before proceeding!");
+                return;
+            }
+
             currentRiderData = {
                 username: document.getElementById('fullName').value.toLowerCase().replace(/\s+/g, '_'),
-                fullName: document.getElementById('fullName').value,
-                contact: document.getElementById('contact').value,
+                fullName: document.getElementById('fullName').value.trim(),
+                contact: contactInput.value.trim(),
                 ownershipType: document.getElementById('ownershipType').value,
-                ownerCode: document.getElementById('ownerCode').value,
+                ownerCode: document.getElementById('ownerCode').value.trim(),
                 vehicleType: document.getElementById('vehicleType').value,
-                plateNumber: document.getElementById('plateNumber').value.toUpperCase(),
+                plateNumber: plateInput.value.trim().toUpperCase(),
                 lat: riderPos.lat,
                 lng: riderPos.lng
             };
@@ -196,7 +233,6 @@
             document.getElementById('driverModal').classList.add('hidden');
         }
 
-        // Incoming Dispatch Request from Passenger
         socket.on('incoming-ride-request', (req) => {
             activePassengerSocketId = req.passengerSocketId;
             const confirmAccept = confirm(`🛺 PASSENGER PICKUP DISPATCH!\n\nPassenger is waiting at your location.\nTap OK to accept and head to pickup point.`);
@@ -224,9 +260,7 @@
             }
         });
 
-        // Step 1: Passenger Gets In (Driver taps "Start Trip")
         function startTripWithPassenger() {
-            activeTripStartPos = { lat: riderPos.lat, lng: riderPos.lng };
             socket.emit('start-trip', { passengerSocketId: activePassengerSocketId });
 
             document.getElementById('tripStatusTag').innerText = "Trip On Meter";
@@ -246,7 +280,6 @@
             `;
         }
 
-        // Step 2: Destination Reached (Driver taps "End Trip")
         function endTripAndCalculateFare() {
             const fareGhs = parseFloat(document.getElementById('finalFareInput').value) || 15.00;
             
