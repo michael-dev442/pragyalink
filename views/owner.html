@@ -75,10 +75,17 @@
                 Work-and-Pay Control Center
             </span>
         </div>
+        
         <div class="flex items-center space-x-2">
             <button onclick="openAddVehicleModal()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
                 ➕ Add Vehicle
             </button>
+            
+            <label class="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1 cursor-pointer">
+                📥 Bulk CSV Import
+                <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="handleBulkCsvUpload(event)">
+            </label>
+
             <a href="/rider" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
                 Driver Console
             </a>
@@ -96,9 +103,6 @@
                     <h2 class="text-base font-black text-white">Fleet Summary</h2>
                     <p class="text-[10px] text-slate-400">Real-time driver activity and lease targets</p>
                 </div>
-                <button onclick="openAddVehicleModal()" class="text-[10px] bg-amber-500 text-slate-950 font-black px-2.5 py-1 rounded-lg">
-                    + Asset
-                </button>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
@@ -156,6 +160,44 @@
             socket.emit('owner-register-vehicle', vehicleData);
             closeAddVehicleModal();
             alert(`✅ Vehicle ${vehicleData.plateNumber} Registered to Fleet Database!`);
+        }
+
+        // Bulk CSV Upload Handler for Credit Unions & Large Fleet Owners
+        function handleBulkCsvUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const lines = text.split('\n');
+                let successCount = 0;
+
+                // Skip header line (row 0)
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+
+                    const [plateNumber, vin, model, dailyTargetGhs, assignedDriverPhone] = line.split(',');
+
+                    if (plateNumber) {
+                        const vehicleData = {
+                            plateNumber: plateNumber.trim().toUpperCase(),
+                            vin: vin ? vin.trim().toUpperCase() : 'N/A',
+                            model: model ? model.trim() : 'Bajaj RE',
+                            dailyTargetGhs: parseFloat(dailyTargetGhs) || 120,
+                            assignedDriverPhone: assignedDriverPhone ? assignedDriverPhone.trim() : ''
+                        };
+
+                        socket.emit('owner-register-vehicle', vehicleData);
+                        successCount++;
+                    }
+                }
+
+                alert(`🎉 BULK IMPORT SUCCESS!\n\nRegistered ${successCount} vehicles to PragyaLink fleet registry.`);
+            };
+
+            reader.readAsText(file);
         }
 
         socket.on('current-riders', (riders) => {
