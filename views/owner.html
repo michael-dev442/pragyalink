@@ -51,10 +51,6 @@
                         <input type="number" id="regTarget" required placeholder="120" value="120" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
                     </div>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Assigned Driver Phone</label>
-                    <input type="tel" id="regDriverPhone" placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
-                </div>
 
                 <div class="flex gap-2 pt-2">
                     <button type="button" onclick="closeAddVehicleModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition">
@@ -80,12 +76,10 @@
             <button onclick="openAddVehicleModal()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
                 ➕ Add Vehicle
             </button>
-            
             <label class="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1 cursor-pointer">
                 📥 Bulk CSV Import
                 <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="handleBulkCsvUpload(event)">
             </label>
-
             <a href="/rider" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
                 Driver Console
             </a>
@@ -98,16 +92,14 @@
         </div>
 
         <aside class="w-full md:w-96 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
-            <div class="border-b border-slate-800 pb-3 flex justify-between items-center">
-                <div>
-                    <h2 class="text-base font-black text-white">Fleet Summary</h2>
-                    <p class="text-[10px] text-slate-400">Real-time driver activity and lease targets</p>
-                </div>
+            <div class="border-b border-slate-800 pb-3">
+                <h2 class="text-base font-black text-white">Fleet Summary</h2>
+                <p class="text-[10px] text-slate-400">Real-time driver activity and lease target progress</p>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold">Active Vehicles</span>
+                    <span class="text-[10px] text-slate-400 uppercase font-bold">Active Fleet</span>
                     <div id="activeCount" class="text-xl font-black text-emerald-400 font-mono">0</div>
                 </div>
                 <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
@@ -117,10 +109,7 @@
             </div>
 
             <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Live Fleet Vehicles</h3>
-                    <span class="text-[10px] text-slate-500 font-mono">Auto-Syncing</span>
-                </div>
+                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Live Vehicles</h3>
                 <div id="fleetList" class="space-y-2">
                     <div class="text-xs text-slate-500 italic p-3 text-center border border-dashed border-slate-800 rounded-xl">
                         Waiting for active drivers on the network...
@@ -156,64 +145,38 @@
                 dailyTargetGhs: parseFloat(document.getElementById('regTarget').value),
                 assignedDriverPhone: document.getElementById('regDriverPhone').value
             };
-
             socket.emit('owner-register-vehicle', vehicleData);
             closeAddVehicleModal();
-            alert(`✅ Vehicle ${vehicleData.plateNumber} Registered to Fleet Database!`);
         }
 
-        // Bulk CSV Upload Handler for Credit Unions & Large Fleet Owners
         function handleBulkCsvUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = function(e) {
-                const text = e.target.result;
-                const lines = text.split('\n');
-                let successCount = 0;
-
-                // Skip header line (row 0)
+                const lines = e.target.result.split('\n');
+                let count = 0;
                 for (let i = 1; i < lines.length; i++) {
                     const line = lines[i].trim();
                     if (!line) continue;
-
-                    const [plateNumber, vin, model, dailyTargetGhs, assignedDriverPhone] = line.split(',');
-
+                    const [plateNumber, vin, model, dailyTargetGhs] = line.split(',');
                     if (plateNumber) {
-                        const vehicleData = {
+                        socket.emit('owner-register-vehicle', {
                             plateNumber: plateNumber.trim().toUpperCase(),
                             vin: vin ? vin.trim().toUpperCase() : 'N/A',
                             model: model ? model.trim() : 'Bajaj RE',
-                            dailyTargetGhs: parseFloat(dailyTargetGhs) || 120,
-                            assignedDriverPhone: assignedDriverPhone ? assignedDriverPhone.trim() : ''
-                        };
-
-                        socket.emit('owner-register-vehicle', vehicleData);
-                        successCount++;
+                            dailyTargetGhs: parseFloat(dailyTargetGhs) || 120
+                        });
+                        count++;
                     }
                 }
-
-                alert(`🎉 BULK IMPORT SUCCESS!\n\nRegistered ${successCount} vehicles to PragyaLink fleet registry.`);
+                alert(`🎉 BULK IMPORT SUCCESS!\n\nRegistered ${count} vehicles into fleet passports.`);
             };
-
             reader.readAsText(file);
         }
 
-        socket.on('current-riders', (riders) => {
-            renderFleet(riders);
-        });
-
-        socket.on('rider-location-updated', (rider) => {
-            updateSingleRiderMarker(rider);
-        });
-
-        socket.on('rider-disconnected', (socketId) => {
-            if (fleetMarkers[socketId]) {
-                fleetMarkers[socketId].remove();
-                delete fleetMarkers[socketId];
-            }
-        });
+        socket.on('current-riders', (riders) => { renderFleet(riders); });
+        socket.on('rider-location-updated', (rider) => { updateSingleRiderMarker(rider); });
 
         function renderFleet(riders) {
             document.getElementById('activeCount').innerText = riders.length;
@@ -233,25 +196,32 @@
                 const currentKm = rider.passport ? rider.passport.currentServiceKm : 0;
                 const lifetimeKm = rider.passport ? rider.passport.totalLifetimeKm : 0;
                 const target = rider.passport ? (rider.passport.dailyLeaseTarget || 120) : 120;
+                const earnings = rider.shiftEarnings || 0.00;
                 totalKm += lifetimeKm;
+
+                let statusBadge = `<span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px]">🟢 Idle</span>`;
+                if (rider.status === 'EN_ROUTE') statusBadge = `<span class="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded text-[10px] animate-pulse">🟡 Pickup</span>`;
+                if (rider.status === 'ON_TRIP') statusBadge = `<span class="bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded text-[10px] animate-pulse">🔵 On Trip</span>`;
 
                 const card = document.createElement('div');
                 card.className = "bg-slate-900/80 p-3 rounded-2xl border border-slate-800 space-y-2 text-xs";
                 card.innerHTML = `
                     <div class="flex justify-between items-center">
                         <span class="font-extrabold text-white">${rider.fullName || 'Driver'}</span>
-                        <span class="font-mono text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">${rider.plateNumber || 'M-24-AS'}</span>
+                        ${statusBadge}
                     </div>
                     <div class="text-[11px] text-slate-400 flex justify-between">
-                        <span>Model: <strong class="text-slate-200">${rider.vehicleType || 'Bajaj RE'}</strong></span>
-                        <span>Target: <strong class="text-emerald-400 font-mono">GH₵ ${target}/day</strong></span>
+                        <span>Plate: <strong class="text-amber-400 font-mono">${rider.plateNumber}</strong></span>
+                        <span>Shift Earnings: <strong class="text-emerald-400 font-mono">GH₵ ${earnings.toFixed(2)}</strong></span>
                     </div>
-                    <div class="text-[11px] text-slate-400 flex justify-between">
-                        <span>Contact: <a href="tel:${rider.contact}" class="text-sky-400 underline font-mono">${rider.contact || 'N/A'}</a></span>
-                        <span>Service: <strong class="${currentKm >= 1500 ? 'text-red-400 font-bold animate-pulse' : 'text-emerald-400'}">${currentKm >= 1500 ? 'Overdue' : 'OK'}</strong></span>
-                    </div>
-                    <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                        <div class="bg-amber-400 h-full" style="width: ${Math.min(100, (currentKm / 1500) * 100)}%;"></div>
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-[10px] text-slate-400 font-mono">
+                            <span>Lease Target Progress:</span>
+                            <span>GH₵ ${earnings.toFixed(0)} / GH₵ ${target}</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div class="bg-amber-400 h-full transition-all duration-500" style="width: ${Math.min(100, (earnings / target) * 100)}%;"></div>
+                        </div>
                     </div>
                 `;
                 fleetListEl.appendChild(card);
@@ -272,11 +242,7 @@
 
                 fleetMarkers[rider.socketId] = new maplibregl.Marker({ element: el })
                     .setLngLat([rider.lng, rider.lat])
-                    .setPopup(new maplibregl.Popup().setHTML(`
-                        <b style="color:#f59e0b;">🛺 ${rider.fullName || 'Fleet Vehicle'}</b><br>
-                        <span style="font-family:monospace;">Plate: ${rider.plateNumber}</span><br>
-                        <a href="tel:${rider.contact}" style="color:#38bdf8; font-weight:bold;">📞 Call: ${rider.contact}</a>
-                    `))
+                    .setPopup(new maplibregl.Popup().setHTML(`<b>🛺 ${rider.fullName}</b><br>Plate: ${rider.plateNumber}`))
                     .addTo(map);
             }
         }

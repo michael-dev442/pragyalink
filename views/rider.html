@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Driver Console | PragyaLink Ghana</title>
     
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#10b981">
-
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
@@ -17,8 +14,6 @@
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
         #map { width: 100%; height: 100%; min-height: 400px; background-color: #0f172a; }
         .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
-        .maplibregl-popup-content { background: #0f172a !important; color: #f8fafc !important; border-radius: 16px; border: 1px solid rgba(16, 185, 129, 0.4); padding: 14px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); }
-        .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: #0f172a !important; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
@@ -28,8 +23,8 @@
             <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
                 <span class="text-3xl">🛺</span>
                 <div>
-                    <h2 class="text-xl font-black text-white">Driver Console Access</h2>
-                    <p class="text-xs text-slate-400">Set up your vehicle details to go online</p>
+                    <h2 class="text-xl font-black text-white">Driver Console Setup</h2>
+                    <p class="text-xs text-slate-400">Set up your profile to accept dispatches</p>
                 </div>
             </div>
 
@@ -40,7 +35,7 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Phone Number (MoMo Enabled) *</label>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Phone Number *</label>
                     <input type="tel" id="contact" required placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono">
                 </div>
 
@@ -53,7 +48,7 @@
                 </div>
 
                 <div id="fleetCodeGroup" class="hidden">
-                    <label class="block text-xs font-bold text-amber-400 mb-1">Fleet Owner Phone / Code *</label>
+                    <label class="block text-xs font-bold text-amber-400 mb-1">Fleet Owner Phone / Code</label>
                     <input type="text" id="ownerCode" placeholder="e.g. 0244001122" class="w-full bg-slate-900 border border-amber-500/50 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none">
                 </div>
 
@@ -79,39 +74,6 @@
         </div>
     </div>
 
-    <div id="sosModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
-        <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-red-500/40 shadow-2xl space-y-4">
-            <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
-                <span class="text-3xl">🚨</span>
-                <div>
-                    <h2 class="text-xl font-black text-white">Emergency Breakdown SOS</h2>
-                    <p class="text-xs text-slate-400">Broadcast your GPS location to nearby workshops</p>
-                </div>
-            </div>
-
-            <form onsubmit="sendBreakdownSos(event)" class="space-y-3">
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Select Issue *</label>
-                    <select id="sosIssue" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none">
-                        <option value="Engine Failure / Won't Start">Engine Failure / Won't Start</option>
-                        <option value="Flat Tire / Rim Damage">Flat Tire / Rim Damage</option>
-                        <option value="Snapped Chain / Transmission Fault">Snapped Chain / Transmission Fault</option>
-                        <option value="Brake Pad / Cable Failure">Brake Pad / Cable Failure</option>
-                    </select>
-                </div>
-
-                <div class="flex gap-2 pt-2">
-                    <button type="button" onclick="closeSosModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition">
-                        Cancel
-                    </button>
-                    <button type="submit" class="w-1/2 bg-red-500 hover:bg-red-400 text-slate-950 font-black py-2.5 rounded-xl text-xs transition shadow-lg">
-                        🚨 Broadcast SOS
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
         <div class="flex items-center space-x-2 sm:space-x-3">
             <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-emerald-400">Driver 🛺</span></a>
@@ -121,11 +83,8 @@
         </div>
         
         <div class="flex items-center space-x-2">
-            <button onclick="openSosModal()" class="text-xs bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-slate-950 font-black px-3 py-1.5 rounded-lg border border-red-500/30 transition shadow-md flex items-center gap-1">
-                🚨 Breakdown SOS
-            </button>
-            <a href="/mechanic" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg transition border border-slate-700">
-                Workshops
+            <a href="/owner" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg transition border border-slate-700">
+                Fleet Dashboard
             </a>
         </div>
     </header>
@@ -135,61 +94,44 @@
             <div id="map"></div>
         </div>
 
-        <aside class="w-full md:w-80 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[45vh] md:max-h-full overflow-y-auto">
-            <div class="border-b border-slate-800 pb-3">
-                <h2 class="text-base font-black text-white">Shift Summary</h2>
-                <p class="text-[10px] text-slate-400">Real-time daily earnings and stats</p>
+        <aside class="w-full md:w-80 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
+            
+            <div id="activeTripCard" class="bg-slate-900/90 p-4 rounded-2xl border border-sky-500/40 space-y-3">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span class="text-xs font-black text-sky-400">📍 Trip Control Center</span>
+                    <span id="tripStatusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Idle / Waiting</span>
+                </div>
+
+                <div id="tripActionArea" class="space-y-2 text-xs">
+                    <p class="text-slate-400 italic text-[11px]">No active passenger on board. Waiting for ride dispatches...</p>
+                </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold">Est. Earnings</span>
+                    <span class="text-[10px] text-slate-400 uppercase font-bold">Shift Gross</span>
                     <div id="totalEarnings" class="text-lg font-black text-emerald-400 font-mono">GH₵ 0.00</div>
                 </div>
                 <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold">Rides Done</span>
+                    <span class="text-[10px] text-slate-400 uppercase font-bold">Completed Trips</span>
                     <div id="ridesCompleted" class="text-lg font-black text-sky-400 font-mono">0</div>
-                </div>
-            </div>
-
-            <div id="leaseTargetCard" class="hidden bg-slate-900/90 p-3 rounded-2xl border border-amber-500/30 space-y-1">
-                <div class="flex justify-between items-center text-xs">
-                    <span class="font-bold text-amber-400">📊 Daily Lease Goal</span>
-                    <span id="leaseTargetText" class="font-mono text-white">GH₵ 0 / GH₵ 120</span>
-                </div>
-                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                    <div id="leaseProgressBar" class="bg-amber-400 h-full transition-all duration-500" style="width: 0%;"></div>
                 </div>
             </div>
 
             <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
                 <div class="flex justify-between items-center">
-                    <span class="text-xs font-black text-white flex items-center gap-1">🛠️ Digital Service Passport</span>
+                    <span class="text-xs font-black text-white flex items-center gap-1">🛠️ Digital Passport</span>
                     <span id="serviceStatusTag" class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Healthy</span>
                 </div>
-
                 <div class="space-y-1">
                     <div class="flex justify-between text-[11px] text-slate-400 font-mono">
                         <span>Servicing Progress:</span>
                         <span id="serviceKmText" class="text-white font-bold">0.0 / 1,500 km</span>
                     </div>
-                    <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden border border-slate-700">
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
                         <div id="serviceProgressBar" class="bg-emerald-500 h-full transition-all duration-500" style="width: 0%;"></div>
                     </div>
                 </div>
-
-                <div class="text-[10px] text-slate-400 pt-1 flex justify-between border-t border-slate-800/80">
-                    <span>Lifetime Distance:</span>
-                    <strong id="lifetimeKmText" class="text-amber-400 font-mono">0.0 km</strong>
-                </div>
-            </div>
-
-            <div class="bg-slate-900/80 p-3 rounded-2xl border border-slate-800/80 text-xs space-y-2">
-                <div class="font-bold text-slate-300">Driver Profile</div>
-                <div id="driverCardName" class="text-white font-extrabold text-sm">Not Registered</div>
-                <div id="driverCardPlate" class="text-amber-400 font-mono font-bold">---</div>
-                <div id="driverCardContact" class="text-slate-400 font-mono">---</div>
-                <div id="driverOwnershipTag" class="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded inline-block">Owner-Operator</div>
             </div>
         </aside>
     </div>
@@ -198,10 +140,9 @@
         const socket = io();
         let riderPos = { lat: 6.6885, lng: -1.6244 };
         let currentRiderData = null;
-        let totalEarningsGhs = 0.00;
-        let completedRidesCount = 0;
+        let activePassengerSocketId = null;
+        let activeTripStartPos = null;
         let driverMarker = null;
-        let targetDestinationMarker = null;
 
         const map = new maplibregl.Map({
             container: 'map',
@@ -215,32 +156,7 @@
 
         function toggleFleetCodeInput() {
             const type = document.getElementById('ownershipType').value;
-            const fleetGroup = document.getElementById('fleetCodeGroup');
-            if (type === 'lease_driver') {
-                fleetGroup.classList.remove('hidden');
-            } else {
-                fleetGroup.classList.add('hidden');
-            }
-        }
-
-        function updateDriverLocationMarker(lat, lng) {
-            if (driverMarker) {
-                driverMarker.setLngLat([lng, lat]);
-            } else {
-                const el = document.createElement('div');
-                el.className = 'relative flex items-center justify-center cursor-pointer';
-                el.innerHTML = `
-                    <div class="relative flex items-center justify-center">
-                        <span class="text-4xl filter drop-shadow-xl animate-pulse">🛺</span>
-                        <span class="absolute -top-1 -right-1 bg-slate-900 border border-emerald-400 text-xs p-0.5 rounded-full shadow-lg animate-spin" style="animation-duration: 8s;">⚙️</span>
-                    </div>
-                `;
-
-                driverMarker = new maplibregl.Marker({ element: el })
-                    .setLngLat([lng, lat])
-                    .setPopup(new maplibregl.Popup().setHTML('<b style="color:#10b981;">⚙️ Your Live Vehicle Position</b>'))
-                    .addTo(map);
-            }
+            document.getElementById('fleetCodeGroup').classList.toggle('hidden', type !== 'lease_driver');
         }
 
         if (navigator.geolocation) {
@@ -248,29 +164,28 @@
                 riderPos.lat = pos.coords.latitude;
                 riderPos.lng = pos.coords.longitude;
 
-                updateDriverLocationMarker(riderPos.lat, riderPos.lng);
+                if (driverMarker) driverMarker.setLngLat([riderPos.lng, riderPos.lat]);
+                else {
+                    const el = document.createElement('div');
+                    el.className = 'text-4xl filter drop-shadow-xl animate-pulse';
+                    el.innerText = '🛺';
+                    driverMarker = new maplibregl.Marker({ element: el }).setLngLat([riderPos.lng, riderPos.lat]).addTo(map);
+                }
 
                 if (currentRiderData) {
-                    socket.emit('update-rider-location', {
-                        ...currentRiderData,
-                        lat: riderPos.lat,
-                        lng: riderPos.lng
-                    });
+                    socket.emit('update-rider-location', { ...currentRiderData, lat: riderPos.lat, lng: riderPos.lng });
                 }
-            }, () => console.log("Position error"), { enableHighAccuracy: true });
+            }, null, { enableHighAccuracy: true });
         }
 
         function registerRider(e) {
             e.preventDefault();
-            const ownership = document.getElementById('ownershipType').value;
-            const ownerCode = document.getElementById('ownerCode').value;
-
             currentRiderData = {
                 username: document.getElementById('fullName').value.toLowerCase().replace(/\s+/g, '_'),
                 fullName: document.getElementById('fullName').value,
                 contact: document.getElementById('contact').value,
-                ownershipType: ownership,
-                ownerCode: ownerCode,
+                ownershipType: document.getElementById('ownershipType').value,
+                ownerCode: document.getElementById('ownerCode').value,
                 vehicleType: document.getElementById('vehicleType').value,
                 plateNumber: document.getElementById('plateNumber').value.toUpperCase(),
                 lat: riderPos.lat,
@@ -278,138 +193,84 @@
             };
 
             socket.emit('register-rider', currentRiderData);
-
             document.getElementById('driverModal').classList.add('hidden');
-            document.getElementById('driverCardName').innerText = currentRiderData.fullName;
-            document.getElementById('driverCardPlate').innerText = `Plate: ${currentRiderData.plateNumber}`;
-            document.getElementById('driverCardContact').innerText = `📞 ${currentRiderData.contact}`;
-            
-            const ownershipTag = document.getElementById('driverOwnershipTag');
-            if (ownership === 'lease_driver') {
-                ownershipTag.innerText = "Work-and-Pay Driver";
-                ownershipTag.className = "text-[10px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded inline-block";
-                document.getElementById('leaseTargetCard').classList.remove('hidden');
-            } else {
-                ownershipTag.innerText = "Owner-Operator";
-                ownershipTag.className = "text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded inline-block";
-            }
-
-            updateDriverLocationMarker(riderPos.lat, riderPos.lng);
-            alert(`✅ Profile Active! Digital Service Passport Linked.`);
         }
+
+        // Incoming Dispatch Request from Passenger
+        socket.on('incoming-ride-request', (req) => {
+            activePassengerSocketId = req.passengerSocketId;
+            const confirmAccept = confirm(`🛺 PASSENGER PICKUP DISPATCH!\n\nPassenger is waiting at your location.\nTap OK to accept and head to pickup point.`);
+
+            if (confirmAccept) {
+                socket.emit('accept-ride-request', {
+                    passengerSocketId: req.passengerSocketId,
+                    status: 'accepted',
+                    riderName: currentRiderData.fullName,
+                    plateNumber: currentRiderData.plateNumber,
+                    riderContact: currentRiderData.contact
+                });
+
+                document.getElementById('tripStatusTag').innerText = "En Route to Pickup";
+                document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30";
+                
+                document.getElementById('tripActionArea').innerHTML = `
+                    <div class="space-y-2">
+                        <p class="text-amber-300 font-bold">📍 Head to Pickup Location</p>
+                        <button onclick="startTripWithPassenger()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
+                            🧳 Passenger In Vehicle (Start Trip)
+                        </button>
+                    </div>
+                `;
+            }
+        });
+
+        // Step 1: Passenger Gets In (Driver taps "Start Trip")
+        function startTripWithPassenger() {
+            activeTripStartPos = { lat: riderPos.lat, lng: riderPos.lng };
+            socket.emit('start-trip', { passengerSocketId: activePassengerSocketId });
+
+            document.getElementById('tripStatusTag').innerText = "Trip On Meter";
+            document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+
+            document.getElementById('tripActionArea').innerHTML = `
+                <div class="space-y-2">
+                    <p class="text-slate-300 font-bold">Ask Passenger: <em class="text-amber-400">"Where are you heading to?"</em></p>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 mb-1">Agreed Fare (GH₵) or Dynamic Meter</label>
+                        <input type="number" id="finalFareInput" placeholder="e.g. 25" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <button onclick="endTripAndCalculateFare()" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
+                        🏁 Arrived at Destination (End Trip)
+                    </button>
+                </div>
+            `;
+        }
+
+        // Step 2: Destination Reached (Driver taps "End Trip")
+        function endTripAndCalculateFare() {
+            const fareGhs = parseFloat(document.getElementById('finalFareInput').value) || 15.00;
+            
+            socket.emit('end-trip', {
+                passengerSocketId: activePassengerSocketId,
+                fareGhs: fareGhs
+            });
+
+            document.getElementById('tripStatusTag').innerText = "Idle / Waiting";
+            document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400";
+            document.getElementById('tripActionArea').innerHTML = `<p class="text-slate-400 italic text-[11px]">Trip completed! Fare logged to shift ledger and fleet passport.</p>`;
+        }
+
+        socket.on('trip-completed-summary', (summary) => {
+            document.getElementById('totalEarnings').innerText = `GH₵ ${summary.totalShiftEarnings.toFixed(2)}`;
+            let completed = parseInt(document.getElementById('ridesCompleted').innerText) + 1;
+            document.getElementById('ridesCompleted').innerText = completed;
+        });
 
         socket.on('passport-update', (passport) => {
             const currentKm = passport.currentServiceKm || 0;
-            const lifetimeKm = passport.totalLifetimeKm || 0;
-            const target = passport.dailyLeaseTarget || 120;
-
             document.getElementById('serviceKmText').innerText = `${currentKm.toFixed(1)} / 1,500 km`;
-            document.getElementById('lifetimeKmText').innerText = `${lifetimeKm.toFixed(1)} km`;
-            
-            const percentage = Math.min(100, (currentKm / 1500) * 100);
-            const progressBar = document.getElementById('serviceProgressBar');
-            const statusTag = document.getElementById('serviceStatusTag');
-
-            progressBar.style.width = `${percentage}%`;
-
-            if (percentage < 80) {
-                progressBar.className = "bg-emerald-500 h-full transition-all duration-500";
-                statusTag.className = "text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
-                statusTag.innerText = "Healthy";
-            } else if (percentage < 100) {
-                progressBar.className = "bg-amber-500 h-full transition-all duration-500";
-                statusTag.className = "text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30";
-                statusTag.innerText = "Service Soon";
-            } else {
-                progressBar.className = "bg-red-500 h-full transition-all duration-500 animate-pulse";
-                statusTag.className = "text-[9px] font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30";
-                statusTag.innerText = "Service Overdue!";
-            }
-
-            // Update Lease Target Goal
-            document.getElementById('leaseTargetText').innerText = `GH₵ ${totalEarningsGhs.toFixed(0)} / GH₵ ${target}`;
-            const targetPct = Math.min(100, (totalEarningsGhs / target) * 100);
-            document.getElementById('leaseProgressBar').style.width = `${targetPct}%`;
+            document.getElementById('serviceProgressBar').style.width = `${Math.min(100, (currentKm / 1500) * 100)}%`;
         });
-
-        socket.on('incoming-ride-request', (req) => {
-            const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-            audio.play().catch(() => {});
-
-            const confirmAccept = confirm(
-                `🛺 NEW PASSENGER RIDE DISPATCH!\n\n` +
-                `Passenger: ${req.passengerName || 'Passenger'}\n` +
-                `Distance: ${req.distanceKm} km away\n` +
-                `Estimated Fare: GH₵ ${req.estimatedFare}\n\n` +
-                `Tap OK to accept ride and start 3D navigation route.`
-            );
-
-            if (confirmAccept) {
-                acceptRide(req.passengerSocketId, req.pickupLat, req.pickupLng, req.estimatedFare);
-            } else {
-                socket.emit('accept-ride-request', { passengerSocketId: req.passengerSocketId, status: 'declined' });
-            }
-        });
-
-        async function acceptRide(passengerSocketId, pickupLat, pickupLng, fareGhs) {
-            socket.emit('accept-ride-request', {
-                passengerSocketId: passengerSocketId,
-                status: 'accepted',
-                riderName: currentRiderData ? currentRiderData.fullName : 'Pragya Driver',
-                plateNumber: currentRiderData ? currentRiderData.plateNumber : 'N/A',
-                riderContact: currentRiderData ? currentRiderData.contact : 'N/A'
-            });
-
-            totalEarningsGhs += parseFloat(fareGhs || 0);
-            completedRidesCount++;
-            document.getElementById('totalEarnings').innerText = `GH₵ ${totalEarningsGhs.toFixed(2)}`;
-            document.getElementById('ridesCompleted').innerText = completedRidesCount;
-
-            if (targetDestinationMarker) targetDestinationMarker.remove();
-
-            const targetEl = document.createElement('div');
-            targetEl.className = 'relative flex items-center justify-center cursor-pointer';
-            targetEl.innerHTML = `
-                <div class="relative flex items-center justify-center animate-bounce">
-                    <span class="text-4xl filter drop-shadow-2xl">🎯</span>
-                    <span class="absolute -top-2 -right-2 bg-red-500 text-white font-black text-[10px] px-1.5 py-0.5 rounded-full shadow-lg">TARGET</span>
-                </div>
-            `;
-
-            targetDestinationMarker = new maplibregl.Marker({ element: targetEl })
-                .setLngLat([pickupLng, pickupLat])
-                .setPopup(new maplibregl.Popup().setHTML('<b style="color:#ef4444;">🎯 Target Pickup Destination</b>'))
-                .addTo(map);
-
-            map.flyTo({ center: [pickupLng, pickupLat], zoom: 18, pitch: 60, bearing: 20, speed: 1.2 });
-        }
-
-        function openSosModal() { document.getElementById('sosModal').classList.remove('hidden'); }
-        function closeSosModal() { document.getElementById('sosModal').classList.add('hidden'); }
-
-        function sendBreakdownSos(e) {
-            e.preventDefault();
-            const issueSelect = document.getElementById('sosIssue').value;
-
-            if (!currentRiderData) {
-                alert("Please register your driver profile first before sending an SOS!");
-                closeSosModal();
-                return;
-            }
-
-            socket.emit('driver-sos', {
-                username: currentRiderData.username,
-                fullName: currentRiderData.fullName,
-                contact: currentRiderData.contact,
-                plateNumber: currentRiderData.plateNumber,
-                issue: issueSelect,
-                lat: riderPos.lat,
-                lng: riderPos.lng
-            });
-
-            closeSosModal();
-            alert(`🚨 EMERGENCY BREAKDOWN BEACON SENT!\n\nNearby workshops have received your exact GPS position and issue details.`);
-        }
     </script>
 </body>
 </html>

@@ -72,6 +72,8 @@ io.on('connection', (socket) => {
         activeRiders[socket.id] = { 
             ...riderData, 
             socketId: socket.id,
+            status: 'IDLE',
+            shiftEarnings: 0.00,
             passport: servicePassports[plate]
         };
 
@@ -101,11 +103,68 @@ io.on('connection', (socket) => {
             rider.lat = riderData.lat;
             rider.lng = riderData.lng;
         } else {
-            activeRiders[socket.id] = { ...riderData, socketId: socket.id };
+            activeRiders[socket.id] = { ...riderData, socketId: socket.id, status: 'IDLE', shiftEarnings: 0.00 };
         }
         
         io.emit('rider-location-updated', activeRiders[socket.id]);
         io.emit('current-riders', Object.values(activeRiders));
+    });
+
+    // --- REAL-WORLD TRIP WORKFLOW EVENTS ---
+
+    // 1. Dispatch Request (Passenger requests pickup)
+    socket.on('request-ride', (reqData) => {
+        let targetSocketId = Object.keys(activeRiders).find(
+            id => activeRiders[id].username === reqData.targetRiderUsername
+        );
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('incoming-ride-request', { ...reqData, passengerSocketId: socket.id });
+        }
+    });
+
+    // 2. Driver Accepts Dispatch & Head to Pickup
+    socket.on('accept-ride-request', (resData) => {
+        const rider = activeRiders[socket.id];
+        if (rider) {
+            rider.status = 'EN_ROUTE';
+            io.emit('rider-location-updated', rider);
+            io.emit('current-riders', Object.values(activeRiders));
+        }
+        io.to(resData.passengerSocketId).emit('ride-request-response', resData);
+    });
+
+    // 3. Driver Arrives & Passenger Boards (Start Trip)
+    socket.on('start-trip', (tripData) => {
+        const rider = activeRiders[socket.id];
+        if (rider) {
+            rider.status = 'ON_TRIP';
+            rider.activeTripStart = { lat: rider.lat, lng: rider.lng };
+            io.emit('rider-location-updated', rider);
+            io.emit('current-riders', Object.values(activeRiders));
+        }
+    });
+
+    // 4. Drop-off Destination Reached (End Trip & Calculate Fare)
+    socket.on('end-trip', (tripData) => {
+        const rider = activeRiders[socket.id];
+        if (rider) {
+            const fareGhs = parseFloat(tripData.fareGhs || 0);
+            rider.shiftEarnings += fareGhs;
+            rider.status = 'IDLE';
+
+            socket.emit('trip-completed-summary', {
+                fareGhs: fareGhs,
+                totalShiftEarnings: rider.shiftEarnings,
+                passport: rider.passport
+            });
+
+            if (tripData.passengerSocketId) {
+                io.to(tripData.passengerSocketId).emit('passenger-trip-ended', { fareGhs: fareGhs });
+            }
+
+            io.emit('rider-location-updated', rider);
+            io.emit('current-riders', Object.values(activeRiders));
+        }
     });
 
     socket.on('verify-service-reset', (data) => {
@@ -132,19 +191,6 @@ io.on('connection', (socket) => {
             
             io.emit('current-riders', Object.values(activeRiders));
         }
-    });
-
-    socket.on('request-ride', (reqData) => {
-        let targetSocketId = Object.keys(activeRiders).find(
-            id => activeRiders[id].username === reqData.targetRiderUsername
-        );
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('incoming-ride-request', { ...reqData, passengerSocketId: socket.id });
-        }
-    });
-
-    socket.on('accept-ride-request', (resData) => {
-        io.to(resData.passengerSocketId).emit('ride-request-response', resData);
     });
 
     socket.on('register-workshop', (shopData) => {
