@@ -3,90 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global 3D Passenger Radar | PragyaLink</title>
+    <title>Passenger Portal | PragyaLink Ghana</title>
     
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#10b981">
-
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="/socket.io/socket.io.js"></script>
 
     <style>
-        html, body {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-        }
-        #map {
-            width: 100%;
-            height: 100%;
-            min-height: 400px;
-            background-color: #0f172a;
-        }
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.94);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-        }
-        .maplibregl-popup-content {
-            background: #0f172a !important;
-            color: #f8fafc !important;
-            border-radius: 16px;
-            border: 1px solid rgba(56, 189, 248, 0.3);
-            padding: 14px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-        }
-        .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { 
-            border-top-color: #0f172a !important; 
-        }
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #map { width: 100%; height: 100%; min-height: 400px; background-color: #0f172a; }
+        .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
 
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
-        <div class="flex items-center space-x-2 sm:space-x-3">
-            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-emerald-400">Link 🌍</span></a>
-            <span class="bg-emerald-500/20 text-emerald-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Global Coverage
+        <div class="flex items-center space-x-3">
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-sky-400">Ride 🛺</span></a>
+            <span class="bg-sky-500/20 text-sky-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-sky-500/30">
+                Live Commute Portal
             </span>
         </div>
         
         <div class="flex items-center space-x-2">
-            <select id="radiusSelect" onchange="updateRadius(this.value)" class="bg-slate-800 text-xs font-bold text-sky-300 border border-slate-700 px-2.5 py-1.5 rounded-lg focus:outline-none">
-                <option value="2">2 km Radius</option>
-                <option value="5" selected>5 km Radius</option>
-                <option value="10">10 km Radius</option>
-                <option value="50">50 km Radius</option>
-            </select>
-            <a href="/rider" class="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3 py-1.5 rounded-lg transition shadow-md">
+            <button onclick="toggleHistoryDrawer()" class="text-xs bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                📜 Ride Receipts (<span id="receiptCount">0</span>)
+            </button>
+            <a href="/rider" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
                 Driver Console
             </a>
         </div>
     </header>
 
     <div class="flex-1 relative flex flex-col md:flex-row min-h-0 w-full">
-        
         <div class="flex-1 relative h-full w-full">
             <div id="map"></div>
         </div>
 
-        <aside class="w-full md:w-96 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl max-h-[40vh] md:max-h-full overflow-y-auto shrink-0">
-            <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-800">
-                <div>
-                    <h2 class="text-sm sm:text-base font-black text-white">Active Drivers</h2>
-                    <p class="text-[10px] text-slate-400">Worldwide Live Tracking</p>
-                </div>
-                <span id="activeCount" class="bg-emerald-500/20 text-emerald-400 text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-emerald-500/30">
-                    0 Nearby
-                </span>
+        <aside class="w-full md:w-80 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
+            
+            <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                <label class="block text-xs font-bold text-slate-300">Your Phone Number (MoMo Enabled) *</label>
+                <input type="tel" id="passengerPhoneInput" onchange="savePassengerPhone()" placeholder="e.g. 0244123456" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-sky-500">
+                <p class="text-[10px] text-slate-400">Used for dispatch confirmation & digital receipts.</p>
             </div>
 
-            <div id="riderList" class="space-y-3 flex-1 overflow-y-auto pr-1">
-                <div id="emptyMsg" class="text-xs text-slate-400 text-center py-8">
-                    Scanning area for active drivers...
+            <div id="rideStatusCard" class="bg-slate-900/90 p-4 rounded-2xl border border-sky-500/40 space-y-3">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span class="text-xs font-black text-sky-400">📍 Active Dispatch</span>
+                    <span id="statusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Idle / Searching</span>
+                </div>
+                <div id="passengerActionArea" class="space-y-2 text-xs">
+                    <p class="text-slate-400 italic text-[11px]">Tap any active 🛺 Pragya on the map to select driver & request pickup.</p>
+                </div>
+            </div>
+
+            <div id="historySection" class="space-y-2 pt-2 border-t border-slate-800">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xs font-bold text-sky-400 uppercase tracking-wider">📜 Ride Receipts</h3>
+                    <button onclick="clearReceiptsHistory()" class="text-[9px] text-red-400 hover:underline">Clear History</button>
+                </div>
+                <div id="historyList" class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    <p class="text-[11px] text-slate-500 italic text-center py-2">No completed trips logged yet.</p>
                 </div>
             </div>
         </aside>
@@ -94,277 +73,211 @@
 
     <script>
         const socket = io();
-        const markers = {};
-        let passengerPos = { lat: 6.6885, lng: -1.6244 }; // Default initial fallback center
-        let maxRadiusKm = 5;
+        let activeRidersOnMap = {};
+        let passengerPos = { lat: 6.6885, lng: -1.6244 };
+        let selectedTargetRider = null;
 
-        // Switch style URL to complete raw OpenStreetMap vector data
-const map = new maplibregl.Map({
-    container: 'map',
-    style: 'https://tiles.openfreemap.org/styles/liberty', // Complete, unthrottled global OpenStreetMap details
-    center: [passengerPos.lng, passengerPos.lat],
-    zoom: 16,
-    minZoom: 1,
-    maxZoom: 20,
-    pitch: 50,
-    bearing: 0,
-    antialias: true
-});
-
-        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
-
-        // Map Load Event: Enhance Global Street Labels Visibility & Insert 3D Buildings
-        map.on('load', () => {
-            map.resize();
-
-            const style = map.getStyle();
-            
-            if (style && style.layers) {
-                style.layers.forEach((layer) => {
-                    if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
-                        // High contrast labels on global zoom levels
-                        map.setLayoutProperty(layer.id, 'text-size', [
-                            'interpolate',
-                            ['linear'],
-                            ['zoom'],
-                            2, 10,
-                            10, 13,
-                            16, 16,
-                            20, 22
-                        ]);
-
-                        map.setPaintProperty(layer.id, 'text-halo-color', '#000000');
-                        map.setPaintProperty(layer.id, 'text-halo-width', 2.5);
-                        map.setPaintProperty(layer.id, 'text-color', '#ffffff');
-                    }
-                });
-            }
-
-            // Global 3D Building Layer
-            let firstSymbolId;
-            if (style && style.layers) {
-                for (const layer of style.layers) {
-                    if (layer.type === 'symbol') {
-                        firstSymbolId = layer.id;
-                        break;
-                    }
-                }
-            }
-
-            if (!map.getLayer('3d-buildings')) {
-                map.addLayer(
-                    {
-                        'id': '3d-buildings',
-                        'source': 'carto',
-                        'source-layer': 'building',
-                        'type': 'fill-extrusion',
-                        'minzoom': 14,
-                        'paint': {
-                            'fill-extrusion-color': '#1e293b',
-                            'fill-extrusion-height': [
-                                'interpolate',
-                                ['linear'],
-                                ['zoom'],
-                                14, 0,
-                                15.05, ['get', 'render_height']
-                            ],
-                            'fill-extrusion-base': [
-                                'interpolate',
-                                ['linear'],
-                                ['zoom'],
-                                14, 0,
-                                15.05, ['get', 'render_min_height']
-                            ],
-                            'fill-extrusion-opacity': 0.7
-                        }
-                    },
-                    firstSymbolId
-                );
-            }
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://tiles.openfreemap.org/styles/liberty',
+            center: [passengerPos.lng, passengerPos.lat],
+            zoom: 15,
+            pitch: 45
         });
 
-        window.addEventListener('resize', () => map.resize());
+        map.addControl(new maplibregl.NavigationControl());
 
-        // Global Geolocation Detection
+        // Locate passenger GPS position
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition((pos) => {
                 passengerPos.lat = pos.coords.latitude;
                 passengerPos.lng = pos.coords.longitude;
-                
-                map.flyTo({ center: [passengerPos.lng, passengerPos.lat], zoom: 16, pitch: 50 });
-                map.resize();
+                map.flyTo({ center: [passengerPos.lng, passengerPos.lat], zoom: 16 });
 
-                const pEl = document.createElement('div');
-                pEl.className = 'w-4 h-4 bg-sky-500 rounded-full border-2 border-white shadow-lg animate-ping';
-                new maplibregl.Marker({ element: pEl })
+                new maplibregl.Marker({ color: '#38bdf8' })
                     .setLngLat([passengerPos.lng, passengerPos.lat])
+                    .setPopup(new maplibregl.Popup().setHTML('<b>📍 Your Pickup Location</b>'))
                     .addTo(map);
-            }, () => console.log("Using default map center. Navigable worldwide."));
+            });
         }
 
-        // Spherical Distance Calculation
-        function calculateDistanceKm(lat1, lon1, lat2, lon2) {
-            const R = 6371;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-        }
-
-        function calculateFareGHS(distKm) {
-            const baseFare = 5.00;
-            const perKmRate = 2.50;
-            const fare = baseFare + (distKm * perKmRate);
-            return fare.toFixed(2);
-        }
-
-        function updateRadius(val) {
-            maxRadiusKm = parseFloat(val);
-            renderFilteredRiders();
-        }
-
-        socket.on('current-riders', (riders) => riders.forEach(updateOrAddRider));
-        socket.on('rider-location-updated', (rider) => updateOrAddRider(rider));
-        socket.on('rider-disconnected', (socketId) => {
-            if (markers[socketId]) {
-                markers[socketId].marker.remove();
-                delete markers[socketId];
-                renderFilteredRiders();
+        // Load saved state on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedPhone = localStorage.getItem('pragya_passenger_phone');
+            if (savedPhone) {
+                document.getElementById('passengerPhoneInput').value = savedPhone;
             }
+            renderLocalRideHistory();
         });
 
-        function updateOrAddRider(rider) {
-            const { socketId, username, fullName, contact, vehicleType, vehicleColor, plateNumber, lat, lng } = rider;
-            const distKm = calculateDistanceKm(passengerPos.lat, passengerPos.lng, lat, lng);
-            const estFare = calculateFareGHS(distKm);
-
-            const popupHTML = `
-                <div class="space-y-1.5 text-xs">
-                    <div class="flex justify-between items-center gap-2">
-                        <span class="font-extrabold text-emerald-400 text-sm">🛺 ${vehicleType || 'Bajaj RE'}</span>
-                        <span class="bg-emerald-500/20 text-emerald-300 font-mono font-bold text-[10px] px-2 py-0.5 rounded border border-emerald-500/30">
-                            ${distKm < 1 ? Math.round(distKm * 1000) + 'm away' : distKm.toFixed(1) + 'km away'}
-                        </span>
-                    </div>
-                    <div class="text-white font-bold text-sm">${fullName || username}</div>
-                    <div class="text-slate-300">📞 <a href="tel:${contact}" class="underline text-sky-300 font-bold">${contact || 'N/A'}</a></div>
-                    <div class="text-slate-400">Plate: <span class="text-amber-400 font-mono font-bold">${plateNumber || 'N/A'}</span></div>
-                    <div class="text-emerald-400 font-bold">Est. Fare: GH₵ ${estFare}</div>
-                    <button onclick="requestRideDirect('${username}', '${estFare}', '${distKm.toFixed(1)}')" class="w-full mt-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow-md">
-                        🛺 Request Ride
-                    </button>
-                </div>
-            `;
-
-            if (markers[socketId]) {
-                markers[socketId].marker.setLngLat([lng, lat]);
-                markers[socketId].popup.setHTML(popupHTML);
-                markers[socketId].data = { ...rider, distKm, estFare };
-            } else {
-                const el = document.createElement('div');
-                el.className = 'text-3xl cursor-pointer hover:scale-125 transition-transform filter drop-shadow-lg';
-                el.innerHTML = '🛺';
-
-                const popup = new maplibregl.Popup({ offset: 25 }).setHTML(popupHTML);
-                const marker = new maplibregl.Marker({ element: el })
-                    .setLngLat([lng, lat])
-                    .setPopup(popup)
-                    .addTo(map);
-
-                markers[socketId] = { marker, popup, data: { ...rider, distKm, estFare } };
+        function savePassengerPhone() {
+            const phone = document.getElementById('passengerPhoneInput').value.trim();
+            if (phone) {
+                localStorage.setItem('pragya_passenger_phone', phone);
             }
-
-            renderFilteredRiders();
         }
 
-        function renderFilteredRiders() {
-            const list = document.getElementById('riderList');
-            const count = document.getElementById('activeCount');
-            const keys = Object.keys(markers).filter(id => markers[id].data.distKm <= maxRadiusKm);
+        function toggleHistoryDrawer() {
+            const historySection = document.getElementById('historySection');
+            historySection.scrollIntoView({ behavior: 'smooth' });
+        }
 
-            count.innerText = `${keys.length} Nearby`;
+        function renderLocalRideHistory() {
+            const listEl = document.getElementById('historyList');
+            const receipts = JSON.parse(localStorage.getItem('pragya_passenger_receipts') || '[]');
+            document.getElementById('receiptCount').innerText = receipts.length;
 
-            Object.keys(markers).forEach(id => {
-                markers[id].marker.getElement().style.display = markers[id].data.distKm <= maxRadiusKm ? 'block' : 'none';
-            });
-
-            if (keys.length === 0) {
-                list.innerHTML = `<div class="text-xs text-slate-400 text-center py-8">No active drivers found within ${maxRadiusKm}km radius.</div>`;
+            if (receipts.length === 0) {
+                listEl.innerHTML = `<p class="text-[11px] text-slate-500 italic text-center py-2">No completed trips logged yet.</p>`;
                 return;
             }
 
-            list.innerHTML = keys.map(id => {
-                const r = markers[id].data;
-                const formattedDist = r.distKm < 1 ? `${Math.round(r.distKm * 1000)} meters away` : `${r.distKm.toFixed(1)} km away`;
-                return `
-                    <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2 hover:border-emerald-500/50 transition shadow-md">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30">
-                                    ${r.vehicleType || 'Bajaj RE'}
-                                </span>
-                                <h3 class="font-extrabold text-sm text-white mt-1">${r.fullName || r.username}</h3>
-                            </div>
-                            <span class="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                                ${r.plateNumber || 'N/A'}
-                            </span>
-                        </div>
-
-                        <div class="text-xs space-y-1 text-slate-300">
-                            <div class="flex justify-between">
-                                <span>🎨 Color: <strong class="text-white">${r.vehicleColor || 'Yellow'}</strong></span>
-                                <span class="text-emerald-400 font-bold">${formattedDist}</span>
-                            </div>
-                            <div>📞 Contact: <a href="tel:${r.contact}" class="text-sky-400 font-bold underline">${r.contact || 'N/A'}</a></div>
-                            <div class="text-emerald-400 font-bold">Est. Fare: GH₵ ${r.estFare}</div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2 pt-1">
-                            <button onclick="flyToRider(${r.lng}, ${r.lat})" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs border border-slate-700 transition">
-                                📍 3D Focus
-                            </button>
-                            <button onclick="requestRideDirect('${r.username}', '${r.estFare}', '${r.distKm.toFixed(1)}')" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow-md">
-                                🛺 Request
-                            </button>
-                        </div>
+            listEl.innerHTML = '';
+            receipts.forEach(ride => {
+                const item = document.createElement('div');
+                item.className = 'bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-1 text-xs';
+                item.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-white">🛺 ${ride.riderName || 'Pragya Driver'}</span>
+                        <span class="text-emerald-400 font-mono font-black text-sm">GH₵ ${parseFloat(ride.fareGhs).toFixed(2)}</span>
+                    </div>
+                    <div class="text-[10px] text-slate-400 flex justify-between font-mono">
+                        <span>Plate: <strong class="text-amber-400">${ride.plateNumber || 'N/A'}</strong></span>
+                        <span>${new Date(ride.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                     </div>
                 `;
-            }).join('');
+                listEl.appendChild(item);
+            });
         }
 
-        function flyToRider(lng, lat) {
-            map.flyTo({ center: [lng, lat], zoom: 18, pitch: 65, bearing: 30, speed: 1.2 });
-        }
-
-        function requestRideDirect(riderName, fare, dist) {
-            const confirmRequest = confirm(
-                `🛺 Confirm Ride Request to ${riderName}?\n\n` +
-                `📏 Distance: ${dist} km away\n` +
-                `💰 Estimated Fare: GH₵ ${fare}\n\n` +
-                `Press OK to send dispatch request directly to driver.`
-            );
-
-            if (confirmRequest) {
-                socket.emit('request-ride', {
-                    targetRiderUsername: riderName,
-                    passengerName: 'Passenger',
-                    pickupLat: passengerPos.lat,
-                    pickupLng: passengerPos.lng,
-                    distanceKm: dist,
-                    estimatedFare: fare
-                });
-                alert("⏱️ Ride request sent to driver! Waiting for confirmation...");
+        function clearReceiptsHistory() {
+            if (confirm("Clear all locally saved ride receipts?")) {
+                localStorage.removeItem('pragya_passenger_receipts');
+                renderLocalRideHistory();
             }
+        }
+
+        // Socket Listeners
+        socket.on('current-riders', (riders) => {
+            const activeList = Array.isArray(riders) ? riders : (riders.activeDrivers || []);
+            activeList.forEach(updateRiderMarker);
+        });
+
+        socket.on('rider-location-updated', (rider) => {
+            updateRiderMarker(rider);
+        });
+
+        function updateRiderMarker(rider) {
+            if (!rider.lat || !rider.lng) return;
+
+            if (activeRidersOnMap[rider.socketId]) {
+                activeRidersOnMap[rider.socketId].setLngLat([rider.lng, rider.lat]);
+            } else {
+                const el = document.createElement('div');
+                el.className = 'text-3xl cursor-pointer hover:scale-125 transition transform filter drop-shadow-lg';
+                el.innerText = '🛺';
+                el.onclick = () => selectDriverForBooking(rider);
+
+                activeRidersOnMap[rider.socketId] = new maplibregl.Marker({ element: el })
+                    .setLngLat([rider.lng, rider.lat])
+                    .setPopup(new maplibregl.Popup().setHTML(`
+                        <b style="color:#10b981;">🛺 ${rider.fullName}</b><br>
+                        <span style="font-family:monospace;">Plate: ${rider.plateNumber}</span><br>
+                        <a href="tel:${rider.contact}" style="color:#38bdf8; font-weight:bold;">📞 Call: ${rider.contact}</a>
+                    `))
+                    .addTo(map);
+            }
+        }
+
+        function selectDriverForBooking(rider) {
+            selectedTargetRider = rider;
+            const phone = document.getElementById('passengerPhoneInput').value.trim();
+
+            document.getElementById('statusTag').innerText = "Driver Selected";
+            document.getElementById('statusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30";
+
+            document.getElementById('passengerActionArea').innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center font-bold text-white">
+                        <span>${rider.fullName}</span>
+                        <span class="text-amber-400 font-mono text-[11px]">${rider.plateNumber}</span>
+                    </div>
+                    <a href="tel:${rider.contact}" class="w-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl py-1.5 text-xs font-bold flex items-center justify-center gap-1 transition">
+                        📞 Call Driver: ${rider.contact}
+                    </a>
+                    <button onclick="sendRideDispatch()" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-black py-2.5 rounded-xl transition shadow-lg text-xs">
+                        🚀 Send Dispatch Request
+                    </button>
+                </div>
+            `;
+        }
+
+        function sendRideDispatch() {
+            const phone = document.getElementById('passengerPhoneInput').value.trim();
+            if (!phone) {
+                alert("⚠️ Please enter your phone number first!");
+                return;
+            }
+            savePassengerPhone();
+
+            socket.emit('request-ride', {
+                targetRiderUsername: selectedTargetRider.username,
+                passengerPhone: phone,
+                pickupLat: passengerPos.lat,
+                pickupLng: passengerPos.lng
+            });
+
+            document.getElementById('statusTag').innerText = "Dispatch Sent";
+            document.getElementById('passengerActionArea').innerHTML = `
+                <div class="space-y-1">
+                    <p class="text-amber-400 font-bold">Waiting for ${selectedTargetRider.fullName} to accept...</p>
+                    <p class="text-[10px] text-slate-400 font-mono">Driver Phone: ${selectedTargetRider.contact}</p>
+                </div>
+            `;
         }
 
         socket.on('ride-request-response', (res) => {
             if (res.status === 'accepted') {
-                alert(`🎉 RIDE ACCEPTED!\n\nDriver: ${res.riderName}\nPlate: ${res.plateNumber}\nPhone: ${res.riderContact}\n\nDriver is heading to your position!`);
-            } else {
-                alert(`❌ Driver declined. Please choose another nearby Pragya.`);
+                document.getElementById('statusTag').innerText = "Driver En Route";
+                document.getElementById('statusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+
+                document.getElementById('passengerActionArea').innerHTML = `
+                    <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
+                        <p class="text-emerald-400 font-bold">🎉 Driver Accepted Dispatch!</p>
+                        <p class="text-xs text-white">Driver: <strong>${res.riderName}</strong> (${res.plateNumber})</p>
+                        <a href="tel:${res.riderContact}" class="text-sky-400 underline font-mono text-xs font-bold">📞 Call Driver: ${res.riderContact}</a>
+                    </div>
+                `;
             }
+        });
+
+        // Instant Receipt Ingestion & Local Persistence
+        socket.on('passenger-trip-ended', (summary) => {
+            document.getElementById('statusTag').innerText = "Trip Completed";
+            document.getElementById('statusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+
+            const newReceipt = {
+                tripId: summary.tripRecord ? summary.tripRecord.tripId : 'TRIP-' + Date.now(),
+                riderName: summary.tripRecord ? summary.tripRecord.riderName : (selectedTargetRider ? selectedTargetRider.fullName : 'Pragya Driver'),
+                plateNumber: summary.tripRecord ? summary.tripRecord.plateNumber : (selectedTargetRider ? selectedTargetRider.plateNumber : 'N/A'),
+                fareGhs: summary.fareGhs || 15.00,
+                timestamp: new Date().toISOString()
+            };
+
+            // Save to browser localStorage permanently
+            let localHistory = JSON.parse(localStorage.getItem('pragya_passenger_receipts') || '[]');
+            localHistory.unshift(newReceipt);
+            localStorage.setItem('pragya_passenger_receipts', JSON.stringify(localHistory));
+
+            document.getElementById('passengerActionArea').innerHTML = `
+                <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
+                    <p class="text-emerald-400 font-bold">🏁 Trip Arrived & Completed!</p>
+                    <p class="text-xs text-slate-200">Total Fare: <strong class="text-emerald-400 font-mono text-sm">GH₵ ${parseFloat(summary.fareGhs).toFixed(2)}</strong></p>
+                    <p class="text-[10px] text-slate-400">Receipt saved automatically to history.</p>
+                </div>
+            `;
+
+            renderLocalRideHistory();
         });
     </script>
 </body>
