@@ -1115,3 +1115,28 @@
         );
     };
 </script>
+<script>
+    const origEmitDriverOnlineState = window.emitDriverOnlineState;
+    window.emitDriverOnlineState = function() {
+        if (!navigator.geolocation) return;
+
+        const storedFleetCode = localStorage.getItem('pragya_fleet_code') || 'KUMASI_FLEET_01';
+
+        navigator.geolocation.getCurrentPosition((pos) => {
+            const payload = {
+                driverName: localStorage.getItem('pragya_driver_name') || 'Kofi Mensah',
+                driverPhone: localStorage.getItem('pragya_driver_phone') || '0550000000',
+                plateNumber: localStorage.getItem('pragya_plate_number') || 'M-24-AS',
+                fleetOwnerCode: storedFleetCode,
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                odometerKm: typeof totalOdometerKm !== 'undefined' ? totalOdometerKm.toFixed(1) : '0.0',
+                distSinceServiceKm: typeof distSinceServiceKm !== 'undefined' ? distSinceServiceKm.toFixed(1) : '0.0'
+            };
+
+            // Join the owner's fleet room and emit online state
+            socket.emit('join-fleet-room', storedFleetCode);
+            socket.emit('driver-go-online', payload);
+        });
+    };
+</script>

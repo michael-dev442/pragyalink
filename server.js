@@ -390,3 +390,35 @@ io.on('connection', (socket) => {
         }
     });
 });
+// =========================================================
+// 📡 CRITICAL FIX: FLEET ROOM TELEMETRY BRIDGE
+// =========================================================
+io.on('connection', (socket) => {
+
+    // When a driver goes online, automatically bridge their data to their Fleet Owner Room
+    socket.on('driver-go-online', (driverData) => {
+        const fleetCode = driverData.fleetOwnerCode || localStorage?.getItem('pragya_fleet_code') || 'KUMASI_FLEET_01';
+        
+        const telemetryPayload = {
+            username: driverData.driverName || 'Kofi Mensah',
+            plateNumber: driverData.plateNumber || 'M-24-AS',
+            fleetOwnerCode: fleetCode,
+            operatingMode: 'FLEET',
+            lat: driverData.lat,
+            lng: driverData.lng,
+            isOnline: true,
+            engineHealth: {
+                odometerKm: driverData.odometerKm || '0.0',
+                distSinceServiceKm: driverData.distSinceServiceKm || '0.0',
+                serviceOverdue: (driverData.distSinceServiceKm || 0) >= 1500,
+                vehicleStatus: (driverData.distSinceServiceKm || 0) >= 1500 ? 'MAINTENANCE_REQUIRED' : 'HEALTHY'
+            }
+        };
+
+        // 1. Broadcast to Fleet Manager inside the specific fleet room
+        io.to(`fleet_${fleetCode}`).emit('rider-location-updated', telemetryPayload);
+        
+        // 2. Broadcast globally so passenger app can also see available tricycles
+        io.emit('rider-location-updated', telemetryPayload);
+    });
+});
