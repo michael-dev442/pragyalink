@@ -771,3 +771,200 @@
         }
     };
 </script>
+<script>
+    let currentRouteLayerId = 'driver-road-route';
+
+    // Fetches real road coordinates from OSRM engine instead of drawing straight lines
+    async function drawRoadNetworkRoute(startLng, startLat, endLng, endLat) {
+        try {
+            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
+            
+            const response = await fetch(osrmUrl);
+            const data = await response.json();
+
+            if (!data.routes || data.routes.length === 0) {
+                console.warn("OSRM Routing failed, falling back to basic display.");
+                return;
+            }
+
+            const routeGeometry = data.routes[0].geometry; // GeoJSON line along real roads
+
+            // Remove existing route layer if present
+            if (map.getLayer(currentRouteLayerId)) {
+                map.removeLayer(currentRouteLayerId);
+                map.removeSource(currentRouteLayerId);
+            }
+
+            // Add road-matched navigation layer to 3D map
+            map.addSource(currentRouteLayerId, {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': routeGeometry
+                }
+            });
+
+            map.addLayer({
+                'id': currentRouteLayerId,
+                'type': 'line',
+                'source': currentRouteLayerId,
+                'layout': {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                'paint': {
+                    'line-color': '#0284c7', // Sky Blue Road Polyline
+                    'line-width': 6,
+                    'line-opacity': 0.85
+                }
+            });
+
+            // Adjust map view to fit the entire road route snugly
+            const coordinates = routeGeometry.coordinates;
+            const bounds = coordinates.reduce((b, coord) => b.extend(coord), new maplibregl.LngLatBounds(coordinates[0], coordinates[0]));
+            map.fitBounds(bounds, { padding: 60 });
+
+        } catch (err) {
+            console.error("Error generating road network route:", err);
+        }
+    }
+
+    // Override Accept Job function: Draws road route & awaits manual Start Trip trigger
+    const origAcceptPassengerRequest = window.acceptPassengerRequest;
+    window.acceptPassengerRequest = function(requestId, passengerData) {
+        if (origAcceptPassengerRequest) origAcceptPassengerRequest(requestId, passengerData);
+
+        // Fetch driver current GPS position
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const driverLat = pos.coords.latitude;
+                const driverLng = pos.coords.longitude;
+                
+                // Draw route on real roads to passenger pickup location
+                drawRoadNetworkRoute(driverLng, driverLat, passengerData.pickupLng, passengerData.pickupLat);
+            });
+        }
+
+        // Display "Start Trip" button for manual fare calculation
+        const actionArea = document.getElementById('driverTripActionArea');
+        if (actionArea) {
+            actionArea.innerHTML = `
+                <div class="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                    <p class="text-xs text-amber-400 font-bold text-center">🚏 Arrived at Passenger Location?</p>
+                    <button onclick="startTripAndCalculateFare('${requestId}')" class="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow-lg transition">
+                        ▶️ Start Trip & Begin Fare Meter
+                    </button>
+                </div>
+            `;
+        }
+    };
+
+    function startTripAndCalculateFare(requestId) {
+        console.log("Trip officially started. Meter active for request:", requestId);
+        
+        // Broadcast trip started event to backend
+        socket.emit('start-trip-meter', { requestId, timestamp: new Date() });
+
+        // Update UI state
+        const actionArea = document.getElementById('driverTripActionArea');
+        if (actionArea) {
+            actionArea.innerHTML = `
+                <div class="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-center">
+                    <span class="text-xs text-emerald-400 font-bold font-mono">⏱️ Trip Active & Meter Running</span>
+                </div>
+            `;
+        }
+    }
+</script>
+<script>
+    let tripStartTime = null;
+    let tripStartOdometer = 0;
+
+    // Phase 1: Driver accepts dispatch -> Heading to pickup
+    const origAcceptRideFromModal = window.acceptRideFromModal;
+    window.acceptRideFromModal = function() {
+        if (origAcceptRideFromModal) origAcceptRideFromModal();
+
+        document.getElementById('tripStatusTag').innerText = "En Route to Pickup";
+        document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30";
+
+        document.getElementById('tripActionArea').innerHTML = `
+            <div class="space-y-2 bg-slate-900 p-3 rounded-xl border border-slate-800 text-xs">
+                <p class="text-sky-400 font-bold">🚏 Navigating to Passenger Pickup</p>
+                <a href="tel:${activePassenger ? activePassenger.passengerPhone : ''}" class="text-slate-300 font-mono text-[11px] block">📞 Call Passenger</a>
+                <button onclick="passengerBoardedStartMeter()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition shadow-lg">
+                    ▶️ Passenger Boarded (Start Trip Meter)
+                </button>
+            </div>
+        `;
+    };
+
+    // Phase 2: Passenger boards -> Meter starts recording distance
+    function passengerBoardedStartMeter() {
+        tripStartTime = new Date();
+        tripStartOdometer = totalOdometerKm;
+
+        socket.emit('start-trip-meter', {
+            passengerSocketId: activePassenger ? activePassenger.passengerSocketId : null,
+            startTime: tripStartTime
+        });
+
+        speakPragyaText("Passenger trip started. Navigation routing active.");
+
+        document.getElementById('tripStatusTag').innerText = "Trip In Progress";
+        document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+
+        document.getElementById('tripActionArea').innerHTML = `
+            <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30 text-xs">
+                <p class="text-emerald-400 font-bold">🚕 Driving to Destination...</p>
+                <p class="text-[10px] text-slate-400">Fare will be calculated upon arrival at dropoff point.</p>
+                <button onclick="arriveAtDestinationAndCalculateFare()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl transition shadow-lg">
+                    🏁 Arrived at Destination & Collect Fare
+                </button>
+            </div>
+        `;
+    }
+
+    // Phase 3: Arrived at destination -> Final calculation & billing
+    function arriveAtDestinationAndCalculateFare() {
+        const tripDistanceKm = Math.max(0.5, totalOdometerKm - tripStartOdometer);
+        
+        // Commercial Tricycle Fare Formula: Base 5.00 GHS + 3.00 GHS/km
+        const baseFareGhs = 5.00;
+        const ratePerKm = 3.00;
+        const finalFareGhs = (baseFareGhs + (tripDistanceKm * ratePerKm)).toFixed(2);
+
+        socket.emit('end-trip', {
+            passengerSocketId: activePassenger ? activePassenger.passengerSocketId : null,
+            distanceDrivenKm: tripDistanceKm.toFixed(2),
+            fareGhs: finalFareGhs
+        });
+
+        speakPragyaText(`Arrived at destination. Please collect ${finalFareGhs} Ghana Cedis from passenger.`);
+
+        document.getElementById('tripStatusTag').innerText = "Idle";
+        document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400";
+
+        document.getElementById('tripActionArea').innerHTML = `
+            <div class="p-3 bg-slate-950 rounded-xl border border-amber-500/40 text-center space-y-1">
+                <p class="text-[10px] text-slate-400 uppercase font-mono">Collect Cash / MoMo Payment</p>
+                <p class="text-lg font-black text-amber-400 font-mono">GHS ${finalFareGhs}</p>
+                <p class="text-[9px] text-slate-500">Trip Distance: ${tripDistanceKm.toFixed(1)} km</p>
+                <button onclick="resetDriverConsoleToIdle()" class="w-full mt-2 bg-slate-800 hover:bg-slate-700 text-white font-bold py-1.5 rounded-lg text-xs">
+                    Clear & Ready for Next Dispatch
+                </button>
+            </div>
+        `;
+
+        if (map.getLayer(currentRouteLayerId)) {
+            map.removeLayer(currentRouteLayerId);
+            map.removeSource(currentRouteLayerId);
+        }
+    }
+
+    function resetDriverConsoleToIdle() {
+        activePassenger = null;
+        document.getElementById('tripActionArea').innerHTML = `<p class="text-slate-400 italic text-[11px]">Go online to start receiving passenger dispatches.</p>`;
+    }
+</script>
