@@ -14,7 +14,6 @@
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
         #map { width: 100%; height: 100%; min-height: 400px; background-color: #0f172a; }
         .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
-        .input-error { border-color: #ef4444 !important; background-color: rgba(239, 68, 68, 0.1) !important; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
@@ -25,7 +24,7 @@
                 <span class="text-3xl">🔑</span>
                 <div>
                     <h2 class="text-xl font-black text-white">Fleet Access Key</h2>
-                    <p class="text-xs text-slate-400">Enter your Fleet Phone / Code to access your assets</p>
+                    <p class="text-xs text-slate-400">Enter your Fleet Phone / Code to access saved assets</p>
                 </div>
             </div>
 
@@ -33,7 +32,6 @@
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Fleet Owner Phone / Key *</label>
                     <input type="tel" id="ownerAccessKey" required placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
-                    <span id="authError" class="text-[10px] text-red-400 hidden font-semibold">⚠️ Enter a valid Ghana phone number or fleet key</span>
                 </div>
 
                 <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg text-sm mt-2">
@@ -43,17 +41,17 @@
         </div>
     </div>
 
-    <div id="addVehicleModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div id="vehicleModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
         <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-amber-500/30 shadow-2xl space-y-4">
             <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
-                <span class="text-3xl">🛺</span>
+                <span class="text-3xl">📝</span>
                 <div>
-                    <h2 class="text-xl font-black text-white">Register Fleet Vehicle</h2>
-                    <p class="text-xs text-slate-400">Add asset for Work-and-Pay tracking</p>
+                    <h2 id="modalTitle" class="text-xl font-black text-white">Manage Fleet Vehicle</h2>
+                    <p class="text-xs text-slate-400">Add or edit asset information in DB</p>
                 </div>
             </div>
 
-            <form onsubmit="registerFleetVehicle(event)" class="space-y-3">
+            <form onsubmit="saveVehicleForm(event)" class="space-y-3">
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Plate Number *</label>
                     <input type="text" id="regPlate" required placeholder="e.g. M-24-AS" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono uppercase">
@@ -76,13 +74,17 @@
                         <input type="number" id="regTarget" required placeholder="120" value="120" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
                     </div>
                 </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Assigned Driver Phone</label>
+                    <input type="tel" id="regDriverPhone" placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
+                </div>
 
                 <div class="flex gap-2 pt-2">
-                    <button type="button" onclick="closeAddVehicleModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition">
+                    <button type="button" onclick="closeVehicleModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition">
                         Cancel
                     </button>
                     <button type="submit" class="w-1/2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs transition shadow-lg">
-                        ➕ Save Vehicle
+                        💾 Save Asset
                     </button>
                 </div>
             </form>
@@ -98,7 +100,7 @@
         </div>
         
         <div class="flex items-center space-x-2">
-            <button onclick="openAddVehicleModal()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+            <button onclick="openVehicleModal()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
                 ➕ Add Vehicle
             </button>
             <label class="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1 cursor-pointer">
@@ -115,26 +117,26 @@
 
         <aside class="w-full md:w-96 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
             <div class="border-b border-slate-800 pb-3">
-                <h2 class="text-base font-black text-white">My Fleet Summary</h2>
-                <p class="text-[10px] text-slate-400">Filtered real-time telemetry for your registered drivers</p>
+                <h2 class="text-base font-black text-white">Registered Fleet Registry</h2>
+                <p class="text-[10px] text-slate-400">Persistent asset management stored in JSON database</p>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
                 <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold">My Active Fleet</span>
-                    <div id="activeCount" class="text-xl font-black text-emerald-400 font-mono">0</div>
+                    <span class="text-[10px] text-slate-400 uppercase font-bold">Total Saved Assets</span>
+                    <div id="totalRegisteredCount" class="text-xl font-black text-amber-400 font-mono">0</div>
                 </div>
                 <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold">Fleet Total Distance</span>
-                    <div id="fleetDistance" class="text-xl font-black text-amber-400 font-mono">0.0 km</div>
+                    <span class="text-[10px] text-slate-400 uppercase font-bold">Active On Road</span>
+                    <div id="activeCount" class="text-xl font-black text-emerald-400 font-mono">0</div>
                 </div>
             </div>
 
             <div class="space-y-3">
-                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">My Vehicles</h3>
+                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Fleet Inventory</h3>
                 <div id="fleetList" class="space-y-2">
                     <div class="text-xs text-slate-500 italic p-3 text-center border border-dashed border-slate-800 rounded-xl">
-                        Waiting for assigned drivers to log in...
+                        No registered vehicles found for this fleet key.
                     </div>
                 </div>
             </div>
@@ -145,9 +147,6 @@
         const socket = io();
         const fleetMarkers = {};
         let currentOwnerKey = "";
-
-        const ghanaPhoneRegex = /^(?:\+233|0)[23579]\d{8}$/;
-        const plateRegex = /^[A-Z]{1,3}[-\s]?\d{1,4}[-\s]?[A-Z]{0,2}\d{0,2}$/i;
 
         const map = new maplibregl.Map({
             container: 'map',
@@ -171,22 +170,36 @@
             document.getElementById('ownerAuthModal').classList.add('hidden');
         }
 
-        function openAddVehicleModal() { document.getElementById('addVehicleModal').classList.remove('hidden'); }
-        function closeAddVehicleModal() { document.getElementById('addVehicleModal').classList.add('hidden'); }
+        function openVehicleModal(editVehicle = null) {
+            if (editVehicle) {
+                document.getElementById('regPlate').value = editVehicle.plateNumber;
+                document.getElementById('regVin').value = editVehicle.vin;
+                document.getElementById('regModel').value = editVehicle.model;
+                document.getElementById('regTarget').value = editVehicle.dailyTargetGhs;
+                document.getElementById('regDriverPhone').value = editVehicle.assignedDriverPhone || '';
+            } else {
+                document.getElementById('regPlate').value = '';
+                document.getElementById('regVin').value = '';
+                document.getElementById('regDriverPhone').value = '';
+            }
+            document.getElementById('vehicleModal').classList.remove('hidden');
+        }
 
-        function registerFleetVehicle(e) {
+        function closeVehicleModal() { document.getElementById('vehicleModal').classList.add('hidden'); }
+
+        function saveVehicleForm(e) {
             e.preventDefault();
             const vehicleData = {
                 plateNumber: document.getElementById('regPlate').value.trim().toUpperCase(),
                 vin: document.getElementById('regVin').value.trim().toUpperCase(),
                 model: document.getElementById('regModel').value,
                 dailyTargetGhs: parseFloat(document.getElementById('regTarget').value),
+                assignedDriverPhone: document.getElementById('regDriverPhone').value.trim(),
                 ownerCode: currentOwnerKey
             };
 
             socket.emit('owner-register-vehicle', vehicleData);
-            closeAddVehicleModal();
-            alert(`✅ Vehicle ${vehicleData.plateNumber} bound to Fleet Key ${currentOwnerKey}!`);
+            closeVehicleModal();
         }
 
         function handleBulkCsvUpload(event) {
@@ -202,94 +215,69 @@
                     const line = lines[i].trim();
                     if (!line) continue;
 
-                    const [plateNumber, vin, model, dailyTargetGhs] = line.split(',');
+                    const [plateNumber, vin, model, dailyTargetGhs, assignedDriverPhone] = line.split(',');
 
-                    if (plateNumber && plateRegex.test(plateNumber.trim())) {
+                    if (plateNumber && plateNumber.trim().length >= 4) {
                         socket.emit('owner-register-vehicle', {
                             plateNumber: plateNumber.trim().toUpperCase(),
                             vin: vin ? vin.trim().toUpperCase() : 'N/A',
                             model: model ? model.trim() : 'Bajaj RE',
                             dailyTargetGhs: parseFloat(dailyTargetGhs) || 120,
+                            assignedDriverPhone: assignedDriverPhone ? assignedDriverPhone.trim() : '',
                             ownerCode: currentOwnerKey
                         });
                         count++;
                     }
                 }
-
-                alert(`🎉 BULK IMPORT SUCCESS!\n\nRegistered ${count} vehicles under Fleet Key: ${currentOwnerKey}`);
+                alert(`🎉 BULK CSV SAVED TO DB!\n\nRegistered ${count} assets to Fleet Key: ${currentOwnerKey}`);
             };
             reader.readAsText(file);
         }
 
-        socket.on('current-riders', (riders) => { renderFleet(riders); });
+        socket.on('current-riders', (payload) => {
+            renderFleetRegistry(payload.registeredVehicles || [], payload.activeDrivers || []);
+        });
 
-        function renderFleet(riders) {
-            document.getElementById('activeCount').innerText = riders.length;
+        function renderFleetRegistry(registeredVehicles, activeDrivers) {
+            document.getElementById('totalRegisteredCount').innerText = registeredVehicles.length;
+            document.getElementById('activeCount').innerText = activeDrivers.length;
+
             const fleetListEl = document.getElementById('fleetList');
-
-            if (riders.length === 0) {
-                fleetListEl.innerHTML = `<div class="text-xs text-slate-500 italic p-3 text-center border border-dashed border-slate-800 rounded-xl">No active tricycles found for Fleet Key: ${currentOwnerKey}</div>`;
+            if (registeredVehicles.length === 0) {
+                fleetListEl.innerHTML = `<div class="text-xs text-slate-500 italic p-3 text-center border border-dashed border-slate-800 rounded-xl">No saved assets in database for Fleet Key: ${currentOwnerKey}</div>`;
                 return;
             }
 
             fleetListEl.innerHTML = '';
-            let totalKm = 0;
 
-            riders.forEach(rider => {
-                updateSingleRiderMarker(rider);
-
-                const currentKm = rider.passport ? rider.passport.currentServiceKm : 0;
-                const lifetimeKm = rider.passport ? rider.passport.totalLifetimeKm : 0;
-                const target = rider.passport ? (rider.passport.dailyLeaseTarget || 120) : 120;
-                const earnings = rider.shiftEarnings || 0.00;
-                totalKm += lifetimeKm;
-
-                let statusBadge = `<span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px]">🟢 Idle</span>`;
-                if (rider.status === 'EN_ROUTE') statusBadge = `<span class="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded text-[10px] animate-pulse">🟡 Pickup</span>`;
-                if (rider.status === 'ON_TRIP') statusBadge = `<span class="bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded text-[10px] animate-pulse">🔵 On Trip</span>`;
+            registeredVehicles.forEach(v => {
+                const activeDriver = activeDrivers.find(d => d.plateNumber === v.plateNumber);
+                
+                let statusBadge = `<span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px]">⚪ Offline</span>`;
+                if (activeDriver) {
+                    statusBadge = `<span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px]">🟢 Active</span>`;
+                }
 
                 const card = document.createElement('div');
                 card.className = "bg-slate-900/80 p-3 rounded-2xl border border-slate-800 space-y-2 text-xs";
                 card.innerHTML = `
                     <div class="flex justify-between items-center">
-                        <span class="font-extrabold text-white">${rider.fullName || 'Driver'}</span>
-                        ${statusBadge}
-                    </div>
-                    <div class="text-[11px] text-slate-400 flex justify-between">
-                        <span>Plate: <strong class="text-amber-400 font-mono">${rider.plateNumber}</strong></span>
-                        <span>Shift Earnings: <strong class="text-emerald-400 font-mono">GH₵ ${earnings.toFixed(2)}</strong></span>
-                    </div>
-                    <div class="space-y-1">
-                        <div class="flex justify-between text-[10px] text-slate-400 font-mono">
-                            <span>Lease Target Progress:</span>
-                            <span>GH₵ ${earnings.toFixed(0)} / GH₵ ${target}</span>
+                        <span class="font-extrabold text-amber-400 font-mono">${v.plateNumber}</span>
+                        <div class="flex items-center space-x-1">
+                            ${statusBadge}
+                            <button onclick='openVehicleModal(${JSON.stringify(v)})' class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-0.5 rounded text-[10px] font-bold">✏️ Edit</button>
                         </div>
-                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                            <div class="bg-amber-400 h-full transition-all duration-500" style="width: ${Math.min(100, (earnings / target) * 100)}%;"></div>
-                        </div>
+                    </div>
+                    <div class="text-[11px] text-slate-400 grid grid-cols-2 gap-1 font-mono">
+                        <span>VIN: ${v.vin || 'N/A'}</span>
+                        <span>Target: GH₵ ${v.dailyTargetGhs}</span>
+                    </div>
+                    <div class="text-[10px] text-slate-400 border-t border-slate-800/80 pt-1">
+                        Driver Phone: <strong class="text-slate-200 font-mono">${v.assignedDriverPhone || 'Unassigned'}</strong>
                     </div>
                 `;
                 fleetListEl.appendChild(card);
             });
-
-            document.getElementById('fleetDistance').innerText = `${totalKm.toFixed(1)} km`;
-        }
-
-        function updateSingleRiderMarker(rider) {
-            if (!rider.lat || !rider.lng) return;
-
-            if (fleetMarkers[rider.socketId]) {
-                fleetMarkers[rider.socketId].setLngLat([rider.lng, rider.lat]);
-            } else {
-                const el = document.createElement('div');
-                el.className = 'text-3xl filter drop-shadow-lg cursor-pointer animate-pulse';
-                el.innerText = '🛺';
-
-                fleetMarkers[rider.socketId] = new maplibregl.Marker({ element: el })
-                    .setLngLat([rider.lng, rider.lat])
-                    .setPopup(new maplibregl.Popup().setHTML(`<b>🛺 ${rider.fullName}</b><br>Plate: ${rider.plateNumber}`))
-                    .addTo(map);
-            }
         }
     </script>
 </body>

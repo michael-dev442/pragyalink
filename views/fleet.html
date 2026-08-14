@@ -268,3 +268,14 @@
         recalculateFleetAnalytics();
     });
 </script>
+<script>
+    socket.on('connect', () => {
+        console.log("Connected to server socket. Joining fleet room...");
+        socket.emit('join-fleet-room', activeFleetCode);
+    });
+
+    // Backup trigger in case socket is already connected when script loads
+    if (socket.connected) {
+        socket.emit('join-fleet-room', activeFleetCode);
+    }
+</script>

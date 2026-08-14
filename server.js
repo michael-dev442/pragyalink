@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -10,18 +11,35 @@ const io = new Server(server, { cors: { origin: "*" } });
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// HTML Views
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views', 'index.html')));
-app.get('/passenger', (req, res) => res.sendFile(path.join(__dirname, 'views', 'passenger.html')));
-app.get('/rider', (req, res) => res.sendFile(path.join(__dirname, 'views', 'rider.html')));
-app.get('/mechanic', (req, res) => res.sendFile(path.join(__dirname, 'views', 'mechanic.html')));
-app.get('/owner', (req, res) => res.sendFile(path.join(__dirname, 'views', 'owner.html')));
+// Persistent JSON File Storage Setup
+const DB_FILE = path.join(__dirname, 'database.json');
 
-// Data Stores
+// Initialize DB if it doesn't exist
+function loadDatabase() {
+    if (!fs.existsSync(DB_FILE)) {
+        const initialData = { servicePassports: {}, rideHistory: [], registeredFleet: {} };
+        fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
+        return initialData;
+    }
+    try {
+        const data = fs.readFileSync(DB_FILE, 'utf8');
+        return JSON.parse(data);
+    } catch (e) {
+        console.error("Error reading database.json, re-initializing...", e);
+        return { servicePassports: {}, rideHistory: [], registeredFleet: {} };
+    }
+}
+
+function saveDatabase(data) {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+}
+
+let db = loadDatabase();
+
+// Temporary Runtime State (re-hydrated from database.json)
 const activeRiders = {};     
 const activeWorkshops = {};  
-const servicePassports = {}; 
-const fleetOwnerSockets = {}; // Tracks socketId -> fleetOwnerCode
+const fleetOwnerSockets = {}; 
 
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
     const R = 6371; 
@@ -33,16 +51,22 @@ function calculateDistanceKm(lat1, lon1, lat2, lon2) {
     return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
-// Broadcasts ONLY relevant vehicles to a specific Fleet Owner
+// Filtered Fleet Emission to Authorized Owners
 function emitFleetToOwner(ownerSocketId) {
     const fleetCode = fleetOwnerSockets[ownerSocketId];
     if (!fleetCode) return;
 
-    const myFleet = Object.values(activeRiders).filter(
+    // Get live drivers or registered offline vehicles tied to this fleet key
+    const liveFleet = Object.values(activeRiders).filter(
         rider => rider.ownerCode && rider.ownerCode.trim() === fleetCode.trim()
     );
 
-    io.to(ownerSocketId).emit('current-riders', myFleet);
+    const savedFleetVehicles = db.registeredFleet[fleetCode] || [];
+
+    io.to(ownerSocketId).emit('current-riders', {
+        activeDrivers: liveFleet,
+        registeredVehicles: savedFleetVehicles
+    });
 }
 
 function broadcastFleetUpdates() {
@@ -51,62 +75,113 @@ function broadcastFleetUpdates() {
     });
 }
 
+// REST API Endpoints
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views', 'index.html')));
+app.get('/passenger', (req, res) => res.sendFile(path.join(__dirname, 'views', 'passenger.html')));
+app.get('/rider', (req, res) => res.sendFile(path.join(__dirname, 'views', 'rider.html')));
+app.get('/mechanic', (req, res) => res.sendFile(path.join(__dirname, 'views', 'mechanic.html')));
+app.get('/owner', (req, res) => res.sendFile(path.join(__dirname, 'views', 'owner.html')));
+
+// API: Get Passenger Previous Trip History
+app.get('/api/passenger/history/:phone', (req, res) => {
+    const phone = req.params.phone;
+    const history = db.rideHistory.filter(ride => ride.passengerPhone === phone);
+    res.json(history);
+});
+
+// WebSocket Realtime Engine
 io.on('connection', (socket) => {
     console.log(`🔌 Client connected: ${socket.id}`);
 
-    // Fleet Owner Authentication / Filter Registration
+    // Fleet Owner Authentication
     socket.on('register-owner-session', (ownerCode) => {
         fleetOwnerSockets[socket.id] = ownerCode.trim();
-        console.log(`👑 Fleet Owner Session Authenticated: ${ownerCode.trim()} [Socket: ${socket.id}]`);
         emitFleetToOwner(socket.id);
     });
 
-    // Fleet Owner Asset Pre-Registration
+    // Register / Update Single Fleet Vehicle
     socket.on('owner-register-vehicle', (vData) => {
+        const ownerCode = vData.ownerCode.trim();
         const plate = vData.plateNumber.toUpperCase();
-        if (!servicePassports[plate]) {
-            servicePassports[plate] = {
+
+        if (!db.registeredFleet[ownerCode]) {
+            db.registeredFleet[ownerCode] = [];
+        }
+
+        const existingIdx = db.registeredFleet[ownerCode].findIndex(v => v.plateNumber === plate);
+        if (existingIdx >= 0) {
+            db.registeredFleet[ownerCode][existingIdx] = vData;
+        } else {
+            db.registeredFleet[ownerCode].push(vData);
+        }
+
+        if (!db.servicePassports[plate]) {
+            db.servicePassports[plate] = {
                 currentServiceKm: 0.0,
                 totalLifetimeKm: 0.0,
                 vin: vData.vin,
                 model: vData.model,
                 dailyLeaseTarget: vData.dailyTargetGhs || 120,
-                ownerCode: vData.ownerCode || '',
+                ownerCode: ownerCode,
                 serviceHistory: []
             };
         } else {
-            servicePassports[plate].vin = vData.vin;
-            servicePassports[plate].dailyLeaseTarget = vData.dailyTargetGhs;
-            servicePassports[plate].ownerCode = vData.ownerCode;
+            db.servicePassports[plate].vin = vData.vin;
+            db.servicePassports[plate].dailyLeaseTarget = vData.dailyTargetGhs;
+            db.servicePassports[plate].ownerCode = ownerCode;
         }
-        console.log(`📋 Fleet Vehicle Registered: ${plate} [Owner Code: ${vData.ownerCode}]`);
+
+        saveDatabase(db);
+        emitFleetToOwner(socket.id);
     });
 
+    // Edit Existing Vehicle Entry
+    socket.on('owner-edit-vehicle', (vData) => {
+        const ownerCode = vData.ownerCode.trim();
+        const plate = vData.plateNumber.toUpperCase();
+
+        if (db.registeredFleet[ownerCode]) {
+            const idx = db.registeredFleet[ownerCode].findIndex(v => v.plateNumber === plate);
+            if (idx >= 0) {
+                db.registeredFleet[ownerCode][idx] = vData;
+            }
+        }
+
+        if (db.servicePassports[plate]) {
+            db.servicePassports[plate].dailyLeaseTarget = vData.dailyTargetGhs;
+            db.servicePassports[plate].assignedDriverPhone = vData.assignedDriverPhone;
+        }
+
+        saveDatabase(db);
+        emitFleetToOwner(socket.id);
+    });
+
+    // Driver Connection / Session Recovery
     socket.on('register-rider', (riderData) => {
         const plate = riderData.plateNumber.toUpperCase();
         
-        if (!servicePassports[plate]) {
-            servicePassports[plate] = {
+        if (!db.servicePassports[plate]) {
+            db.servicePassports[plate] = {
                 currentServiceKm: 0.0,
                 totalLifetimeKm: 0.0,
                 dailyLeaseTarget: 120,
                 serviceHistory: []
             };
+            saveDatabase(db);
         }
+
+        // Restore existing earnings or start fresh
+        const existingShiftEarnings = activeRiders[socket.id] ? activeRiders[socket.id].shiftEarnings : 0.00;
 
         activeRiders[socket.id] = { 
             ...riderData, 
             socketId: socket.id,
             status: 'IDLE',
-            shiftEarnings: 0.00,
-            passport: servicePassports[plate]
+            shiftEarnings: existingShiftEarnings,
+            passport: db.servicePassports[plate]
         };
 
-        console.log(`🛺 Driver active: ${riderData.fullName} [Plate: ${plate}] [Fleet Code: ${riderData.ownerCode}]`);
-        
-        socket.emit('passport-update', servicePassports[plate]);
-        
-        // Broadcast to passengers (all drivers) & filtered to owners
+        socket.emit('passport-update', db.servicePassports[plate]);
         io.emit('rider-location-updated', activeRiders[socket.id]);
         broadcastFleetUpdates();
     });
@@ -119,17 +194,25 @@ io.on('connection', (socket) => {
             
             if (deltaKm > 0.005 && deltaKm < 2.0) {
                 const plate = rider.plateNumber.toUpperCase();
-                if (servicePassports[plate]) {
-                    servicePassports[plate].currentServiceKm += deltaKm;
-                    servicePassports[plate].totalLifetimeKm += deltaKm;
-                    socket.emit('passport-update', servicePassports[plate]);
+                if (db.servicePassports[plate]) {
+                    db.servicePassports[plate].currentServiceKm += deltaKm;
+                    db.servicePassports[plate].totalLifetimeKm += deltaKm;
+                    saveDatabase(db);
+                    socket.emit('passport-update', db.servicePassports[plate]);
                 }
             }
 
             rider.lat = riderData.lat;
             rider.lng = riderData.lng;
         } else {
-            activeRiders[socket.id] = { ...riderData, socketId: socket.id, status: 'IDLE', shiftEarnings: 0.00 };
+            const plate = riderData.plateNumber ? riderData.plateNumber.toUpperCase() : 'UNKNOWN';
+            activeRiders[socket.id] = { 
+                ...riderData, 
+                socketId: socket.id, 
+                status: 'IDLE', 
+                shiftEarnings: 0.00,
+                passport: db.servicePassports[plate] || { currentServiceKm: 0, totalLifetimeKm: 0, dailyLeaseTarget: 120 }
+            };
         }
         
         io.emit('rider-location-updated', activeRiders[socket.id]);
@@ -171,6 +254,19 @@ io.on('connection', (socket) => {
             rider.shiftEarnings += fareGhs;
             rider.status = 'IDLE';
 
+            // Record trip permanently in DB
+            const tripRecord = {
+                tripId: 'TRIP-' + Date.now(),
+                riderName: rider.fullName,
+                plateNumber: rider.plateNumber,
+                passengerPhone: tripData.passengerPhone || '0240000000',
+                fareGhs: fareGhs,
+                timestamp: new Date().toISOString()
+            };
+
+            db.rideHistory.push(tripRecord);
+            saveDatabase(db);
+
             socket.emit('trip-completed-summary', {
                 fareGhs: fareGhs,
                 totalShiftEarnings: rider.shiftEarnings,
@@ -178,7 +274,10 @@ io.on('connection', (socket) => {
             });
 
             if (tripData.passengerSocketId) {
-                io.to(tripData.passengerSocketId).emit('passenger-trip-ended', { fareGhs: fareGhs });
+                io.to(tripData.passengerSocketId).emit('passenger-trip-ended', { 
+                    fareGhs: fareGhs, 
+                    tripRecord: tripRecord 
+                });
             }
 
             io.emit('rider-location-updated', rider);
@@ -199,4 +298,29 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 PragyaLink Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 PragyaLink Persistent Server running on port ${PORT}`));
+// =========================================================
+// 📡 FLEET TELEMETRY ROOM ROUTER
+// =========================================================
+io.on('connection', (socket) => {
+
+    // Driver or Fleet Owner joins their specific Fleet Room
+    socket.on('join-fleet-room', (fleetCode) => {
+        if (fleetCode) {
+            socket.join(`fleet_${fleetCode}`);
+            console.log(`[Socket] ${socket.id} joined room: fleet_${fleetCode}`);
+        }
+    });
+
+    // Handle incoming driver updates and broadcast to Fleet Manager
+    socket.on('update-rider-location', (data) => {
+        const fleetCode = data.fleetOwnerCode || 'INDEPENDENT';
+        
+        // Broadcast telemetry to everyone in that specific fleet room (including Fleet Dashboard)
+        io.to(`fleet_${fleetCode}`).emit('rider-location-updated', {
+            ...data,
+            isOnline: true,
+            socketId: socket.id
+        });
+    });
+});

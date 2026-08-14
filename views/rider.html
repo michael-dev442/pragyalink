@@ -759,3 +759,15 @@
     </script>
 </body>
 </html>
+<script>
+    // Automatically join the fleet room when driver goes online
+    const origToggleShiftStatus = window.toggleShiftStatus;
+    window.toggleShiftStatus = function() {
+        if (origToggleShiftStatus) origToggleShiftStatus();
+
+        const fleetCode = localStorage.getItem('pragya_fleet_code') || 'KUMASI_FLEET_01';
+        if (isOnline) {
+            socket.emit('join-fleet-room', fleetCode);
+        }
+    };
+</script>
