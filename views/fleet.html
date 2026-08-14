@@ -169,3 +169,102 @@
     </script>
 </body>
 </html>
+<script>
+    // Appends Fleet Distribution Percentage Cards to the Fleet Dashboard Sidebar
+    function injectFleetAnalyticsCards() {
+        const sidebar = document.querySelector('aside');
+        if (!sidebar) return;
+
+        const analyticsCardHtml = `
+            <div id="fleetAnalyticsPanel" class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-3">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span class="text-xs font-black text-white uppercase tracking-wider">📊 Fleet Status Breakdown</span>
+                    <span class="text-[9px] font-mono text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded">200 Fleet Scale</span>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="openFilteredFleetLedger('ONLINE')" class="p-2 bg-slate-950 hover:bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-center transition group">
+                        <div id="pctOnlineVal" class="text-sm font-black text-emerald-400 font-mono">0%</div>
+                        <div class="text-[9px] text-slate-400 group-hover:text-emerald-300">🟢 Online</div>
+                        <div id="cntOnlineDetail" class="text-[8px] text-slate-500 font-mono">(0/200)</div>
+                    </button>
+
+                    <button onclick="openFilteredFleetLedger('OVERDUE')" class="p-2 bg-slate-950 hover:bg-red-500/10 border border-red-500/30 rounded-xl text-center transition group">
+                        <div id="pctOverdueVal" class="text-sm font-black text-red-400 font-mono">0%</div>
+                        <div class="text-[9px] text-slate-400 group-hover:text-red-300">⚠️ Service</div>
+                        <div id="cntOverdueDetail" class="text-[8px] text-slate-500 font-mono">(0/200)</div>
+                    </button>
+
+                    <button onclick="openFilteredFleetLedger('OFFLINE')" class="p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-center transition group">
+                        <div id="pctOfflineVal" class="text-sm font-black text-slate-400 font-mono">100%</div>
+                        <div class="text-[9px] text-slate-400 group-hover:text-slate-200">⚪ Offline</div>
+                        <div id="cntOfflineDetail" class="text-[8px] text-slate-500 font-mono">(200/200)</div>
+                    </button>
+                </div>
+                
+                <p class="text-[9px] text-slate-500 italic text-center">💡 Click any metric card above to inspect the matching vehicle list.</p>
+            </div>
+        `;
+
+        sidebar.insertAdjacentHTML('afterbegin', analyticsCardHtml);
+    }
+
+    // Calculates percentages across all 200 registered vehicles in real time
+    function recalculateFleetAnalytics() {
+        const totalRegisteredVehicles = 200; // Total registered vehicles in fleet ledger
+        const plates = Object.keys(fleetVehicles);
+
+        let onlineCount = 0;
+        let overdueCount = 0;
+
+        plates.forEach(plate => {
+            const v = fleetVehicles[plate];
+            if (v.isOnline) onlineCount++;
+            if (v.engineHealth && v.engineHealth.serviceOverdue) overdueCount++;
+        });
+
+        const offlineCount = Math.max(0, totalRegisteredVehicles - onlineCount);
+
+        const pctOnline = Math.round((onlineCount / totalRegisteredVehicles) * 100);
+        const pctOverdue = Math.round((overdueCount / totalRegisteredVehicles) * 100);
+        const pctOffline = Math.round((offlineCount / totalRegisteredVehicles) * 100);
+
+        // Update DOM Cards
+        const elOnline = document.getElementById('pctOnlineVal');
+        const elOverdue = document.getElementById('pctOverdueVal');
+        const elOffline = document.getElementById('pctOfflineVal');
+
+        if (elOnline) {
+            elOnline.innerText = `${pctOnline}%`;
+            document.getElementById('cntOnlineDetail').innerText = `(${onlineCount}/${totalRegisteredVehicles})`;
+        }
+
+        if (elOverdue) {
+            elOverdue.innerText = `${pctOverdue}%`;
+            document.getElementById('cntOverdueDetail').innerText = `(${overdueCount}/${totalRegisteredVehicles})`;
+        }
+
+        if (elOffline) {
+            elOffline.innerText = `${pctOffline}%`;
+            document.getElementById('cntOfflineDetail').innerText = `(${offlineCount}/${totalRegisteredVehicles})`;
+        }
+    }
+
+    // Modal Trigger function connected directly to metric card clicks
+    function openFilteredFleetLedger(category) {
+        setFilterCategory(category);
+        openFleetMasterLedger();
+    }
+
+    // Automatically hooks into incoming socket updates
+    const origRenderFleetList = window.renderFleetList;
+    window.renderFleetList = function() {
+        if (origRenderFleetList) origRenderFleetList();
+        recalculateFleetAnalytics();
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+        injectFleetAnalyticsCards();
+        recalculateFleetAnalytics();
+    });
+</script>
