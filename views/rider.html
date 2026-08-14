@@ -1038,3 +1038,80 @@
         emitDriverOnlineState();
     });
 </script>
+<script>
+    // Robust OSRM Road Route Generator
+    async function drawExactRoadDirections(originLng, originLat, destLng, destLat) {
+        // Enforce numeric float conversion
+        const startLng = parseFloat(originLng);
+        const startLat = parseFloat(originLat);
+        const endLng = parseFloat(destLng);
+        const endLat = parseFloat(destLat);
+
+        if (isNaN(startLng) || isNaN(startLat) || isNaN(endLng) || isNaN(endLat)) {
+            console.error("Invalid coordinates supplied for routing.");
+            return;
+        }
+
+        // Request driving polyline from OSRM
+        const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
+
+        try {
+            const response = await fetch(url);
+            const json = await response.json();
+
+            if (!json.routes || json.routes.length === 0) {
+                console.warn("No road route found between these points.");
+                return;
+            }
+
+            const roadGeometry = json.routes[0].geometry; // GeoJSON geometry object
+
+            // Clean up old layer if existing
+            if (map.getLayer('active-road-route')) {
+                map.removeLayer('active-road-route');
+                map.removeSource('active-road-route');
+            }
+
+            // Inject road polyline into map
+            map.addSource('active-road-route', {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': roadGeometry
+                }
+            });
+
+            map.addLayer({
+                'id': 'active-road-route',
+                'type': 'line',
+                'source': 'active-road-route',
+                'layout': {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                'paint': {
+                    'line-color': '#0284c7', // Sky Blue Road Polyline
+                    'line-width': 6,
+                    'line-opacity': 0.85
+                }
+            });
+
+            // Fit map viewport snugly around the road coordinates
+            const routeCoords = roadGeometry.coordinates;
+            const bounds = routeCoords.reduce((b, coord) => b.extend(coord), new maplibregl.LngLatBounds(routeCoords[0], routeCoords[0]));
+            map.fitBounds(bounds, { padding: 60 });
+
+        } catch (err) {
+            console.error("OSRM Road Network Error:", err);
+        }
+    }
+
+    // Override route rendering trigger when request is accepted
+    window.renderRouteToPickup = function(driverCoords, passengerCoords) {
+        drawExactRoadDirections(
+            driverCoords.lng, driverCoords.lat,
+            passengerCoords.lng, passengerCoords.lat
+        );
+    };
+</script>

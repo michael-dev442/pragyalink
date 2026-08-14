@@ -241,3 +241,14 @@
         });
     });
 </script>
+<script>
+    socket.on('driver-accepted-request', (data) => {
+        if (data.pickup && data.dropoff && window.drawExactRoadDirections) {
+            // Draw route following street turns
+            drawExactRoadDirections(
+                data.pickup.lng, data.pickup.lat,
+                data.dropoff.lng, data.dropoff.lat
+            );
+        }
+    });
+</script>
