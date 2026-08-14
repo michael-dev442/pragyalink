@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Driver Console & Pragya AI | PragyaLink Global</title>
+    <title>Driver Cockpit & Pragya AI | PragyaLink Global</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -14,6 +14,13 @@
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
         #map { width: 100%; height: 100%; min-height: 400px; background-color: #020617; }
         .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
+        .modal-overlay { background: rgba(2, 6, 23, 0.85); backdrop-filter: blur(8px); }
+        .pulse-mic { animation: pulse 1.5s infinite; }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7); }
+            70% { box-shadow: 0 0 0 12px rgba(56, 189, 248, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
@@ -27,13 +34,13 @@
         </div>
         
         <div class="flex items-center space-x-2">
-            <button id="voiceMicBtn" onclick="testVoiceAssistant()" class="text-xs bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition hover:bg-sky-500/30">
-                <span class="w-2 h-2 rounded-full bg-sky-400"></span>
-                <span>Test English Voice</span>
+            <button id="voiceToggleBtn" onclick="toggleVoiceAssistantPermission()" class="text-xs bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition">
+                <span id="voiceIndicatorDot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+                <span id="voiceBtnText">Activate Voice AI</span>
             </button>
-            <a href="/passenger" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
-                Passenger Portal
-            </a>
+            <button onclick="openFleetModal()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
+                📋 Fleet Config
+            </button>
         </div>
     </header>
 
@@ -44,42 +51,111 @@
 
         <aside class="w-full md:w-80 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
             
-            <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+            <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-3">
                 <div class="flex justify-between items-center">
-                    <label class="block text-xs font-bold text-slate-300">Driver & Fleet Profile</label>
-                    <span class="text-[9px] font-mono text-amber-400">Fleet Passport Verified</span>
-                </div>
-                
-                <div class="space-y-1.5">
-                    <input type="text" id="driverUsername" placeholder="Driver Full Name (e.g. Kofi Mensah)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 font-mono">
-                    <input type="tel" id="driverContact" placeholder="Driver Phone (e.g. 0244123456)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 font-mono">
-                    
-                    <div class="grid grid-cols-2 gap-2">
-                        <input type="text" id="driverPlate" placeholder="Plate: M-24-AS" class="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-amber-400 font-mono focus:outline-none focus:border-amber-500">
-                        <input type="text" id="fleetOwnerCode" placeholder="Fleet Owner Code" class="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-sky-400 font-mono focus:outline-none focus:border-amber-500">
-                    </div>
+                    <span class="text-xs font-bold text-slate-300">Driver Console Status</span>
+                    <span id="fleetLinkTag" class="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">Fleet Verified</span>
                 </div>
 
-                <button id="shiftToggleBtn" onclick="toggleShiftStatus()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl transition text-xs shadow-lg">
-                    🟢 Go Online & Link Fleet
+                <div class="text-xs space-y-1 font-mono text-slate-300 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                    <div>Driver: <strong id="dispDriverName" class="text-white">Not Set</strong></div>
+                    <div>Phone: <strong id="dispDriverPhone" class="text-sky-400">Not Set</strong></div>
+                    <div>Plate: <strong id="dispDriverPlate" class="text-amber-400">Not Set</strong></div>
+                    <div>Fleet: <strong id="dispFleetCode" class="text-slate-400">DEFAULT_FLEET</strong></div>
+                </div>
+
+                <button id="shiftToggleBtn" onclick="toggleShiftStatus()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
+                    🟢 Go Online & Start Shift
                 </button>
             </div>
 
             <div id="tripStatusCard" class="bg-slate-900/90 p-4 rounded-2xl border border-amber-500/40 space-y-3">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span class="text-xs font-black text-amber-400">🎙️ Pragya Voice Console</span>
-                    <span id="tripStatusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Idle / Offline</span>
+                    <span class="text-xs font-black text-amber-400">🎙️ Navigation Console</span>
+                    <span id="tripStatusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Idle</span>
                 </div>
                 <div id="tripActionArea" class="space-y-2 text-xs">
-                    <p class="text-slate-400 italic text-[11px]">Go online to link fleet and activate hands-free navigation.</p>
+                    <p class="text-slate-400 italic text-[11px]">Click "Activate Voice AI" above to enable hands-free navigation commands.</p>
                 </div>
             </div>
 
             <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-[10px] space-y-1 font-mono">
-                <div class="text-slate-500 font-bold uppercase tracking-wider">Voice Log</div>
-                <div id="speechTranscript" class="text-sky-300 italic min-h-[20px]">Voice assistant standard English ready.</div>
+                <div class="text-slate-500 font-bold uppercase tracking-wider flex justify-between">
+                    <span>Voice Transcript</span>
+                    <span id="voiceEngineState" class="text-slate-400">Stopped</span>
+                </div>
+                <div id="speechTranscript" class="text-sky-300 italic min-h-[24px]">Voice assistant ready...</div>
             </div>
         </aside>
+    </div>
+
+    <div id="fleetModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-black text-white flex items-center gap-2">
+                    🛺 Fleet Passport & Vehicle Link
+                </h3>
+                <button onclick="closeFleetModal()" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
+            </div>
+
+            <p class="text-xs text-slate-400">
+                Enter your official driver details to link your vehicle with your fleet manager's ledger before going online.
+            </p>
+
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1">Driver Full Name *</label>
+                    <input type="text" id="modalDriverUsername" placeholder="e.g. Kofi Mensah" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1">MoMo Enabled Phone Number *</label>
+                    <input type="tel" id="modalDriverContact" placeholder="e.g. 0244123456" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">Tricycle Plate No. *</label>
+                        <input type="text" id="modalDriverPlate" placeholder="e.g. M-24-AS" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-amber-400 font-mono focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">Fleet Owner Code</label>
+                        <input type="text" id="modalFleetOwnerCode" placeholder="e.g. KUMASI_01" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sky-400 font-mono focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-2 flex space-x-2">
+                <button onclick="saveFleetSettings()" class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs">
+                    💾 Save Vehicle Profile
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="dispatchAlertModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border-2 border-amber-500/80 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center animate-bounce">
+            <div class="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-3xl mx-auto border border-amber-500/40">
+                🛺
+            </div>
+            
+            <div>
+                <h3 class="text-lg font-black text-white">New Dispatch Request!</h3>
+                <p class="text-xs text-slate-400 mt-1">Passenger waiting at pickup location.</p>
+            </div>
+
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs font-mono text-left space-y-1">
+                <div>Passenger Phone: <strong id="modalPassengerPhone" class="text-sky-400">---</strong></div>
+                <div>Estimated Distance: <strong id="modalPickupDist" class="text-emerald-400">Calculating...</strong></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-2">
+                <button onclick="acceptRideFromModal()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
+                    ✅ Accept Ride
+                </button>
+                <button onclick="declineRideFromModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl transition text-xs border border-slate-700">
+                    ❌ Decline
+                </button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -89,11 +165,12 @@
         let activePassenger = null;
         let activeRouteCoordinates = [];
         
-        // Voice State
+        // Voice Engine State
         let recognition = null;
+        let voiceActive = false;
         let milestoneAlerts = { m500: false, m200: false, m50: false };
 
-        // Map Setup
+        // 3D Map Setup
         const map = new maplibregl.Map({
             container: 'map',
             style: 'https://tiles.openfreemap.org/styles/liberty',
@@ -107,10 +184,36 @@
 
         const driverMarker = new maplibregl.Marker({ color: '#f59e0b' })
             .setLngLat([driverPos.lng, driverPos.lat])
-            .setPopup(new maplibregl.Popup().setHTML('<b>🛺 Your Tricycle</b>'))
+            .setPopup(new maplibregl.Popup().setHTML('<b>🛺 Your Tricycle Console</b>'))
             .addTo(map);
 
-        // Location Engine
+        // 3D Building Extrusions Layer
+        map.on('style.load', () => {
+            const layers = map.getStyle().layers;
+            let labelLayerId;
+            for (let i = 0; i < layers.length; i++) {
+                if (layers[i].type === 'symbol' && layers[i].layout['text-field']) {
+                    labelLayerId = layers[i].id;
+                    break;
+                }
+            }
+
+            map.addLayer({
+                'id': '3d-buildings',
+                'source': 'openmaptiles',
+                'source-layer': 'building',
+                'type': 'fill-extrusion',
+                'minzoom': 13,
+                'paint': {
+                    'fill-extrusion-color': '#1e293b',
+                    'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 13, 0, 15.05, ['coalesce', ['get', 'render_height'], 10]],
+                    'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 13, 0, 15.05, ['coalesce', ['get', 'render_min_height'], 0]],
+                    'fill-extrusion-opacity': 0.85
+                }
+            }, labelLayerId);
+        });
+
+        // Live Geolocation Updates
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition((pos) => {
                 driverPos.lat = pos.coords.latitude;
@@ -119,9 +222,9 @@
 
                 if (isOnline) {
                     socket.emit('update-rider-location', {
-                        username: document.getElementById('driverUsername').value.trim() || 'Driver',
-                        plateNumber: document.getElementById('driverPlate').value.trim() || 'N/A',
-                        fleetOwnerCode: document.getElementById('fleetOwnerCode').value.trim() || 'DEFAULT_FLEET',
+                        username: localStorage.getItem('pragya_driver_name') || 'Driver',
+                        plateNumber: localStorage.getItem('pragya_driver_plate') || 'N/A',
+                        fleetOwnerCode: localStorage.getItem('pragya_fleet_code') || 'DEFAULT_FLEET',
                         lat: driverPos.lat,
                         lng: driverPos.lng
                     });
@@ -133,31 +236,50 @@
             }, null, { enableHighAccuracy: true });
         }
 
-        // ==========================================
-        // 🎙️ STANDARD ENGLISH VOICE ASSISTANT ENGINE
-        // ==========================================
+        // =========================================================
+        // 🎙️ VOICE ASSISTANT ENGINE (STRICT STANDARD ENGLISH)
+        // =========================================================
 
         function speakPragyaText(text) {
             if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); // Stop prior speech
+                window.speechSynthesis.cancel(); // Clear audio queue
                 const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'en-US'; // Standard English strictly
+                utterance.lang = 'en-US';
                 utterance.rate = 1.0;
                 utterance.pitch = 1.0;
                 window.speechSynthesis.speak(utterance);
             }
         }
 
-        function testVoiceAssistant() {
-            speakPragyaText("Pragya AI assistant is active in standard English mode.");
+        function toggleVoiceAssistantPermission() {
+            if (!voiceActive) {
+                voiceActive = true;
+                document.getElementById('voiceIndicatorDot').className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping";
+                document.getElementById('voiceBtnText').innerText = "Voice AI Active";
+                document.getElementById('voiceEngineState').innerText = "Listening...";
+
+                speakPragyaText("Pragya AI voice assistant activated in standard English.");
+                initSpeechRecognition();
+            } else {
+                voiceActive = false;
+                document.getElementById('voiceIndicatorDot').className = "w-2.5 h-2.5 rounded-full bg-slate-500";
+                document.getElementById('voiceBtnText').innerText = "Activate Voice AI";
+                document.getElementById('voiceEngineState').innerText = "Stopped";
+
+                if (recognition) recognition.stop();
+                speakPragyaText("Voice assistant deactivated.");
+            }
         }
 
-        function initPragyaVoiceAssistant() {
+        function initSpeechRecognition() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) return;
+            if (!SpeechRecognition) {
+                document.getElementById('speechTranscript').innerText = "Speech API not supported on this browser.";
+                return;
+            }
 
             recognition = new SpeechRecognition();
-            recognition.continuous = false; // Prevents endless looping!
+            recognition.continuous = false; // Single recognition cycle per phrase to prevent infinite loops
             recognition.interimResults = false;
             recognition.lang = 'en-US';
 
@@ -165,36 +287,35 @@
                 const transcript = event.results[0][0].transcript.toLowerCase().trim();
                 document.getElementById('speechTranscript').innerText = `"${transcript}"`;
 
+                // Command Dispatching
                 if (transcript.includes("accept")) {
                     if (activePassenger) {
-                        speakPragyaText("Dispatch accepted. Navigating to pickup.");
-                        acceptRideDispatch();
+                        speakPragyaText("Ride accepted. Navigating to pickup point.");
+                        acceptRideFromModal();
                     }
                 } else if (transcript.includes("call")) {
                     if (activePassenger) {
-                        speakPragyaText(`Calling passenger at ${activePassenger.passengerPhone}`);
+                        speakPragyaText("Dialing passenger phone number.");
                         window.location.href = `tel:${activePassenger.passengerPhone}`;
                     }
                 } else if (transcript.includes("end trip") || transcript.includes("arrived")) {
-                    speakPragyaText("Ending trip and logging fare.");
+                    speakPragyaText("Ending trip and calculating final fare.");
                     endTripAndCalculateFare();
                 }
             };
 
             recognition.onend = () => {
-                if (isOnline) {
-                    try { recognition.start(); } catch(e){}
+                if (voiceActive) {
+                    try { recognition.start(); } catch(e) {}
                 }
             };
 
-            if (isOnline) {
-                try { recognition.start(); } catch(e){}
-            }
+            try { recognition.start(); } catch(e) {}
         }
 
-        // ==========================================
-        // ✂️ TRAIL VANISHING & DISTANCE MILESTONES
-        // ==========================================
+        // =========================================================
+        // ✂️ DISTANCE MILESTONES & VANISHING TRAIL POLYLINE
+        // =========================================================
 
         function checkDistanceMilestonesAndClipTrail() {
             if (!activePassenger) return;
@@ -204,18 +325,19 @@
                 activePassenger.pickupLat, activePassenger.pickupLng
             );
 
+            // Voice Cues
             if (distMeters <= 500 && !milestoneAlerts.m500) {
                 milestoneAlerts.m500 = true;
-                speakPragyaText("In 500 meters, prepare to arrive at pickup.");
+                speakPragyaText("In 500 meters, prepare to reach passenger pickup location.");
             } else if (distMeters <= 200 && !milestoneAlerts.m200) {
                 milestoneAlerts.m200 = true;
-                speakPragyaText("In 200 meters, slow down. Pickup point is ahead.");
+                speakPragyaText("In 200 meters, slow down. Passenger is nearby.");
             } else if (distMeters <= 50 && !milestoneAlerts.m50) {
                 milestoneAlerts.m50 = true;
-                speakPragyaText("You have arrived at the passenger pickup location.");
+                speakPragyaText("You have arrived at the pickup location.");
             }
 
-            // Clip Trail Line
+            // Route Polyline Vanishing Effect
             if (activeRouteCoordinates.length > 0) {
                 activeRouteCoordinates = activeRouteCoordinates.filter(coord => {
                     const distToPoint = calculateHaversineDistance(driverPos.lat, driverPos.lng, coord[1], coord[0]);
@@ -245,18 +367,58 @@
             return R * c;
         }
 
-        // ==========================================
-        // 🛺 SHIFT MANAGEMENT & FLEET LINKING
-        // ==========================================
+        // =========================================================
+        // 🎛️ MODAL MANAGEMENT & FLEET LINKING LOGIC
+        // =========================================================
+
+        function openFleetModal() {
+            document.getElementById('modalDriverUsername').value = localStorage.getItem('pragya_driver_name') || '';
+            document.getElementById('modalDriverContact').value = localStorage.getItem('pragya_driver_phone') || '';
+            document.getElementById('modalDriverPlate').value = localStorage.getItem('pragya_driver_plate') || '';
+            document.getElementById('modalFleetOwnerCode').value = localStorage.getItem('pragya_fleet_code') || 'DEFAULT_FLEET';
+
+            document.getElementById('fleetModal').classList.remove('hidden');
+        }
+
+        function closeFleetModal() {
+            document.getElementById('fleetModal').classList.add('hidden');
+        }
+
+        function saveFleetSettings() {
+            const name = document.getElementById('modalDriverUsername').value.trim();
+            const phone = document.getElementById('modalDriverContact').value.trim();
+            const plate = document.getElementById('modalDriverPlate').value.trim();
+            const fleet = document.getElementById('modalFleetOwnerCode').value.trim() || 'DEFAULT_FLEET';
+
+            if (!name || !phone || !plate) {
+                alert("⚠️ Please fill in all required fields (Name, Phone, Plate)!");
+                return;
+            }
+
+            localStorage.setItem('pragya_driver_name', name);
+            localStorage.setItem('pragya_driver_phone', phone);
+            localStorage.setItem('pragya_driver_plate', plate);
+            localStorage.setItem('pragya_fleet_code', fleet);
+
+            updateUIFromLocalStorage();
+            closeFleetModal();
+            speakPragyaText("Fleet and vehicle settings saved successfully.");
+        }
+
+        function updateUIFromLocalStorage() {
+            document.getElementById('dispDriverName').innerText = localStorage.getItem('pragya_driver_name') || 'Not Set';
+            document.getElementById('dispDriverPhone').innerText = localStorage.getItem('pragya_driver_phone') || 'Not Set';
+            document.getElementById('dispDriverPlate').innerText = localStorage.getItem('pragya_driver_plate') || 'Not Set';
+            document.getElementById('dispFleetCode').innerText = localStorage.getItem('pragya_fleet_code') || 'DEFAULT_FLEET';
+        }
 
         function toggleShiftStatus() {
-            const username = document.getElementById('driverUsername').value.trim();
-            const contact = document.getElementById('driverContact').value.trim();
-            const plateNumber = document.getElementById('driverPlate').value.trim();
-            const fleetOwnerCode = document.getElementById('fleetOwnerCode').value.trim() || 'INDEPENDENT';
+            const name = localStorage.getItem('pragya_driver_name');
+            const phone = localStorage.getItem('pragya_driver_phone');
+            const plate = localStorage.getItem('pragya_driver_plate');
 
-            if (!username || !contact || !plateNumber) {
-                alert("⚠️ Please enter your Full Name, Phone Number, and Plate Number!");
+            if (!name || !phone || !plate) {
+                openFleetModal();
                 return;
             }
 
@@ -266,55 +428,48 @@
 
             if (isOnline) {
                 btn.innerText = "🔴 Go Offline / End Shift";
-                btn.className = "w-full bg-red-500 hover:bg-red-400 text-white font-black py-2 rounded-xl transition text-xs shadow-lg";
+                btn.className = "w-full bg-red-500 hover:bg-red-400 text-white font-black py-2.5 rounded-xl transition text-xs shadow-lg";
                 badge.innerText = "Online";
                 badge.className = "bg-emerald-500/20 text-emerald-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-500/30";
 
                 socket.emit('rider-online', {
-                    username: username,
-                    fullName: username,
-                    contact: contact,
-                    plateNumber: plateNumber,
-                    fleetOwnerCode: fleetOwnerCode,
+                    username: name,
+                    fullName: name,
+                    contact: phone,
+                    plateNumber: plate,
+                    fleetOwnerCode: localStorage.getItem('pragya_fleet_code') || 'DEFAULT_FLEET',
                     lat: driverPos.lat,
                     lng: driverPos.lng
                 });
 
-                speakPragyaText(`Welcome online, Driver ${username}. Vehicle linked to Fleet ${fleetOwnerCode}.`);
-                initPragyaVoiceAssistant();
+                speakPragyaText(`Driver ${name} is now online and active on dispatch network.`);
             } else {
-                btn.innerText = "🟢 Go Online & Link Fleet";
-                btn.className = "w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl transition text-xs shadow-lg";
+                btn.innerText = "🟢 Go Online & Start Shift";
+                btn.className = "w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg";
                 badge.innerText = "Offline";
                 badge.className = "bg-slate-800 text-slate-400 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-slate-700";
 
-                socket.emit('rider-offline', { username: username });
-                if (recognition) recognition.stop();
+                socket.emit('rider-offline', { username: name });
             }
         }
 
-        // Dispatch Sockets
+        // =========================================================
+        // 🚀 DISPATCH SOCKETS & ALERT MODALS
+        // =========================================================
+
         socket.on('incoming-ride-request', (req) => {
             activePassenger = req;
             milestoneAlerts = { m500: false, m200: false, m50: false };
 
-            speakPragyaText(`Dispatch alert from passenger phone ending in ${req.passengerPhone.slice(-4)}.`);
+            const distMeters = calculateHaversineDistance(driverPos.lat, driverPos.lng, req.pickupLat, req.pickupLng);
 
-            document.getElementById('tripStatusTag').innerText = "Dispatch Alert";
-            document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse";
+            document.getElementById('modalPassengerPhone').innerText = req.passengerPhone;
+            document.getElementById('modalPickupDist').innerText = `${Math.round(distMeters)} meters away`;
+            document.getElementById('dispatchAlertModal').classList.remove('hidden');
 
-            document.getElementById('tripActionArea').innerHTML = `
-                <div class="space-y-2 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30">
-                    <p class="text-amber-400 font-bold text-xs">🚀 Dispatch Request Received</p>
-                    <p class="text-[11px] text-white">Passenger Phone: <strong class="font-mono">${req.passengerPhone}</strong></p>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button onclick="acceptRideDispatch()" class="bg-emerald-500 text-slate-950 font-bold py-1.5 rounded-lg text-xs">Accept Ride</button>
-                        <a href="tel:${req.passengerPhone}" class="bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold py-1.5 rounded-lg text-xs text-center">📞 Call</a>
-                    </div>
-                </div>
-            `;
+            speakPragyaText(`New dispatch alert from passenger phone ${req.passengerPhone}. Say Accept or tap button.`);
 
-            // Draw Route Polyline
+            // Initialize Map Polyline
             activeRouteCoordinates = [
                 [driverPos.lng, driverPos.lat],
                 [req.pickupLng, req.pickupLat]
@@ -337,18 +492,20 @@
                     'id': 'route-line-layer',
                     'type': 'line',
                     'source': 'route-line',
-                    'paint': { 'line-color': '#38bdf8', 'line-width': 6, 'line-opacity': 0.8 }
+                    'paint': { 'line-color': '#38bdf8', 'line-width': 6, 'line-opacity': 0.85 }
                 });
             }
         });
 
-        function acceptRideDispatch() {
+        function acceptRideFromModal() {
+            document.getElementById('dispatchAlertModal').classList.add('hidden');
+
             socket.emit('respond-ride-request', {
                 passengerSocketId: activePassenger.passengerSocketId,
                 status: 'accepted',
-                riderName: document.getElementById('driverUsername').value.trim() || 'Driver',
-                plateNumber: document.getElementById('driverPlate').value.trim() || 'N/A',
-                riderContact: document.getElementById('driverContact').value.trim() || 'N/A'
+                riderName: localStorage.getItem('pragya_driver_name') || 'Driver',
+                plateNumber: localStorage.getItem('pragya_driver_plate') || 'N/A',
+                riderContact: localStorage.getItem('pragya_driver_phone') || 'N/A'
             });
 
             document.getElementById('tripStatusTag').innerText = "En Route to Pickup";
@@ -358,11 +515,23 @@
                 <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
                     <p class="text-emerald-400 font-bold">En Route to Pickup</p>
                     <a href="tel:${activePassenger.passengerPhone}" class="text-sky-400 underline font-mono text-xs font-bold block">📞 Call Passenger: ${activePassenger.passengerPhone}</a>
-                    <button onclick="endTripAndCalculateFare()" class="w-full bg-red-500 hover:bg-red-400 text-white font-black py-2 rounded-xl text-xs transition">
-                        🏁 Arrived & End Trip
+                    <button onclick="endTripAndCalculateFare()" class="w-full bg-red-500 hover:bg-red-400 text-white font-black py-2 rounded-xl text-xs transition shadow-lg">
+                        🏁 Arrived & Complete Trip
                     </button>
                 </div>
             `;
+        }
+
+        function declineRideFromModal() {
+            document.getElementById('dispatchAlertModal').classList.add('hidden');
+            activePassenger = null;
+            
+            if (map.getSource('route-line')) {
+                map.getSource('route-line').setData({
+                    'type': 'Feature',
+                    'geometry': { 'type': 'LineString', 'coordinates': [] }
+                });
+            }
         }
 
         function endTripAndCalculateFare() {
@@ -373,11 +542,11 @@
                 fareGhs: fareGhs
             });
 
-            speakPragyaText(`Trip completed. Fare recorded as 15 Ghana Cedis.`);
+            speakPragyaText(`Trip completed. Total fare is 15 Ghana Cedis.`);
 
             document.getElementById('tripStatusTag').innerText = "Idle / Waiting";
             document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400";
-            document.getElementById('tripActionArea').innerHTML = `<p class="text-slate-400 italic text-[11px]">Trip completed! Fleet ledger updated.</p>`;
+            document.getElementById('tripActionArea').innerHTML = `<p class="text-slate-400 italic text-[11px]">Trip completed! Receipt sent to passenger and fleet ledger.</p>`;
 
             if (map.getSource('route-line')) {
                 map.getSource('route-line').setData({
@@ -387,6 +556,14 @@
             }
             activePassenger = null;
         }
+
+        // On Page Load Initialization
+        window.addEventListener('DOMContentLoaded', () => {
+            updateUIFromLocalStorage();
+            if (!localStorage.getItem('pragya_driver_name')) {
+                openFleetModal();
+            }
+        });
     </script>
 </body>
 </html>
