@@ -342,3 +342,51 @@ io.on('connection', (socket) => {
         io.emit('driver-accepted-request', payload);
     });
 });
+// =========================================================
+// 📡 GLOBAL DRIVER ONLINE REGISTRY & HEARTBEAT BROADCAST
+// =========================================================
+const activeOnlineDrivers = new Map();
+
+io.on('connection', (socket) => {
+
+    // When a driver goes online or updates location
+    socket.on('driver-go-online', (driverData) => {
+        activeOnlineDrivers.set(socket.id, {
+            socketId: socket.id,
+            driverName: driverData.driverName || 'Kofi Mensah',
+            driverPhone: driverData.driverPhone || '0550000000',
+            plateNumber: driverData.plateNumber || 'M-24-AS',
+            lat: driverData.lat || 5.6037, // Default Accra/Kumasi center fallback
+            lng: driverData.lng || -0.1870,
+            isOnline: true,
+            lastSeen: new Date()
+        });
+
+        console.log(`[Driver Online] ${driverData.driverName} (${driverData.plateNumber}) is now active.`);
+        
+        // Broadcast total online drivers list to ALL passengers instantly
+        io.emit('all-online-drivers', Array.from(activeOnlineDrivers.values()));
+    });
+
+    // Handle periodic driver location ping
+    socket.on('driver-location-ping', (coords) => {
+        if (activeOnlineDrivers.has(socket.id)) {
+            const driver = activeOnlineDrivers.get(socket.id);
+            driver.lat = coords.lat;
+            driver.lng = coords.lng;
+            driver.lastSeen = new Date();
+            activeOnlineDrivers.set(socket.id, driver);
+
+            io.emit('all-online-drivers', Array.from(activeOnlineDrivers.values()));
+        }
+    });
+
+    // Cleanup on disconnect
+    socket.on('disconnect', () => {
+        if (activeOnlineDrivers.has(socket.id)) {
+            activeOnlineDrivers.delete(socket.id);
+            console.log(`[Driver Offline] Socket ${socket.id} disconnected.`);
+            io.emit('all-online-drivers', Array.from(activeOnlineDrivers.values()));
+        }
+    });
+});

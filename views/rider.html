@@ -985,3 +985,56 @@
         socket.emit('accept-ride-payload', driverProfile);
     };
 </script>
+<script>
+    let driverHeartbeatInterval = null;
+
+    // Trigger explicit "go-online" event to backend
+    function emitDriverOnlineState() {
+        if (!navigator.geolocation) return;
+
+        navigator.geolocation.getCurrentPosition((pos) => {
+            const payload = {
+                driverName: localStorage.getItem('pragya_driver_name') || 'Kofi Mensah',
+                driverPhone: localStorage.getItem('pragya_driver_phone') || '0550000000',
+                plateNumber: localStorage.getItem('pragya_plate_number') || 'M-24-AS',
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude
+            };
+
+            socket.emit('driver-go-online', payload);
+
+            // Start 5-second continuous GPS heartbeat ping
+            if (!driverHeartbeatInterval) {
+                driverHeartbeatInterval = setInterval(() => {
+                    navigator.geolocation.getCurrentPosition((p) => {
+                        socket.emit('driver-location-ping', {
+                            lat: p.coords.latitude,
+                            lng: p.coords.longitude
+                        });
+                    });
+                }, 5000);
+            }
+        }, (err) => {
+            console.warn("GPS error during online trigger, using fallback coordinates.");
+            socket.emit('driver-go-online', {
+                driverName: 'Kofi Mensah',
+                driverPhone: '0550000000',
+                plateNumber: 'M-24-AS',
+                lat: 5.6037,
+                lng: -0.1870
+            });
+        }, { enableHighAccuracy: true });
+    }
+
+    // Hook into Go Online button
+    const origToggleOnline = window.toggleShiftStatus;
+    window.toggleShiftStatus = function() {
+        if (origToggleOnline) origToggleOnline();
+        emitDriverOnlineState();
+    };
+
+    // Auto-ping if driver was already toggled online
+    socket.on('connect', () => {
+        emitDriverOnlineState();
+    });
+</script>

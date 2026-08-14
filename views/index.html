@@ -195,3 +195,49 @@
         }
     });
 </script>
+<script>
+    const driverMarkers = {};
+
+    socket.on('all-online-drivers', (driversList) => {
+        console.log("Online drivers list received:", driversList);
+
+        // Update driver count UI if counter element exists
+        const countDisplay = document.getElementById('onlineDriverCount');
+        if (countDisplay) countDisplay.innerText = driversList.length;
+
+        // Render each online driver on the passenger 3D map
+        driversList.forEach(driver => {
+            const id = driver.socketId || driver.plateNumber;
+
+            if (driverMarkers[id]) {
+                driverMarkers[id].setLngLat([driver.lng, driver.lat]);
+            } else {
+                // Create custom tricycle map pin
+                const el = document.createElement('div');
+                el.className = 'driver-tricycle-pin';
+                el.style.width = '32px';
+                el.style.height = '32px';
+                el.style.backgroundColor = '#f59e0b'; // Amber Pragya Yellow
+                el.style.borderRadius = '50%';
+                el.style.border = '2px solid #ffffff';
+                el.style.display = 'flex';
+                el.style.alignItems = 'center';
+                el.style.justifyContent = 'center';
+                el.style.fontSize = '16px';
+                el.style.boxShadow = '0 0 12px rgba(245, 158, 11, 0.6)';
+                el.innerText = '🛺';
+
+                driverMarkers[id] = new maplibregl.Marker(el)
+                    .setLngLat([driver.lng, driver.lat])
+                    .setPopup(new maplibregl.Popup().setHTML(`
+                        <div class="font-sans text-xs p-1">
+                            <b>🛺 ${driver.plateNumber}</b><br/>
+                            Driver: ${driver.driverName}<br/>
+                            Status: <span class="text-emerald-500 font-bold">🟢 Available</span>
+                        </div>
+                    `))
+                    .addTo(map);
+            }
+        });
+    });
+</script>
