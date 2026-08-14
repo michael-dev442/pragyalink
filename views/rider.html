@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Driver Cockpit & Pragya AI | PragyaLink Global</title>
+    <title>Driver Cockpit & Pragya AI | PragyaLink</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -14,13 +14,7 @@
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
         #map { width: 100%; height: 100%; min-height: 400px; background-color: #020617; }
         .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
-        .modal-overlay { background: rgba(2, 6, 23, 0.85); backdrop-filter: blur(8px); }
-        .pulse-mic { animation: pulse 1.5s infinite; }
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7); }
-            70% { box-shadow: 0 0 0 12px rgba(56, 189, 248, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
-        }
+        .modal-overlay { background: rgba(2, 6, 23, 0.88); backdrop-filter: blur(10px); }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
@@ -38,8 +32,9 @@
                 <span id="voiceIndicatorDot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
                 <span id="voiceBtnText">Activate Voice AI</span>
             </button>
-            <button onclick="openFleetModal()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
-                📋 Fleet Config
+            
+            <button onclick="openOwnershipModal()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
+                ⚙️ Profile / Ownership
             </button>
         </div>
     </header>
@@ -54,14 +49,16 @@
             <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-3">
                 <div class="flex justify-between items-center">
                     <span class="text-xs font-bold text-slate-300">Driver Console Status</span>
-                    <span id="fleetLinkTag" class="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">Fleet Verified</span>
+                    <span id="ownershipTag" class="text-[9px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                        Not Configured
+                    </span>
                 </div>
 
                 <div class="text-xs space-y-1 font-mono text-slate-300 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                     <div>Driver: <strong id="dispDriverName" class="text-white">Not Set</strong></div>
                     <div>Phone: <strong id="dispDriverPhone" class="text-sky-400">Not Set</strong></div>
                     <div>Plate: <strong id="dispDriverPlate" class="text-amber-400">Not Set</strong></div>
-                    <div>Fleet: <strong id="dispFleetCode" class="text-slate-400">DEFAULT_FLEET</strong></div>
+                    <div>Mode: <strong id="dispOperatingMode" class="text-slate-400">Not Set</strong></div>
                 </div>
 
                 <button id="shiftToggleBtn" onclick="toggleShiftStatus()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
@@ -71,68 +68,78 @@
 
             <div id="tripStatusCard" class="bg-slate-900/90 p-4 rounded-2xl border border-amber-500/40 space-y-3">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span class="text-xs font-black text-amber-400">🎙️ Navigation Console</span>
+                    <span class="text-xs font-black text-amber-400">🎙️ Active Dispatch Panel</span>
                     <span id="tripStatusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Idle</span>
                 </div>
                 <div id="tripActionArea" class="space-y-2 text-xs">
-                    <p class="text-slate-400 italic text-[11px]">Click "Activate Voice AI" above to enable hands-free navigation commands.</p>
+                    <p class="text-slate-400 italic text-[11px]">Go online to start receiving passenger dispatches.</p>
                 </div>
             </div>
 
             <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-[10px] space-y-1 font-mono">
                 <div class="text-slate-500 font-bold uppercase tracking-wider flex justify-between">
-                    <span>Voice Transcript</span>
+                    <span>Pragya Voice Status</span>
                     <span id="voiceEngineState" class="text-slate-400">Stopped</span>
                 </div>
-                <div id="speechTranscript" class="text-sky-300 italic min-h-[24px]">Voice assistant ready...</div>
+                <div id="speechTranscript" class="text-sky-300 italic min-h-[20px]">Standard English assistant ready.</div>
             </div>
         </aside>
     </div>
 
-    <div id="fleetModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
+    <div id="ownershipModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                 <h3 class="text-lg font-black text-white flex items-center gap-2">
-                    🛺 Fleet Passport & Vehicle Link
+                    🛺 Vehicle Ownership Setup
                 </h3>
-                <button onclick="closeFleetModal()" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
+                <button onclick="closeOwnershipModal()" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
             </div>
 
             <p class="text-xs text-slate-400">
-                Enter your official driver details to link your vehicle with your fleet manager's ledger before going online.
+                How are you operating this tricycle today? Select your operational model below:
             </p>
 
-            <div class="space-y-3 text-xs">
+            <div class="grid grid-cols-2 gap-3">
+                <button id="optOwnerBtn" onclick="selectOperatingModel('OWNER')" class="p-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-left hover:border-amber-500 transition space-y-1">
+                    <div class="text-xs font-black text-amber-400">👑 I Own Vehicle</div>
+                    <div class="text-[10px] text-slate-400">Independent operator. Direct payouts.</div>
+                </button>
+                <button id="optFleetBtn" onclick="selectOperatingModel('FLEET')" class="p-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-left hover:border-sky-500 transition space-y-1">
+                    <div class="text-xs font-black text-sky-400">🏢 Fleet Driver</div>
+                    <div class="text-[10px] text-slate-400">Work & Pay / Driving for Manager.</div>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs pt-2">
                 <div>
                     <label class="block font-bold text-slate-300 mb-1">Driver Full Name *</label>
-                    <input type="text" id="modalDriverUsername" placeholder="e.g. Kofi Mensah" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
+                    <input type="text" id="modalDriverName" placeholder="e.g. Kofi Mensah" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
                 </div>
                 <div>
-                    <label class="block font-bold text-slate-300 mb-1">MoMo Enabled Phone Number *</label>
-                    <input type="tel" id="modalDriverContact" placeholder="e.g. 0244123456" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
+                    <label class="block font-bold text-slate-300 mb-1">Phone Number *</label>
+                    <input type="tel" id="modalDriverPhone" placeholder="e.g. 0244123456" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
                 </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block font-bold text-slate-300 mb-1">Tricycle Plate No. *</label>
-                        <input type="text" id="modalDriverPlate" placeholder="e.g. M-24-AS" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-amber-400 font-mono focus:outline-none focus:border-amber-500">
-                    </div>
-                    <div>
-                        <label class="block font-bold text-slate-300 mb-1">Fleet Owner Code</label>
-                        <input type="text" id="modalFleetOwnerCode" placeholder="e.g. KUMASI_01" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sky-400 font-mono focus:outline-none focus:border-amber-500">
-                    </div>
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1">Tricycle Plate Number *</label>
+                    <input type="text" id="modalDriverPlate" placeholder="e.g. M-24-AS" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-amber-400 font-mono focus:outline-none focus:border-amber-500">
+                </div>
+
+                <div id="fleetCodeContainer" class="hidden">
+                    <label class="block font-bold text-sky-400 mb-1">Fleet Owner Code / Manager ID *</label>
+                    <input type="text" id="modalFleetCode" placeholder="e.g. KUMASI_FLEET_01" class="w-full bg-slate-950 border border-sky-500/50 rounded-xl px-3 py-2 text-sky-300 font-mono focus:outline-none focus:border-sky-400">
                 </div>
             </div>
 
-            <div class="pt-2 flex space-x-2">
-                <button onclick="saveFleetSettings()" class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs">
-                    💾 Save Vehicle Profile
+            <div class="pt-2">
+                <button onclick="saveOwnershipSettings()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
+                    💾 Save Profile & Continue
                 </button>
             </div>
         </div>
     </div>
 
     <div id="dispatchAlertModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-900 border-2 border-amber-500/80 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center animate-bounce">
+        <div class="bg-slate-900 border-2 border-amber-500/80 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center">
             <div class="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-3xl mx-auto border border-amber-500/40">
                 🛺
             </div>
@@ -144,7 +151,7 @@
 
             <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs font-mono text-left space-y-1">
                 <div>Passenger Phone: <strong id="modalPassengerPhone" class="text-sky-400">---</strong></div>
-                <div>Estimated Distance: <strong id="modalPickupDist" class="text-emerald-400">Calculating...</strong></div>
+                <div>Distance: <strong id="modalPickupDist" class="text-emerald-400">Calculating...</strong></div>
             </div>
 
             <div class="grid grid-cols-2 gap-2 pt-2">
@@ -161,11 +168,12 @@
     <script>
         const socket = io();
         let isOnline = false;
+        let selectedOperatingMode = "OWNER"; // Default
         let driverPos = { lat: 6.6885, lng: -1.6244 };
         let activePassenger = null;
         let activeRouteCoordinates = [];
         
-        // Voice Engine State
+        // Voice State
         let recognition = null;
         let voiceActive = false;
         let milestoneAlerts = { m500: false, m200: false, m50: false };
@@ -187,33 +195,7 @@
             .setPopup(new maplibregl.Popup().setHTML('<b>🛺 Your Tricycle Console</b>'))
             .addTo(map);
 
-        // 3D Building Extrusions Layer
-        map.on('style.load', () => {
-            const layers = map.getStyle().layers;
-            let labelLayerId;
-            for (let i = 0; i < layers.length; i++) {
-                if (layers[i].type === 'symbol' && layers[i].layout['text-field']) {
-                    labelLayerId = layers[i].id;
-                    break;
-                }
-            }
-
-            map.addLayer({
-                'id': '3d-buildings',
-                'source': 'openmaptiles',
-                'source-layer': 'building',
-                'type': 'fill-extrusion',
-                'minzoom': 13,
-                'paint': {
-                    'fill-extrusion-color': '#1e293b',
-                    'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 13, 0, 15.05, ['coalesce', ['get', 'render_height'], 10]],
-                    'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 13, 0, 15.05, ['coalesce', ['get', 'render_min_height'], 0]],
-                    'fill-extrusion-opacity': 0.85
-                }
-            }, labelLayerId);
-        });
-
-        // Live Geolocation Updates
+        // Geolocation Updates
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition((pos) => {
                 driverPos.lat = pos.coords.latitude;
@@ -224,7 +206,7 @@
                     socket.emit('update-rider-location', {
                         username: localStorage.getItem('pragya_driver_name') || 'Driver',
                         plateNumber: localStorage.getItem('pragya_driver_plate') || 'N/A',
-                        fleetOwnerCode: localStorage.getItem('pragya_fleet_code') || 'DEFAULT_FLEET',
+                        fleetOwnerCode: localStorage.getItem('pragya_fleet_code') || 'INDEPENDENT',
                         lat: driverPos.lat,
                         lng: driverPos.lng
                     });
@@ -237,12 +219,12 @@
         }
 
         // =========================================================
-        // 🎙️ VOICE ASSISTANT ENGINE (STRICT STANDARD ENGLISH)
+        // 🎙️ STANDARD ENGLISH VOICE ASSISTANT ENGINE (FIXED)
         // =========================================================
 
         function speakPragyaText(text) {
             if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); // Clear audio queue
+                window.speechSynthesis.cancel(); // Strictly stops previous queued speech
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'en-US';
                 utterance.rate = 1.0;
@@ -273,13 +255,10 @@
 
         function initSpeechRecognition() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                document.getElementById('speechTranscript').innerText = "Speech API not supported on this browser.";
-                return;
-            }
+            if (!SpeechRecognition) return;
 
             recognition = new SpeechRecognition();
-            recognition.continuous = false; // Single recognition cycle per phrase to prevent infinite loops
+            recognition.continuous = false; // Stops continuous audio loops
             recognition.interimResults = false;
             recognition.lang = 'en-US';
 
@@ -287,19 +266,18 @@
                 const transcript = event.results[0][0].transcript.toLowerCase().trim();
                 document.getElementById('speechTranscript').innerText = `"${transcript}"`;
 
-                // Command Dispatching
                 if (transcript.includes("accept")) {
                     if (activePassenger) {
-                        speakPragyaText("Ride accepted. Navigating to pickup point.");
+                        speakPragyaText("Ride accepted. Proceeding to pickup point.");
                         acceptRideFromModal();
                     }
                 } else if (transcript.includes("call")) {
                     if (activePassenger) {
-                        speakPragyaText("Dialing passenger phone number.");
+                        speakPragyaText("Calling passenger now.");
                         window.location.href = `tel:${activePassenger.passengerPhone}`;
                     }
                 } else if (transcript.includes("end trip") || transcript.includes("arrived")) {
-                    speakPragyaText("Ending trip and calculating final fare.");
+                    speakPragyaText("Ending trip and completing fare.");
                     endTripAndCalculateFare();
                 }
             };
@@ -325,7 +303,7 @@
                 activePassenger.pickupLat, activePassenger.pickupLng
             );
 
-            // Voice Cues
+            // Audio prompts strictly triggered once per milestone
             if (distMeters <= 500 && !milestoneAlerts.m500) {
                 milestoneAlerts.m500 = true;
                 speakPragyaText("In 500 meters, prepare to reach passenger pickup location.");
@@ -368,65 +346,97 @@
         }
 
         // =========================================================
-        // 🎛️ MODAL MANAGEMENT & FLEET LINKING LOGIC
+        // 🎛️ OWNERSHIP SELECTION & REBOOT AUTO-RECOVERY
         // =========================================================
 
-        function openFleetModal() {
-            document.getElementById('modalDriverUsername').value = localStorage.getItem('pragya_driver_name') || '';
-            document.getElementById('modalDriverContact').value = localStorage.getItem('pragya_driver_phone') || '';
+        function selectOperatingModel(mode) {
+            selectedOperatingMode = mode;
+            const ownerBtn = document.getElementById('optOwnerBtn');
+            const fleetBtn = document.getElementById('optFleetBtn');
+            const fleetContainer = document.getElementById('fleetCodeContainer');
+
+            if (mode === 'OWNER') {
+                ownerBtn.className = "p-3 bg-amber-500/10 border-2 border-amber-500 rounded-xl text-left space-y-1";
+                fleetBtn.className = "p-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-left hover:border-sky-500 transition space-y-1";
+                fleetContainer.classList.add('hidden');
+            } else {
+                fleetBtn.className = "p-3 bg-sky-500/10 border-2 border-sky-500 rounded-xl text-left space-y-1";
+                ownerBtn.className = "p-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-left hover:border-amber-500 transition space-y-1";
+                fleetContainer.classList.remove('hidden');
+            }
+        }
+
+        function openOwnershipModal() {
+            document.getElementById('modalDriverName').value = localStorage.getItem('pragya_driver_name') || '';
+            document.getElementById('modalDriverPhone').value = localStorage.getItem('pragya_driver_phone') || '';
             document.getElementById('modalDriverPlate').value = localStorage.getItem('pragya_driver_plate') || '';
-            document.getElementById('modalFleetOwnerCode').value = localStorage.getItem('pragya_fleet_code') || 'DEFAULT_FLEET';
+            document.getElementById('modalFleetCode').value = localStorage.getItem('pragya_fleet_code') || '';
 
-            document.getElementById('fleetModal').classList.remove('hidden');
+            const savedMode = localStorage.getItem('pragya_operating_mode') || 'OWNER';
+            selectOperatingModel(savedMode);
+
+            document.getElementById('ownershipModal').classList.remove('hidden');
         }
 
-        function closeFleetModal() {
-            document.getElementById('fleetModal').classList.add('hidden');
+        function closeOwnershipModal() {
+            document.getElementById('ownershipModal').classList.add('hidden');
         }
 
-        function saveFleetSettings() {
-            const name = document.getElementById('modalDriverUsername').value.trim();
-            const phone = document.getElementById('modalDriverContact').value.trim();
+        function saveOwnershipSettings() {
+            const name = document.getElementById('modalDriverName').value.trim();
+            const phone = document.getElementById('modalDriverPhone').value.trim();
             const plate = document.getElementById('modalDriverPlate').value.trim();
-            const fleet = document.getElementById('modalFleetOwnerCode').value.trim() || 'DEFAULT_FLEET';
+            const fleet = document.getElementById('modalFleetCode').value.trim();
 
             if (!name || !phone || !plate) {
-                alert("⚠️ Please fill in all required fields (Name, Phone, Plate)!");
+                alert("⚠️ Please enter your Name, Phone Number, and Plate Number!");
+                return;
+            }
+
+            if (selectedOperatingMode === 'FLEET' && !fleet) {
+                alert("⚠️ Please enter your Fleet Owner Code / Manager ID!");
                 return;
             }
 
             localStorage.setItem('pragya_driver_name', name);
             localStorage.setItem('pragya_driver_phone', phone);
             localStorage.setItem('pragya_driver_plate', plate);
-            localStorage.setItem('pragya_fleet_code', fleet);
+            localStorage.setItem('pragya_operating_mode', selectedOperatingMode);
+            localStorage.setItem('pragya_fleet_code', selectedOperatingMode === 'FLEET' ? fleet : 'INDEPENDENT');
 
-            updateUIFromLocalStorage();
-            closeFleetModal();
-            speakPragyaText("Fleet and vehicle settings saved successfully.");
+            restoreDriverSession();
+            closeOwnershipModal();
+            speakPragyaText("Profile and vehicle operating settings saved.");
         }
 
-        function updateUIFromLocalStorage() {
-            document.getElementById('dispDriverName').innerText = localStorage.getItem('pragya_driver_name') || 'Not Set';
-            document.getElementById('dispDriverPhone').innerText = localStorage.getItem('pragya_driver_phone') || 'Not Set';
-            document.getElementById('dispDriverPlate').innerText = localStorage.getItem('pragya_driver_plate') || 'Not Set';
-            document.getElementById('dispFleetCode').innerText = localStorage.getItem('pragya_fleet_code') || 'DEFAULT_FLEET';
-        }
-
-        function toggleShiftStatus() {
+        function restoreDriverSession() {
             const name = localStorage.getItem('pragya_driver_name');
             const phone = localStorage.getItem('pragya_driver_phone');
             const plate = localStorage.getItem('pragya_driver_plate');
+            const mode = localStorage.getItem('pragya_operating_mode') || 'OWNER';
+            const savedShift = localStorage.getItem('pragya_shift_status');
 
-            if (!name || !phone || !plate) {
-                openFleetModal();
+            if (!name) {
+                openOwnershipModal();
                 return;
             }
 
-            isOnline = !isOnline;
-            const btn = document.getElementById('shiftToggleBtn');
-            const badge = document.getElementById('shiftBadge');
+            document.getElementById('dispDriverName').innerText = name;
+            document.getElementById('dispDriverPhone').innerText = phone;
+            document.getElementById('dispDriverPlate').innerText = plate;
+            document.getElementById('dispOperatingMode').innerText = mode === 'OWNER' ? 'Owner Operator' : 'Fleet Driver';
 
-            if (isOnline) {
+            document.getElementById('ownershipTag').innerText = mode === 'OWNER' ? 'Independent' : 'Fleet Linked';
+            document.getElementById('ownershipTag').className = mode === 'OWNER' ?
+                'text-[9px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded' :
+                'text-[9px] font-mono text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded';
+
+            // Auto-reboot shift status recovery
+            if (savedShift === 'ONLINE' && !isOnline) {
+                isOnline = true;
+                const btn = document.getElementById('shiftToggleBtn');
+                const badge = document.getElementById('shiftBadge');
+
                 btn.innerText = "🔴 Go Offline / End Shift";
                 btn.className = "w-full bg-red-500 hover:bg-red-400 text-white font-black py-2.5 rounded-xl transition text-xs shadow-lg";
                 badge.innerText = "Online";
@@ -437,13 +447,44 @@
                     fullName: name,
                     contact: phone,
                     plateNumber: plate,
-                    fleetOwnerCode: localStorage.getItem('pragya_fleet_code') || 'DEFAULT_FLEET',
+                    fleetOwnerCode: localStorage.getItem('pragya_fleet_code') || 'INDEPENDENT',
+                    lat: driverPos.lat,
+                    lng: driverPos.lng
+                });
+            }
+        }
+
+        function toggleShiftStatus() {
+            const name = localStorage.getItem('pragya_driver_name');
+            if (!name) {
+                openOwnershipModal();
+                return;
+            }
+
+            isOnline = !isOnline;
+            const btn = document.getElementById('shiftToggleBtn');
+            const badge = document.getElementById('shiftBadge');
+
+            if (isOnline) {
+                localStorage.setItem('pragya_shift_status', 'ONLINE');
+                btn.innerText = "🔴 Go Offline / End Shift";
+                btn.className = "w-full bg-red-500 hover:bg-red-400 text-white font-black py-2.5 rounded-xl transition text-xs shadow-lg";
+                badge.innerText = "Online";
+                badge.className = "bg-emerald-500/20 text-emerald-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-500/30";
+
+                socket.emit('rider-online', {
+                    username: name,
+                    fullName: name,
+                    contact: localStorage.getItem('pragya_driver_phone'),
+                    plateNumber: localStorage.getItem('pragya_driver_plate'),
+                    fleetOwnerCode: localStorage.getItem('pragya_fleet_code') || 'INDEPENDENT',
                     lat: driverPos.lat,
                     lng: driverPos.lng
                 });
 
-                speakPragyaText(`Driver ${name} is now online and active on dispatch network.`);
+                speakPragyaText(`Welcome online Driver ${name}. You are active on dispatch network.`);
             } else {
+                localStorage.setItem('pragya_shift_status', 'OFFLINE');
                 btn.innerText = "🟢 Go Online & Start Shift";
                 btn.className = "w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg";
                 badge.innerText = "Offline";
@@ -454,7 +495,7 @@
         }
 
         // =========================================================
-        // 🚀 DISPATCH SOCKETS & ALERT MODALS
+        // 🚀 DISPATCH SOCKETS & ACTION HANDLERS
         // =========================================================
 
         socket.on('incoming-ride-request', (req) => {
@@ -467,9 +508,9 @@
             document.getElementById('modalPickupDist').innerText = `${Math.round(distMeters)} meters away`;
             document.getElementById('dispatchAlertModal').classList.remove('hidden');
 
-            speakPragyaText(`New dispatch alert from passenger phone ${req.passengerPhone}. Say Accept or tap button.`);
+            speakPragyaText(`New dispatch alert. Passenger phone ends in ${req.passengerPhone.slice(-4)}. Say Accept or tap button.`);
 
-            // Initialize Map Polyline
+            // Setup Route Polyline
             activeRouteCoordinates = [
                 [driverPos.lng, driverPos.lat],
                 [req.pickupLng, req.pickupLat]
@@ -542,11 +583,11 @@
                 fareGhs: fareGhs
             });
 
-            speakPragyaText(`Trip completed. Total fare is 15 Ghana Cedis.`);
+            speakPragyaText(`Trip completed. Fare recorded as 15 Ghana Cedis.`);
 
             document.getElementById('tripStatusTag').innerText = "Idle / Waiting";
             document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400";
-            document.getElementById('tripActionArea').innerHTML = `<p class="text-slate-400 italic text-[11px]">Trip completed! Receipt sent to passenger and fleet ledger.</p>`;
+            document.getElementById('tripActionArea').innerHTML = `<p class="text-slate-400 italic text-[11px]">Trip completed! Receipt sent to fleet ledger.</p>`;
 
             if (map.getSource('route-line')) {
                 map.getSource('route-line').setData({
@@ -557,12 +598,9 @@
             activePassenger = null;
         }
 
-        // On Page Load Initialization
+        // Auto-restore on page load
         window.addEventListener('DOMContentLoaded', () => {
-            updateUIFromLocalStorage();
-            if (!localStorage.getItem('pragya_driver_name')) {
-                openFleetModal();
-            }
+            restoreDriverSession();
         });
     </script>
 </body>
