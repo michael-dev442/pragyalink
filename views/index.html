@@ -70,3 +70,128 @@
 
 </body>
 </html>
+<script>
+    socket.on('driver-accepted-request', (data) => {
+        // Draw route following actual road geometry
+        if (window.drawRoadNetworkRoute && data.pickup && data.dropoff) {
+            drawRoadNetworkRoute(data.pickup.lng, data.pickup.lat, data.dropoff.lng, data.dropoff.lat);
+        }
+
+        // Show waiting status to passenger until trip officially starts
+        const statusDisplay = document.getElementById('passengerTripStatus');
+        if (statusDisplay) {
+            statusDisplay.innerHTML = `
+                <div class="p-3 bg-slate-900 border border-slate-800 rounded-xl text-center space-y-1">
+                    <p class="text-xs text-sky-400 font-bold">🛺 Driver is on the way!</p>
+                    <p class="text-[10px] text-slate-400">Fare calculation will begin once the driver picks you up and taps "Start Trip".</p>
+                </div>
+            `;
+        }
+    });
+
+    socket.on('trip-meter-started', () => {
+        const statusDisplay = document.getElementById('passengerTripStatus');
+        if (statusDisplay) {
+            statusDisplay.innerHTML = `
+                <div class="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-center">
+                    <span class="text-xs text-emerald-400 font-bold font-mono">🚕 Trip in Progress — Live Fare Active</span>
+                </div>
+            `;
+        }
+    });
+</script>
+<script>
+    let passengerRouteLayerId = 'passenger-road-polyline';
+
+    // Fetches real street routes from OSRM engine
+    async function drawRoadNetworkRoute(startLng, startLat, endLng, endLat) {
+        try {
+            // OSRM format requires: longitude,latitude;longitude,latitude
+            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
+            
+            const response = await fetch(osrmUrl);
+            const data = await response.json();
+
+            if (!data.routes || data.routes.length === 0) return;
+
+            const routeGeoJSON = data.routes[0].geometry;
+
+            if (map.getLayer(passengerRouteLayerId)) {
+                map.removeLayer(passengerRouteLayerId);
+                map.removeSource(passengerRouteLayerId);
+            }
+
+            map.addSource(passengerRouteLayerId, {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': routeGeoJSON
+                }
+            });
+
+            map.addLayer({
+                'id': passengerRouteLayerId,
+                'type': 'line',
+                'source': passengerRouteLayerId,
+                'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                'paint': {
+                    'line-color': '#0284c7', // Sky Blue Road Polyline
+                    'line-width': 6,
+                    'line-opacity': 0.9
+                }
+            });
+
+            // Zoom and fit map bounds to the road route
+            const coords = routeGeoJSON.coordinates;
+            const bounds = coords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));
+            map.fitBounds(bounds, { padding: 50 });
+
+        } catch (err) {
+            console.error("OSRM Route Error:", err);
+        }
+    }
+
+    // Handles dispatch acceptance and displays Driver Info Card (Name, Phone, Plate ID)
+    socket.on('driver-accepted-request', (data) => {
+        // Draw real street route
+        if (data.pickup && data.dropoff) {
+            drawRoadNetworkRoute(data.pickup.lng, data.pickup.lat, data.dropoff.lng, data.dropoff.lat);
+        }
+
+        // Render Driver Details Card for Passenger
+        const statusDisplay = document.getElementById('passengerTripStatus');
+        if (statusDisplay) {
+            const driverName = data.driverName || 'Kofi Mensah';
+            const driverPhone = data.driverPhone || '0550000000';
+            const plateId = data.plateNumber || 'M-24-AS';
+
+            statusDisplay.innerHTML = `
+                <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl space-y-3">
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                        <span class="text-xs font-black text-emerald-400 flex items-center gap-1.5">
+                            🟢 Driver Assigned
+                        </span>
+                        <span class="text-[10px] font-mono font-bold bg-amber-500/10 border border-amber-500/30 text-amber-400 px-2 py-0.5 rounded">
+                            ${plateId}
+                        </span>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-bold text-white">${driverName}</p>
+                            <p class="text-[10px] text-slate-400">Pragya Commercial Tricycle</p>
+                        </div>
+                        <a href="tel:${driverPhone}" class="px-3 py-1.5 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 rounded-xl text-xs font-bold flex items-center gap-1">
+                            📞 Call
+                        </a>
+                    </div>
+
+                    <div class="p-2 bg-slate-950 rounded-xl border border-slate-800/80 text-center">
+                        <p class="text-[10px] text-slate-400">Driver is navigating along roads to pick you up. Fare meter starts upon arrival.</p>
+                    </div>
+                </div>
+            `;
+        }
+    });
+</script>

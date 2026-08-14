@@ -324,3 +324,21 @@ io.on('connection', (socket) => {
         });
     });
 });
+// =========================================================
+// 📡 TRIP METER & REAL ROAD ROUTING EVENT HANDLERS
+// =========================================================
+io.on('connection', (socket) => {
+    socket.on('start-trip-meter', (data) => {
+        console.log(`[Trip] Meter started for request: ${data.requestId}`);
+        // Broadcast to passenger that the driver has tapped "Start Trip"
+        io.emit('trip-meter-started', data);
+    });
+});
+// =========================================================
+// 📡 DISPATCH DRIVER DETAILS TO PASSENGER
+// =========================================================
+io.on('connection', (socket) => {
+    socket.on('accept-ride-payload', (payload) => {
+        io.emit('driver-accepted-request', payload);
+    });
+});

@@ -968,3 +968,20 @@
         document.getElementById('tripActionArea').innerHTML = `<p class="text-slate-400 italic text-[11px]">Go online to start receiving passenger dispatches.</p>`;
     }
 </script>
+<script>
+    const origAcceptPassengerRequestWithDetails = window.acceptPassengerRequest;
+    window.acceptPassengerRequest = function(requestId, passengerData) {
+        if (origAcceptPassengerRequestWithDetails) origAcceptPassengerRequestWithDetails(requestId, passengerData);
+
+        const driverProfile = {
+            requestId: requestId,
+            driverName: localStorage.getItem('pragya_driver_name') || 'Kofi Mensah',
+            driverPhone: localStorage.getItem('pragya_driver_phone') || '0550000000',
+            plateNumber: localStorage.getItem('pragya_plate_number') || 'M-24-AS',
+            pickup: { lat: passengerData.pickupLat, lng: passengerData.pickupLng },
+            dropoff: { lat: passengerData.dropoffLat, lng: passengerData.dropoffLng }
+        };
+
+        socket.emit('accept-ride-payload', driverProfile);
+    };
+</script>
