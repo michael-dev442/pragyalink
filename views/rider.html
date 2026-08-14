@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Driver Console | PragyaLink Ghana</title>
+    <title>Driver Console & Pragya AI | PragyaLink Ghana</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -12,82 +12,33 @@
 
     <style>
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
-        #map { width: 100%; height: 100%; min-height: 400px; background-color: #0f172a; }
+        #map { width: 100%; height: 100%; min-height: 400px; background-color: #020617; }
         .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
-        .input-error { border-color: #ef4444 !important; background-color: rgba(239, 68, 68, 0.1) !important; }
+        .pulse-mic { animation: pulse 1.5s infinite; }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(56, 189, 248, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
 
-    <div id="driverModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
-        <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-emerald-500/30 shadow-2xl space-y-4">
-            <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
-                <span class="text-3xl">🛺</span>
-                <div>
-                    <h2 class="text-xl font-black text-white">Driver Console Setup</h2>
-                    <p class="text-xs text-slate-400">Set up your profile to accept dispatches</p>
-                </div>
-            </div>
-
-            <form id="driverForm" onsubmit="registerRider(event)" class="space-y-3">
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Full Name *</label>
-                    <input type="text" id="fullName" required placeholder="e.g. Kwame Mensah" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Phone Number (MoMo Enabled) *</label>
-                    <input type="tel" id="contact" required placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono">
-                    <span id="phoneError" class="text-[10px] text-red-400 hidden font-semibold">⚠️ Enter a valid 10-digit Ghana phone number (e.g. 0244123456)</span>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-300 mb-1">Ownership Mode</label>
-                    <select id="ownershipType" onchange="toggleFleetCodeInput()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
-                        <option value="owner_operator">👤 I own this Pragya (Owner-Operator)</option>
-                        <option value="lease_driver">🤝 Work-and-Pay / Leased Driver</option>
-                    </select>
-                </div>
-
-                <div id="fleetCodeGroup" class="hidden">
-                    <label class="block text-xs font-bold text-amber-400 mb-1">Fleet Owner Phone / Code *</label>
-                    <input type="text" id="ownerCode" placeholder="e.g. 0244001122" class="w-full bg-slate-900 border border-amber-500/50 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none">
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-300 mb-1">Vehicle Type</label>
-                        <select id="vehicleType" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none">
-                            <option value="Bajaj RE">Bajaj RE</option>
-                            <option value="TVS King">TVS King</option>
-                            <option value="Mahindra Alfa">Mahindra Alfa</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-300 mb-1">Plate Number *</label>
-                        <input type="text" id="plateNumber" required placeholder="e.g. M-24-AS" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono uppercase">
-                        <span id="plateError" class="text-[10px] text-red-400 hidden font-semibold">⚠️ Enter valid plate format (e.g. M-24-AS or AS-1234-24)</span>
-                    </div>
-                </div>
-
-                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg text-sm mt-2">
-                    🚀 Start Driving & Go Live
-                </button>
-            </form>
-        </div>
-    </div>
-
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
-        <div class="flex items-center space-x-2 sm:space-x-3">
-            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-emerald-400">Driver 🛺</span></a>
-            <span id="statusBadge" class="bg-emerald-500/20 text-emerald-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Online & Active
+        <div class="flex items-center space-x-3">
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-amber-400">Rider 🛺</span></a>
+            <span id="shiftBadge" class="bg-slate-800 text-slate-400 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-slate-700">
+                Offline
             </span>
         </div>
         
         <div class="flex items-center space-x-2">
-            <a href="/owner" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg transition border border-slate-700">
-                Fleet Dashboard
+            <button id="voiceMicBtn" onclick="togglePragyaVoiceAssistant()" class="text-xs bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
+                <span id="micIcon" class="w-2 h-2 rounded-full bg-sky-400"></span>
+                <span id="voiceStatusText">Pragya AI Ready</span>
+            </button>
+            <a href="/passenger" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
+                Passenger View
             </a>
         </div>
     </header>
@@ -98,211 +49,388 @@
         </div>
 
         <aside class="w-full md:w-80 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
-            <div id="activeTripCard" class="bg-slate-900/90 p-4 rounded-2xl border border-sky-500/40 space-y-3">
+            
+            <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                <label class="block text-xs font-bold text-slate-300">Driver Call Sign / Plate *</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="text" id="driverUsername" placeholder="e.g. kofi_kumasi" class="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500">
+                    <input type="text" id="driverPlate" placeholder="Plate: M-24-AS" class="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-amber-400 font-mono focus:outline-none focus:border-amber-500">
+                </div>
+                <button id="shiftToggleBtn" onclick="toggleShiftStatus()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl transition text-xs shadow-lg">
+                    🟢 Go Online / Start Shift
+                </button>
+            </div>
+
+            <div id="tripStatusCard" class="bg-slate-900/90 p-4 rounded-2xl border border-amber-500/40 space-y-3">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span class="text-xs font-black text-sky-400">📍 Trip Control Center</span>
+                    <span class="text-xs font-black text-amber-400">🎙️ Pragya Voice Console</span>
                     <span id="tripStatusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Idle / Waiting</span>
                 </div>
                 <div id="tripActionArea" class="space-y-2 text-xs">
-                    <p class="text-slate-400 italic text-[11px]">No active passenger on board. Waiting for ride dispatches...</p>
+                    <p class="text-slate-400 italic text-[11px]">Say <strong class="text-sky-400">"Hey Pragya"</strong> to speak to your copilot.</p>
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
-                <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold">Shift Gross</span>
-                    <div id="totalEarnings" class="text-lg font-black text-emerald-400 font-mono">GH₵ 0.00</div>
-                </div>
-                <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
-                    <span class="text-[10px] text-slate-400 uppercase font-bold">Completed Trips</span>
-                    <div id="ridesCompleted" class="text-lg font-black text-sky-400 font-mono">0</div>
-                </div>
-            </div>
-
-            <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
-                <div class="flex justify-between items-center">
-                    <span class="text-xs font-black text-white flex items-center gap-1">🛠️ Digital Passport</span>
-                    <span id="serviceStatusTag" class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Healthy</span>
-                </div>
-                <div class="space-y-1">
-                    <div class="flex justify-between text-[11px] text-slate-400 font-mono">
-                        <span>Servicing Progress:</span>
-                        <span id="serviceKmText" class="text-white font-bold">0.0 / 1,500 km</span>
-                    </div>
-                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                        <div id="serviceProgressBar" class="bg-emerald-500 h-full transition-all duration-500" style="width: 0%;"></div>
-                    </div>
-                </div>
+            <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-[10px] space-y-1 font-mono">
+                <div class="text-slate-500 font-bold uppercase tracking-wider">Voice Log</div>
+                <div id="speechTranscript" class="text-sky-300 italic min-h-[24px]">Listening for "Hey Pragya"...</div>
             </div>
         </aside>
     </div>
 
     <script>
         const socket = io();
-        let riderPos = { lat: 6.6885, lng: -1.6244 };
-        let currentRiderData = null;
-        let activePassengerSocketId = null;
-        let driverMarker = null;
+        let isOnline = false;
+        let driverPos = { lat: 6.6885, lng: -1.6244 };
+        let activePassenger = null;
+        let activeRouteCoordinates = []; // Full route array
+        let routeSourceLayerAdded = false;
 
-        // Validation Regex
-        const ghanaPhoneRegex = /^(?:\+233|0)[23579]\d{8}$/;
-        const plateRegex = /^[A-Z]{1,3}[-\s]?\d{1,4}[-\s]?[A-Z]{0,2}\d{0,2}$/i;
+        // Pragya AI Speech Engine Variables
+        let recognition = null;
+        let isListeningForCommands = false;
+        let currentCountry = "GH"; // Default Ghana
 
+        // Map Setup
         const map = new maplibregl.Map({
             container: 'map',
             style: 'https://tiles.openfreemap.org/styles/liberty',
-            center: [riderPos.lng, riderPos.lat],
-            zoom: 16,
-            pitch: 50
+            center: [driverPos.lng, driverPos.lat],
+            zoom: 16.5,
+            pitch: 60,
+            bearing: -17.6
         });
 
-        map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
+        map.addControl(new maplibregl.NavigationControl());
 
-        function toggleFleetCodeInput() {
-            const type = document.getElementById('ownershipType').value;
-            document.getElementById('fleetCodeGroup').classList.toggle('hidden', type !== 'lease_driver');
-        }
+        const driverMarker = new maplibregl.Marker({ color: '#f59e0b' })
+            .setLngLat([driverPos.lng, driverPos.lat])
+            .setPopup(new maplibregl.Popup().setHTML('<b>🛺 Your Tricycle</b>'))
+            .addTo(map);
 
+        // Geolocation Engine
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition((pos) => {
-                riderPos.lat = pos.coords.latitude;
-                riderPos.lng = pos.coords.longitude;
+                driverPos.lat = pos.coords.latitude;
+                driverPos.lng = pos.coords.longitude;
+                driverMarker.setLngLat([driverPos.lng, driverPos.lat]);
 
-                if (driverMarker) driverMarker.setLngLat([riderPos.lng, riderPos.lat]);
-                else {
-                    const el = document.createElement('div');
-                    el.className = 'text-4xl filter drop-shadow-xl animate-pulse';
-                    el.innerText = '🛺';
-                    driverMarker = new maplibregl.Marker({ element: el }).setLngLat([riderPos.lng, riderPos.lat]).addTo(map);
-                }
+                if (isOnline) {
+                    socket.emit('update-rider-location', {
+                        username: document.getElementById('driverUsername').value.trim() || 'Driver',
+                        plateNumber: document.getElementById('driverPlate').value.trim() || 'M-24-AS',
+                        lat: driverPos.lat,
+                        lng: driverPos.lng
+                    });
 
-                if (currentRiderData) {
-                    socket.emit('update-rider-location', { ...currentRiderData, lat: riderPos.lat, lng: riderPos.lng });
+                    // Distance Milestone & Trail Clipping Engine
+                    if (activePassenger) {
+                        checkDistanceMilestonesAndClipTrail();
+                    }
                 }
             }, null, { enableHighAccuracy: true });
         }
 
-        function registerRider(e) {
-            e.preventDefault();
+        // ==========================================
+        // 🎙️ PRAGYA AI VOICE ASSISTANT ENGINE
+        // ==========================================
 
-            const contactInput = document.getElementById('contact');
-            const plateInput = document.getElementById('plateNumber');
-            const phoneError = document.getElementById('phoneError');
-            const plateError = document.getElementById('plateError');
-
-            let isValid = true;
-
-            // Validate Ghana Phone Number
-            if (!ghanaPhoneRegex.test(contactInput.value.trim())) {
-                contactInput.classList.add('input-error');
-                phoneError.classList.remove('hidden');
-                isValid = false;
-            } else {
-                contactInput.classList.remove('input-error');
-                phoneError.classList.add('hidden');
-            }
-
-            // Validate Vehicle Plate Number
-            if (!plateRegex.test(plateInput.value.trim()) || plateInput.value.trim().length < 4) {
-                plateInput.classList.add('input-error');
-                plateError.classList.remove('hidden');
-                isValid = false;
-            } else {
-                plateInput.classList.remove('input-error');
-                plateError.classList.add('hidden');
-            }
-
-            if (!isValid) {
-                alert("⚠️ Please correct the highlighted errors before proceeding!");
+        function initPragyaVoiceAssistant() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                document.getElementById('speechTranscript').innerText = "Speech API not supported in browser.";
                 return;
             }
 
-            currentRiderData = {
-                username: document.getElementById('fullName').value.toLowerCase().replace(/\s+/g, '_'),
-                fullName: document.getElementById('fullName').value.trim(),
-                contact: contactInput.value.trim(),
-                ownershipType: document.getElementById('ownershipType').value,
-                ownerCode: document.getElementById('ownerCode').value.trim(),
-                vehicleType: document.getElementById('vehicleType').value,
-                plateNumber: plateInput.value.trim().toUpperCase(),
-                lat: riderPos.lat,
-                lng: riderPos.lng
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            recognition.onresult = (event) => {
+                const transcript = Array.from(event.results)
+                    .map(result => result[0].transcript)
+                    .join('')
+                    .toLowerCase();
+
+                document.getElementById('speechTranscript').innerText = `"${transcript}"`;
+
+                // Wake-Word Listener ("Hey Pragya" / "Pragya")
+                if (transcript.includes("hey pragya") || transcript.includes("pragya")) {
+                    triggerPragyaWakeResponse();
+                }
+
+                // Hands-Free Voice Commands
+                if (transcript.includes("accept") || transcript.includes("gye")) {
+                    executeVoiceAction("ACCEPT_RIDE");
+                } else if (transcript.includes("start trip") || transcript.includes("firi ase")) {
+                    executeVoiceAction("START_TRIP");
+                } else if (transcript.includes("call passenger") || transcript.includes("fre passenger")) {
+                    executeVoiceAction("CALL_PASSENGER");
+                } else if (transcript.includes("end trip") || transcript.includes("wie")) {
+                    executeVoiceAction("END_TRIP");
+                }
             };
 
-            socket.emit('register-rider', currentRiderData);
-            document.getElementById('driverModal').classList.add('hidden');
+            recognition.onerror = () => { restartVoiceEngine(); };
+            recognition.onend = () => { restartVoiceEngine(); };
+            recognition.start();
         }
 
-        socket.on('incoming-ride-request', (req) => {
-            activePassengerSocketId = req.passengerSocketId;
-            const confirmAccept = confirm(`🛺 PASSENGER PICKUP DISPATCH!\n\nPassenger is waiting at your location.\nTap OK to accept and head to pickup point.`);
+        function restartVoiceEngine() {
+            try { recognition.start(); } catch(e){}
+        }
 
-            if (confirmAccept) {
-                socket.emit('accept-ride-request', {
-                    passengerSocketId: req.passengerSocketId,
-                    status: 'accepted',
-                    riderName: currentRiderData.fullName,
-                    plateNumber: currentRiderData.plateNumber,
-                    riderContact: currentRiderData.contact
+        function togglePragyaVoiceAssistant() {
+            speakPragyaText("Pragya AI is active and listening, Driver.");
+        }
+
+        function triggerPragyaWakeResponse() {
+            const driverName = document.getElementById('driverUsername').value.trim() || "Kofi";
+            const hour = new Date().getHours();
+            let greeting = "";
+
+            if (currentCountry === "GH") {
+                if (hour < 12) greeting = `Maakye, Driver ${driverName}! Pragya tie wo. Deɛn na me mmoa wo?`;
+                else if (hour < 17) greeting = `Maaha, Driver ${driverName}! Akwaaba. Pragya tie wo.`;
+                else greeting = `Maadwo, Driver ${driverName}! Pragya tie wo.`;
+            } else {
+                greeting = `Hello Driver ${driverName}! Pragya is ready to assist you.`;
+            }
+
+            speakPragyaText(greeting);
+        }
+
+        function speakPragyaText(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Stop prior audio
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.95;
+                utterance.pitch = 1.0;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function executeVoiceAction(action) {
+            if (action === "ACCEPT_RIDE" && activePassenger) {
+                speakPragyaText("Dispatch accepted. Navigating to pickup.");
+                acceptRideDispatch();
+            } else if (action === "CALL_PASSENGER" && activePassenger) {
+                speakPragyaText(`Calling passenger at ${activePassenger.passengerPhone}`);
+                window.location.href = `tel:${activePassenger.passengerPhone}`;
+            } else if (action === "END_TRIP") {
+                speakPragyaText("Ending trip and calculating fare.");
+                endTripAndCalculateFare();
+            }
+        }
+
+        // ==========================================
+        // ✂️ DYNAMIC TRAIL VANISHING & MILESTONES
+        // ==========================================
+
+        let milestoneAlerts = { m500: false, m200: false, m50: false };
+
+        function checkDistanceMilestonesAndClipTrail() {
+            if (!activePassenger) return;
+
+            const distMeters = calculateHaversineDistance(
+                driverPos.lat, driverPos.lng,
+                activePassenger.pickupLat, activePassenger.pickupLng
+            );
+
+            // Audio Milestones
+            if (distMeters <= 500 && !milestoneAlerts.m500) {
+                milestoneAlerts.m500 = true;
+                speakPragyaText("In 500 meters, prepare to reach passenger.");
+            } else if (distMeters <= 200 && !milestoneAlerts.m200) {
+                milestoneAlerts.m200 = true;
+                speakPragyaText("Aka meter ahanu. Bɔ kɔɔ. Pickup point is near.");
+            } else if (distMeters <= 50 && !milestoneAlerts.m50) {
+                milestoneAlerts.m50 = true;
+                speakPragyaText("Woadu baabi a passenger no wɔ. You have arrived!");
+            }
+
+            // Polyline Trail Vanishing (Slices coordinates behind driver)
+            if (activeRouteCoordinates.length > 0) {
+                activeRouteCoordinates = activeRouteCoordinates.filter(coord => {
+                    // Keep coordinates ahead of current driver position
+                    const distToPoint = calculateHaversineDistance(driverPos.lat, driverPos.lng, coord[1], coord[0]);
+                    return distToPoint < distMeters + 20;
                 });
 
-                document.getElementById('tripStatusTag').innerText = "En Route to Pickup";
-                document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30";
-                
-                document.getElementById('tripActionArea').innerHTML = `
-                    <div class="space-y-2">
-                        <p class="text-amber-300 font-bold">📍 Head to Pickup Location</p>
-                        <button onclick="startTripWithPassenger()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
-                            🧳 Passenger In Vehicle (Start Trip)
-                        </button>
+                if (map.getSource('route-line')) {
+                    map.getSource('route-line').setData({
+                        'type': 'Feature',
+                        'geometry': {
+                            'type': 'LineString',
+                            'coordinates': activeRouteCoordinates
+                        }
+                    });
+                }
+            }
+        }
+
+        function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // metres
+            const φ1 = lat1 * Math.PI/180;
+            const φ2 = lat2 * Math.PI/180;
+            const Δφ = (lat2-lat1) * Math.PI/180;
+            const Δλ = (lon2-lon1) * Math.PI/180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+            return R * c;
+        }
+
+        // ==========================================
+        // 🛺 CORE SHIFT & DISPATCH SOCKETS
+        // ==========================================
+
+        function toggleShiftStatus() {
+            const username = document.getElementById('driverUsername').value.trim();
+            const plateNumber = document.getElementById('driverPlate').value.trim();
+
+            if (!username || !plateNumber) {
+                alert("⚠️ Please enter call sign and plate number!");
+                return;
+            }
+
+            isOnline = !isOnline;
+            const btn = document.getElementById('shiftToggleBtn');
+            const badge = document.getElementById('shiftBadge');
+
+            if (isOnline) {
+                btn.innerText = "🔴 Go Offline / End Shift";
+                btn.className = "w-full bg-red-500 hover:bg-red-400 text-white font-black py-2 rounded-xl transition text-xs shadow-lg";
+                badge.innerText = "Online";
+                badge.className = "bg-emerald-500/20 text-emerald-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-500/30";
+
+                socket.emit('rider-online', {
+                    username: username,
+                    fullName: username,
+                    plateNumber: plateNumber,
+                    contact: "0240000000",
+                    lat: driverPos.lat,
+                    lng: driverPos.lng
+                });
+
+                speakPragyaText(`Welcome online, Driver ${username}. Pragya copilot active.`);
+            } else {
+                btn.innerText = "🟢 Go Online / Start Shift";
+                btn.className = "w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-xl transition text-xs shadow-lg";
+                badge.innerText = "Offline";
+                badge.className = "bg-slate-800 text-slate-400 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-slate-700";
+
+                socket.emit('rider-offline', { username: username });
+            }
+        }
+
+        // Incoming Ride Dispatch Alert
+        socket.on('incoming-ride-request', (req) => {
+            activePassenger = req;
+            milestoneAlerts = { m500: false, m200: false, m50: false };
+
+            speakPragyaText(`Incoming dispatch request from passenger ${req.passengerPhone}. Say Accept or tap button.`);
+
+            document.getElementById('tripStatusTag').innerText = "Dispatch Alert";
+            document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse";
+
+            document.getElementById('tripActionArea').innerHTML = `
+                <div class="space-y-2 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30">
+                    <p class="text-amber-400 font-bold text-xs">🚀 Passenger Dispatch Request</p>
+                    <p class="text-[11px] text-white">Phone: <strong class="font-mono">${req.passengerPhone}</strong></p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="acceptRideDispatch()" class="bg-emerald-500 text-slate-950 font-bold py-1.5 rounded-lg text-xs">Accept (or say "Gye")</button>
+                        <a href="tel:${req.passengerPhone}" class="bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold py-1.5 rounded-lg text-xs text-center">📞 Call</a>
                     </div>
-                `;
+                </div>
+            `;
+
+            // Draw Initial Route Polyline
+            activeRouteCoordinates = [
+                [driverPos.lng, driverPos.lat],
+                [req.pickupLng, req.pickupLat]
+            ];
+
+            if (map.getSource('route-line')) {
+                map.getSource('route-line').setData({
+                    'type': 'Feature',
+                    'geometry': { 'type': 'LineString', 'coordinates': activeRouteCoordinates }
+                });
+            } else {
+                map.addSource('route-line', {
+                    'type': 'geojson',
+                    'data': {
+                        'type': 'Feature',
+                        'geometry': { 'type': 'LineString', 'coordinates': activeRouteCoordinates }
+                    }
+                });
+                map.addLayer({
+                    'id': 'route-line-layer',
+                    'type': 'line',
+                    'source': 'route-line',
+                    'paint': {
+                        'line-color': '#38bdf8',
+                        'line-width': 6,
+                        'line-opacity': 0.8
+                    }
+                });
             }
         });
 
-        function startTripWithPassenger() {
-            socket.emit('start-trip', { passengerSocketId: activePassengerSocketId });
+        function acceptRideDispatch() {
+            socket.emit('respond-ride-request', {
+                passengerSocketId: activePassenger.passengerSocketId,
+                status: 'accepted',
+                riderName: document.getElementById('driverUsername').value.trim() || 'Driver',
+                plateNumber: document.getElementById('driverPlate').value.trim() || 'M-24-AS',
+                riderContact: '0240000000'
+            });
 
-            document.getElementById('tripStatusTag').innerText = "Trip On Meter";
+            document.getElementById('tripStatusTag').innerText = "En Route to Pickup";
             document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
 
             document.getElementById('tripActionArea').innerHTML = `
-                <div class="space-y-2">
-                    <p class="text-slate-300 font-bold">Ask Passenger: <em class="text-amber-400">"Where are you heading to?"</em></p>
-                    <div>
-                        <label class="block text-[10px] text-slate-400 mb-1">Agreed Fare (GH₵) or Dynamic Meter</label>
-                        <input type="number" id="finalFareInput" placeholder="e.g. 25" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
-                    </div>
-                    <button onclick="endTripAndCalculateFare()" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
-                        🏁 Arrived at Destination (End Trip)
+                <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
+                    <p class="text-emerald-400 font-bold">En Route to Pickup</p>
+                    <a href="tel:${activePassenger.passengerPhone}" class="text-sky-400 underline font-mono text-xs font-bold block">📞 Call Passenger: ${activePassenger.passengerPhone}</a>
+                    <button onclick="endTripAndCalculateFare()" class="w-full bg-red-500 hover:bg-red-400 text-white font-black py-2 rounded-xl text-xs transition">
+                        🏁 Arrived & End Trip
                     </button>
                 </div>
             `;
         }
 
         function endTripAndCalculateFare() {
-            const fareGhs = parseFloat(document.getElementById('finalFareInput').value) || 15.00;
+            const fareGhs = 15.00;
             
             socket.emit('end-trip', {
-                passengerSocketId: activePassengerSocketId,
+                passengerSocketId: activePassenger ? activePassenger.passengerSocketId : null,
                 fareGhs: fareGhs
             });
 
+            speakPragyaText(`Trip completed. Fare is GH₵ ${fareGhs.toFixed(2)}.`);
+
             document.getElementById('tripStatusTag').innerText = "Idle / Waiting";
             document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400";
-            document.getElementById('tripActionArea').innerHTML = `<p class="text-slate-400 italic text-[11px]">Trip completed! Fare logged to shift ledger and fleet passport.</p>`;
+            document.getElementById('tripActionArea').innerHTML = `<p class="text-slate-400 italic text-[11px]">Trip completed! Receipt logged.</p>`;
+
+            // Clear Route Polyline
+            if (map.getSource('route-line')) {
+                map.getSource('route-line').setData({
+                    'type': 'Feature',
+                    'geometry': { 'type': 'LineString', 'coordinates': [] }
+                });
+            }
+            activePassenger = null;
         }
 
-        socket.on('trip-completed-summary', (summary) => {
-            document.getElementById('totalEarnings').innerText = `GH₵ ${summary.totalShiftEarnings.toFixed(2)}`;
-            let completed = parseInt(document.getElementById('ridesCompleted').innerText) + 1;
-            document.getElementById('ridesCompleted').innerText = completed;
-        });
-
-        socket.on('passport-update', (passport) => {
-            const currentKm = passport.currentServiceKm || 0;
-            document.getElementById('serviceKmText').innerText = `${currentKm.toFixed(1)} / 1,500 km`;
-            document.getElementById('serviceProgressBar').style.width = `${Math.min(100, (currentKm / 1500) * 100)}%`;
+        // Initialize Speech Assistant on Load
+        window.addEventListener('DOMContentLoaded', () => {
+            initPragyaVoiceAssistant();
         });
     </script>
 </body>
