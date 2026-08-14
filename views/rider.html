@@ -1140,3 +1140,28 @@
         });
     };
 </script>
+<script>
+    // Ensure Fleet Owner Code is permanently remembered across refreshes
+    function restoreDriverFleetSession() {
+        const savedFleetCode = localStorage.getItem('pragya_fleet_code') || 'KUMASI_FLEET_01';
+        const savedPlate = localStorage.getItem('pragya_plate_number') || 'M-24-AS';
+        const savedName = localStorage.getItem('pragya_driver_name') || 'Kofi Mensah';
+
+        // Re-join owner socket room immediately
+        socket.emit('join-fleet-room', savedFleetCode);
+
+        // If driver was previously online, automatically restore online state to server
+        if (typeof isOnline !== 'undefined' && isOnline) {
+            if (window.emitDriverOnlineState) emitDriverOnlineState();
+        }
+    }
+
+    // Always re-establish connection on WebSocket reconnect or browser refresh
+    socket.on('connect', () => {
+        restoreDriverFleetSession();
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+        restoreDriverFleetSession();
+    });
+</script>

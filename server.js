@@ -422,3 +422,13 @@ io.on('connection', (socket) => {
         io.emit('rider-location-updated', telemetryPayload);
     });
 });
+// =========================================================
+// 📡 CRITICAL FIX: AUTOMATIC RE-ROOMING ON RECONNECT
+// =========================================================
+io.on('connection', (socket) => {
+    socket.on('ping-fleet-status', (data) => {
+        const code = data.fleetCode || 'KUMASI_FLEET_01';
+        socket.join(`fleet_${code}`);
+        io.to(`fleet_${code}`).emit('fleet-presence-confirmed', { socketId: socket.id, timestamp: new Date() });
+    });
+});

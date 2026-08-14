@@ -279,3 +279,37 @@
         socket.emit('join-fleet-room', activeFleetCode);
     }
 </script>
+<script>
+    // Load saved fleet vehicles from browser memory on page load
+    function loadSavedFleetRegistry() {
+        const savedData = localStorage.getItem('pragya_registered_fleet');
+        if (savedData) {
+            try {
+                const parsed = JSON.parse(savedData);
+                Object.assign(fleetVehicles, parsed);
+                console.log("Restored registered vehicles from persistent storage:", Object.keys(fleetVehicles).length);
+                if (window.renderFleetList) renderFleetList();
+                if (window.recalculateFleetAnalytics) recalculateFleetAnalytics();
+            } catch (e) {
+                console.error("Error loading saved fleet storage:", e);
+            }
+        }
+    }
+
+    // Save fleet vehicles whenever new ones are registered or CSV uploaded
+    function persistFleetRegistry() {
+        localStorage.setItem('pragya_registered_fleet', JSON.stringify(fleetVehicles));
+    }
+
+    // Hook into registration actions
+    const origRegisterVehicle = window.registerNewVehicle;
+    window.registerNewVehicle = function(vehicleData) {
+        if (origRegisterVehicle) origRegisterVehicle(vehicleData);
+        persistFleetRegistry();
+    };
+
+    // Auto-restore on startup
+    window.addEventListener('DOMContentLoaded', () => {
+        loadSavedFleetRegistry();
+    });
+</script>
