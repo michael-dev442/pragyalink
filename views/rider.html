@@ -66,6 +66,36 @@
                 </button>
             </div>
 
+            <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        🛠️ Engine Health Tracker
+                    </span>
+                    <span id="engineStatusBadge" class="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        Good
+                    </span>
+                </div>
+
+                <div class="space-y-1 text-[11px] font-mono text-slate-300">
+                    <div class="flex justify-between">
+                        <span>Odometer:</span>
+                        <strong id="dispOdometerKm" class="text-white">0.0 km</strong>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Next Oil Service:</span>
+                        <strong id="dispNextServiceKm" class="text-amber-400">1500.0 km</strong>
+                    </div>
+                </div>
+
+                <div class="w-full bg-slate-950 rounded-full h-2 border border-slate-800 overflow-hidden">
+                    <div id="healthProgressBar" class="bg-emerald-400 h-full transition-all duration-500" style="width: 100%;"></div>
+                </div>
+
+                <button onclick="openMaintenanceModal()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold py-1.5 rounded-lg border border-slate-700 transition">
+                    🔧 Maintenance & Reset Counter
+                </button>
+            </div>
+
             <div id="tripStatusCard" class="bg-slate-900/90 p-4 rounded-2xl border border-amber-500/40 space-y-3">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-2">
                     <span class="text-xs font-black text-amber-400">🎙️ Active Dispatch Panel</span>
@@ -138,6 +168,34 @@
         </div>
     </div>
 
+    <div id="maintenanceModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center">
+            <div class="w-14 h-14 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-2xl mx-auto border border-amber-500/40">
+                🔧
+            </div>
+
+            <div>
+                <h3 class="text-lg font-black text-white">Engine Service Log</h3>
+                <p class="text-xs text-slate-400 mt-1">Recommended interval: Oil change every 1,500 km.</p>
+            </div>
+
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs font-mono text-left space-y-1">
+                <div>Total Distance: <strong id="maintOdometerVal" class="text-white">0.0 km</strong></div>
+                <div>Distance Since Service: <strong id="maintDistSinceVal" class="text-sky-400">0.0 km</strong></div>
+                <div>Status: <strong id="maintStatusText" class="text-emerald-400">Good Condition</strong></div>
+            </div>
+
+            <div class="space-y-2 pt-2">
+                <button onclick="resetOilServiceCounter()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
+                    🔄 Confirm Oil Change & Reset Counter
+                </button>
+                <button onclick="closeMaintenanceModal()" class="w-full bg-slate-800 text-slate-400 font-bold py-2 rounded-xl transition text-xs">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="dispatchAlertModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
         <div class="bg-slate-900 border-2 border-amber-500/80 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center">
             <div class="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-3xl mx-auto border border-amber-500/40">
@@ -168,11 +226,18 @@
     <script>
         const socket = io();
         let isOnline = false;
-        let selectedOperatingMode = "OWNER"; // Default
+        let selectedOperatingMode = "OWNER";
         let driverPos = { lat: 6.6885, lng: -1.6244 };
+        let prevDriverPos = null;
         let activePassenger = null;
         let activeRouteCoordinates = [];
         
+        // Engine Maintenance Constants & State
+        const SERVICE_INTERVAL_KM = 1500.0;
+        let totalOdometerKm = parseFloat(localStorage.getItem('pragya_odometer_km')) || 0.0;
+        let lastServiceOdometerKm = parseFloat(localStorage.getItem('pragya_last_service_km')) || 0.0;
+        let serviceAlertVoiceTriggered = false;
+
         // Voice State
         let recognition = null;
         let voiceActive = false;
@@ -195,20 +260,43 @@
             .setPopup(new maplibregl.Popup().setHTML('<b>🛺 Your Tricycle Console</b>'))
             .addTo(map);
 
-        // Geolocation Updates
+        // Geolocation Updates & Odometer Calculation
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition((pos) => {
-                driverPos.lat = pos.coords.latitude;
-                driverPos.lng = pos.coords.longitude;
+                const newLat = pos.coords.latitude;
+                const newLng = pos.coords.longitude;
+
+                if (prevDriverPos) {
+                    const deltaMeters = calculateHaversineDistance(prevDriverPos.lat, prevDriverPos.lng, newLat, newLng);
+                    if (deltaMeters > 5 && deltaMeters < 500) { // filter GPS drift & spikes
+                        totalOdometerKm += (deltaMeters / 1000.0);
+                        localStorage.setItem('pragya_odometer_km', totalOdometerKm.toFixed(3));
+                        updateEngineHealthUI();
+                    }
+                }
+
+                driverPos.lat = newLat;
+                driverPos.lng = newLng;
+                prevDriverPos = { lat: newLat, lng: newLng };
                 driverMarker.setLngLat([driverPos.lng, driverPos.lat]);
 
                 if (isOnline) {
+                    const distSinceService = totalOdometerKm - lastServiceOdometerKm;
+                    const isServiceOverdue = distSinceService >= SERVICE_INTERVAL_KM;
+
                     socket.emit('update-rider-location', {
                         username: localStorage.getItem('pragya_driver_name') || 'Driver',
                         plateNumber: localStorage.getItem('pragya_driver_plate') || 'N/A',
                         fleetOwnerCode: localStorage.getItem('pragya_fleet_code') || 'INDEPENDENT',
+                        operatingMode: localStorage.getItem('pragya_operating_mode') || 'OWNER',
                         lat: driverPos.lat,
-                        lng: driverPos.lng
+                        lng: driverPos.lng,
+                        engineHealth: {
+                            odometerKm: totalOdometerKm.toFixed(1),
+                            distSinceServiceKm: distSinceService.toFixed(1),
+                            serviceOverdue: isServiceOverdue,
+                            vehicleStatus: isServiceOverdue ? 'MAINTENANCE_REQUIRED' : 'HEALTHY'
+                        }
                     });
 
                     if (activePassenger) {
@@ -219,12 +307,80 @@
         }
 
         // =========================================================
-        // 🎙️ STANDARD ENGLISH VOICE ASSISTANT ENGINE (FIXED)
+        // 🛠️ ENGINE HEALTH & MAINTENANCE LOGIC
+        // =========================================================
+
+        function updateEngineHealthUI() {
+            const distSinceService = totalOdometerKm - lastServiceOdometerKm;
+            const remainingKm = Math.max(0, SERVICE_INTERVAL_KM - distSinceService);
+            const healthPercentage = Math.max(0, Math.min(100, (remainingKm / SERVICE_INTERVAL_KM) * 100));
+
+            document.getElementById('dispOdometerKm').innerText = `${totalOdometerKm.toFixed(1)} km`;
+            document.getElementById('dispNextServiceKm').innerText = `${remainingKm.toFixed(1)} km remaining`;
+
+            const progressBar = document.getElementById('healthProgressBar');
+            const statusBadge = document.getElementById('engineStatusBadge');
+
+            progressBar.style.width = `${healthPercentage}%`;
+
+            if (remainingKm <= 0) {
+                progressBar.className = "bg-red-500 h-full transition-all duration-500 animate-pulse";
+                statusBadge.innerText = "Service Overdue ⚠️";
+                statusBadge.className = "text-[9px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30";
+
+                if (!serviceAlertVoiceTriggered) {
+                    serviceAlertVoiceTriggered = true;
+                    speakPragyaText("Service Alert: You have reached 1,500 kilometers. Please schedule an engine oil change and mechanic checkup.");
+                }
+            } else if (remainingKm <= 200) {
+                progressBar.className = "bg-amber-400 h-full transition-all duration-500";
+                statusBadge.innerText = "Service Soon";
+                statusBadge.className = "text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30";
+            } else {
+                progressBar.className = "bg-emerald-400 h-full transition-all duration-500";
+                statusBadge.innerText = "Good";
+                statusBadge.className = "text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+            }
+        }
+
+        function openMaintenanceModal() {
+            const distSinceService = totalOdometerKm - lastServiceOdometerKm;
+            document.getElementById('maintOdometerVal').innerText = `${totalOdometerKm.toFixed(1)} km`;
+            document.getElementById('maintDistSinceVal').innerText = `${distSinceService.toFixed(1)} km`;
+
+            const statusText = document.getElementById('maintStatusText');
+            if (distSinceService >= SERVICE_INTERVAL_KM) {
+                statusText.innerText = "Oil Change Overdue ⚠️";
+                statusText.className = "text-red-400 font-bold";
+            } else {
+                statusText.innerText = "Engine Operating Normally";
+                statusText.className = "text-emerald-400 font-bold";
+            }
+
+            document.getElementById('maintenanceModal').classList.remove('hidden');
+        }
+
+        function closeMaintenanceModal() {
+            document.getElementById('maintenanceModal').classList.add('hidden');
+        }
+
+        function resetOilServiceCounter() {
+            lastServiceOdometerKm = totalOdometerKm;
+            localStorage.setItem('pragya_last_service_km', lastServiceOdometerKm.toFixed(3));
+            serviceAlertVoiceTriggered = false;
+
+            updateEngineHealthUI();
+            closeMaintenanceModal();
+            speakPragyaText("Engine service reset confirmed. Next oil change scheduled in 1,500 kilometers.");
+        }
+
+        // =========================================================
+        // 🎙️ STANDARD ENGLISH VOICE ASSISTANT ENGINE
         // =========================================================
 
         function speakPragyaText(text) {
             if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); // Strictly stops previous queued speech
+                window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'en-US';
                 utterance.rate = 1.0;
@@ -258,7 +414,7 @@
             if (!SpeechRecognition) return;
 
             recognition = new SpeechRecognition();
-            recognition.continuous = false; // Stops continuous audio loops
+            recognition.continuous = false;
             recognition.interimResults = false;
             recognition.lang = 'en-US';
 
@@ -303,7 +459,6 @@
                 activePassenger.pickupLat, activePassenger.pickupLng
             );
 
-            // Audio prompts strictly triggered once per milestone
             if (distMeters <= 500 && !milestoneAlerts.m500) {
                 milestoneAlerts.m500 = true;
                 speakPragyaText("In 500 meters, prepare to reach passenger pickup location.");
@@ -315,7 +470,6 @@
                 speakPragyaText("You have arrived at the pickup location.");
             }
 
-            // Route Polyline Vanishing Effect
             if (activeRouteCoordinates.length > 0) {
                 activeRouteCoordinates = activeRouteCoordinates.filter(coord => {
                     const distToPoint = calculateHaversineDistance(driverPos.lat, driverPos.lng, coord[1], coord[0]);
@@ -431,7 +585,8 @@
                 'text-[9px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded' :
                 'text-[9px] font-mono text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded';
 
-            // Auto-reboot shift status recovery
+            updateEngineHealthUI();
+
             if (savedShift === 'ONLINE' && !isOnline) {
                 isOnline = true;
                 const btn = document.getElementById('shiftToggleBtn');
@@ -510,7 +665,6 @@
 
             speakPragyaText(`New dispatch alert. Passenger phone ends in ${req.passengerPhone.slice(-4)}. Say Accept or tap button.`);
 
-            // Setup Route Polyline
             activeRouteCoordinates = [
                 [driverPos.lng, driverPos.lat],
                 [req.pickupLng, req.pickupLat]
