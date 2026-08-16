@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fleet Manager Ledger & Telemetry | PragyaLink</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #map { width: 100%; height: 100%; min-height: 400px; background-color: #020617; }
+        .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
+        .modal-overlay { background: rgba(2, 6, 23, 0.88); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
+
+    <div id="fleetAuthModal" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-sky-500/30 shadow-2xl space-y-4">
+            <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
+                <span class="text-3xl">🔑</span>
+                <div>
+                    <h2 class="text-xl font-black text-white">Fleet Access Key</h2>
+                    <p class="text-xs text-slate-400">Same key you used in the Owner Portal to register vehicles</p>
+                </div>
+            </div>
+            <form onsubmit="authenticateFleetSession(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Fleet Owner Phone / Key *</label>
+                    <input type="tel" id="fleetAccessKey" required placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500 font-mono">
+                </div>
+                <button type="submit" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg text-sm mt-2">
+                    🔓 Open Fleet Dashboard
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="ledgerModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl max-h-[85vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3 shrink-0">
+                <h3 id="ledgerModalTitle" class="text-lg font-black text-white">Master Vehicle Ledger</h3>
+                <button onclick="closeLedgerModal()" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
+            </div>
+            <input type="text" id="ledgerSearchInput" oninput="renderLedgerTable()" placeholder="🔍 Search by Plate Number or Driver Name..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500 font-mono shrink-0">
+            <div id="ledgerTableContainer" class="flex-1 overflow-y-auto space-y-2"></div>
+            <div class="flex justify-between items-center text-xs font-mono text-slate-400 shrink-0 pt-2 border-t border-slate-800">
+                <button onclick="ledgerPrevPage()" class="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg font-bold">◀ Prev</button>
+                <span id="ledgerPageLabel">Page 1</span>
+                <button onclick="ledgerNextPage()" class="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg font-bold">Next ▶</button>
+            </div>
+        </div>
+    </div>
+
+    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
+        <div class="flex items-center space-x-3">
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-sky-400">Fleet 🏢</span></a>
+            <span class="bg-sky-500/10 text-sky-400 text-[10px] sm:text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-sky-500/20">
+                Code: <span id="dispFleetCode">Not Set</span>
+            </span>
+        </div>
+        <div class="flex items-center space-x-3 text-xs font-mono">
+            <div class="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                Online: <strong id="cntOnlineVehicles" class="text-emerald-400">0</strong>
+            </div>
+            <div class="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                Overdue: <strong id="cntMaintenanceAlerts" class="text-red-400">0</strong>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex-1 relative flex flex-col md:flex-row min-h-0 w-full">
+        <div class="flex-1 relative h-full w-full">
+            <div id="map"></div>
+        </div>
+
+        <aside class="w-full md:w-96 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
+
+            <div id="fleetAnalyticsPanel" class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-3">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span class="text-xs font-black text-white uppercase tracking-wider">📊 Fleet Status Breakdown</span>
+                    <span id="fleetScaleTag" class="text-[9px] font-mono text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded">0 Registered</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="openFleetMasterLedger('ONLINE')" class="p-2 bg-slate-950 hover:bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-center transition group">
+                        <div id="pctOnlineVal" class="text-sm font-black text-emerald-400 font-mono">0%</div>
+                        <div class="text-[9px] text-slate-400 group-hover:text-emerald-300">🟢 Online</div>
+                        <div id="cntOnlineDetail" class="text-[8px] text-slate-500 font-mono">(0/0)</div>
+                    </button>
+                    <button onclick="openFleetMasterLedger('OVERDUE')" class="p-2 bg-slate-950 hover:bg-red-500/10 border border-red-500/30 rounded-xl text-center transition group">
+                        <div id="pctOverdueVal" class="text-sm font-black text-red-400 font-mono">0%</div>
+                        <div class="text-[9px] text-slate-400 group-hover:text-red-300">⚠️ Service</div>
+                        <div id="cntOverdueDetail" class="text-[8px] text-slate-500 font-mono">(0/0)</div>
+                    </button>
+                    <button onclick="openFleetMasterLedger('OFFLINE')" class="p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-center transition group">
+                        <div id="pctOfflineVal" class="text-sm font-black text-slate-400 font-mono">0%</div>
+                        <div class="text-[9px] text-slate-400 group-hover:text-slate-200">⚪ Offline</div>
+                        <div id="cntOfflineDetail" class="text-[8px] text-slate-500 font-mono">(0/0)</div>
+                    </button>
+                </div>
+                <p class="text-[9px] text-slate-500 italic text-center">💡 Click any metric card to open the full, searchable vehicle ledger.</p>
+            </div>
+
+            <div id="safetyAlertPanel" class="hidden bg-red-500/10 border border-red-500/40 rounded-2xl p-3 space-y-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-black text-red-400">🆘 Passenger Safety Alerts</span>
+                    <span id="safetyAlertCount" class="text-[9px] font-mono bg-red-500/20 text-red-300 px-2 py-0.5 rounded">0</span>
+                </div>
+                <div id="safetyAlertList" class="space-y-1.5 max-h-40 overflow-y-auto"></div>
+            </div>
+
+            <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span class="text-xs font-black text-white uppercase tracking-wider">🏆 Driver Leaderboard</span>
+                </div>
+                <div id="leaderboardList" class="space-y-1.5">
+                    <div class="text-[10px] text-slate-500 italic text-center py-2">No rated trips yet for this fleet.</div>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                <h2 class="text-sm font-black text-white uppercase tracking-wider">🛺 Live Telemetry Feed</h2>
+                <button onclick="openFleetMasterLedger('ALL')" class="text-[10px] text-sky-400 font-bold hover:underline">Open Full Ledger →</button>
+            </div>
+
+            <div id="fleetVehicleList" class="space-y-3">
+                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 text-center text-xs text-slate-500 italic">
+                    Waiting for linked fleet tricycles to come online...
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentFleetCode = "";
+        let registeredVehicles = [];
+        let activeDrivers = [];
+        const vehicleMarkers = {};
+
+        // Every field below (names, plates, phone numbers) is free text a driver typed —
+        // never trust it into innerHTML unescaped. This is the one place that does the
+        // escaping; everywhere else in this file routes through it before rendering.
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // For user text embedded as a quoted JS argument inside onclick="fn('...')" —
+        // HTML-entity escaping alone does NOT protect this context (the browser decodes
+        // entities before evaluating the attribute as JS), so this escapes for both layers.
+        function escapeJsAttr(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://tiles.openfreemap.org/styles/liberty',
+            center: [-1.6244, 6.6885], // Kumasi
+            zoom: 13,
+            pitch: 45
+        });
+        map.addControl(new maplibregl.NavigationControl());
+
+        function authenticateFleetSession(e) {
+            e.preventDefault();
+            const keyInput = document.getElementById('fleetAccessKey');
+            if (!keyInput.value.trim()) return;
+
+            currentFleetCode = keyInput.value.trim();
+            localStorage.setItem('pragya_owner_key', currentFleetCode);
+            socket.emit('register-owner-session', currentFleetCode);
+            socket.emit('request-leaderboard', currentFleetCode);
+
+            document.getElementById('dispFleetCode').innerText = currentFleetCode;
+            document.getElementById('fleetAuthModal').classList.add('hidden');
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            // Shares the same saved key as the Owner Portal — no need to re-enter it
+            const savedKey = localStorage.getItem('pragya_owner_key');
+            if (savedKey) {
+                currentFleetCode = savedKey;
+                document.getElementById('dispFleetCode').innerText = currentFleetCode;
+                document.getElementById('fleetAuthModal').classList.add('hidden');
+                socket.emit('register-owner-session', currentFleetCode);
+                socket.emit('request-leaderboard', currentFleetCode);
+            }
+        });
+        socket.on('connect', () => {
+            if (currentFleetCode) {
+                socket.emit('register-owner-session', currentFleetCode);
+                socket.emit('request-leaderboard', currentFleetCode);
+            }
+        });
+
+        socket.on('current-riders', (payload) => {
+            registeredVehicles = payload.registeredVehicles || [];
+            activeDrivers = payload.activeDrivers || [];
+            renderAnalytics();
+            renderLiveFeed();
+            renderMapMarkers();
+            if (!document.getElementById('ledgerModal').classList.contains('hidden')) renderLedgerTable();
+        });
+
+        // ---- Driver leaderboard ----
+        socket.on('leaderboard-update', (list) => {
+            const container = document.getElementById('leaderboardList');
+            if (!list || list.length === 0) {
+                container.innerHTML = `<div class="text-[10px] text-slate-500 italic text-center py-2">No rated trips yet for this fleet.</div>`;
+                return;
+            }
+            const badgeColor = { Gold: 'text-amber-400', Silver: 'text-slate-300', Bronze: 'text-orange-400', 'New Driver': 'text-slate-500' };
+            container.innerHTML = list.map((d, i) => `
+                <div class="flex justify-between items-center bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800 text-[11px]">
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-500 font-mono">#${i + 1}</span>
+                        <span class="font-bold text-white">${escapeHtml(d.fullName)}</span>
+                        <span class="font-mono text-amber-400 text-[10px]">${escapeHtml(d.plateNumber)}</span>
+                    </div>
+                    <div class="flex items-center gap-2 font-mono text-[10px]">
+                        <span class="${badgeColor[d.badge] || 'text-slate-400'} font-bold">${escapeHtml(d.badge)}</span>
+                        <span class="text-slate-400">⭐${escapeHtml(d.avgRating) || '–'}</span>
+                        <span class="text-slate-400">${escapeHtml(d.totalTrips)} trips</span>
+                    </div>
+                </div>
+            `).join('');
+        });
+
+        // ---- Passenger safety (panic button) alerts ----
+        let safetyAlerts = [];
+        socket.on('passenger-sos-alert', (alert) => {
+            safetyAlerts.unshift(alert);
+            if (safetyAlerts.length > 20) safetyAlerts.pop();
+
+            document.getElementById('safetyAlertPanel').classList.remove('hidden');
+            document.getElementById('safetyAlertCount').innerText = safetyAlerts.length;
+            document.getElementById('safetyAlertList').innerHTML = safetyAlerts.map(a => `
+                <div class="bg-slate-950 p-2 rounded-lg border border-red-500/30 text-[10px] space-y-0.5">
+                    <div class="flex justify-between">
+                        <span class="text-red-400 font-bold">🆘 Passenger: ${escapeHtml(a.passengerPhone)}</span>
+                        <span class="text-slate-500 font-mono">${new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <div class="text-slate-400">Vehicle: <span class="text-amber-400 font-mono">${escapeHtml(a.plateNumber) || 'Unknown'}</span> · Driver: ${escapeHtml(a.driverName) || 'Unknown'}</div>
+                    <button onclick="map.flyTo({center:[${Number(a.lng) || 0},${Number(a.lat) || 0}], zoom:17, pitch:55, duration:1200})" class="text-sky-400 font-bold hover:underline">📍 Locate on map</button>
+                </div>
+            `).join('');
+
+            const alarm = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+            alarm.play().catch(() => {});
+        });
+
+        function renderAnalytics() {
+            const total = registeredVehicles.length;
+            const onlinePlates = new Set(activeDrivers.map(d => d.plateNumber));
+            const onlineCount = registeredVehicles.filter(v => onlinePlates.has(v.plateNumber)).length;
+            const overdueCount = registeredVehicles.filter(v => v.passport && v.passport.currentServiceKm >= 1500).length;
+            const offlineCount = Math.max(0, total - onlineCount);
+
+            document.getElementById('fleetScaleTag').innerText = `${total} Registered`;
+            document.getElementById('cntOnlineVehicles').innerText = onlineCount;
+            document.getElementById('cntMaintenanceAlerts').innerText = overdueCount;
+
+            const pct = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
+
+            document.getElementById('pctOnlineVal').innerText = `${pct(onlineCount)}%`;
+            document.getElementById('cntOnlineDetail').innerText = `(${onlineCount}/${total})`;
+            document.getElementById('pctOverdueVal').innerText = `${pct(overdueCount)}%`;
+            document.getElementById('cntOverdueDetail').innerText = `(${overdueCount}/${total})`;
+            document.getElementById('pctOfflineVal').innerText = `${pct(offlineCount)}%`;
+            document.getElementById('cntOfflineDetail').innerText = `(${offlineCount}/${total})`;
+        }
+
+        function renderLiveFeed() {
+            const container = document.getElementById('fleetVehicleList');
+            if (activeDrivers.length === 0) {
+                container.innerHTML = `<div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 text-center text-xs text-slate-500 italic">Waiting for linked fleet tricycles to come online...</div>`;
+                return;
+            }
+
+            container.innerHTML = activeDrivers.map(v => {
+                const eng = v.engineHealth || { odometerKm: '0.0', distSinceServiceKm: '0.0', serviceOverdue: false };
+                const badge = eng.serviceOverdue
+                    ? `<span class="bg-red-500/20 text-red-400 border border-red-500/30 text-[9px] font-bold px-2 py-0.5 rounded animate-pulse">⚠️ Overdue</span>`
+                    : `<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold px-2 py-0.5 rounded">🟢 Healthy</span>`;
+                const border = eng.serviceOverdue ? 'border-red-500/50 bg-red-950/20' : 'border-slate-800 bg-slate-900/90';
+
+                return `
+                    <div class="p-3.5 rounded-2xl border ${border} space-y-2.5 transition">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <span class="text-xs font-black text-amber-400 font-mono">${escapeHtml(v.plateNumber)}</span>
+                                <span class="text-[11px] text-slate-300 ml-2 font-bold">${escapeHtml(v.fullName || v.username)}</span>
+                            </div>
+                            ${badge}
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-[10px] font-mono bg-slate-950 p-2 rounded-xl border border-slate-800">
+                            <div>Odometer: <strong class="text-white">${eng.odometerKm} km</strong></div>
+                            <div>Since Service: <strong class="${eng.serviceOverdue ? 'text-red-400' : 'text-sky-400'}">${eng.distSinceServiceKm} / 1,500 km</strong></div>
+                        </div>
+                        ${eng.serviceOverdue ? `<div class="text-[10px] bg-red-500/10 border border-red-500/30 text-red-300 p-2 rounded-lg font-bold">🔧 Maintenance Alert: Contact driver to schedule an oil change.</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderMapMarkers() {
+            const seen = new Set();
+            activeDrivers.forEach(v => {
+                if (v.lat == null || v.lng == null) return;
+                seen.add(v.plateNumber);
+                const isOverdue = v.engineHealth && v.engineHealth.serviceOverdue;
+                const color = isOverdue ? '#ef4444' : '#38bdf8';
+
+                if (vehicleMarkers[v.plateNumber]) {
+                    vehicleMarkers[v.plateNumber].setLngLat([v.lng, v.lat]);
+                } else {
+                    vehicleMarkers[v.plateNumber] = new maplibregl.Marker({ color })
+                        .setLngLat([v.lng, v.lat])
+                        .setPopup(new maplibregl.Popup().setHTML(`<div class="font-sans text-xs p-1"><b>🛺 ${escapeHtml(v.plateNumber)}</b><br/>Driver: ${escapeHtml(v.fullName || v.username)}<br/>Odometer: ${escapeHtml(v.engineHealth ? v.engineHealth.odometerKm : 0)} km</div>`))
+                        .addTo(map);
+                }
+            });
+            Object.keys(vehicleMarkers).forEach(plate => {
+                if (!seen.has(plate)) { vehicleMarkers[plate].remove(); delete vehicleMarkers[plate]; }
+            });
+        }
+
+        function locateVehicleOnMap(plate) {
+            const v = activeDrivers.find(d => d.plateNumber === plate);
+            if (!v || v.lat == null) { alert(`${plate} is currently offline — no live position available.`); return; }
+            closeLedgerModal();
+            map.flyTo({ center: [v.lng, v.lat], zoom: 17, pitch: 55, duration: 1200 });
+            if (vehicleMarkers[plate]) vehicleMarkers[plate].togglePopup();
+        }
+
+        // =========================================================
+        // 📋 MASTER VEHICLE LEDGER — search + pagination + drilldown
+        // =========================================================
+        let ledgerFilter = 'ALL';
+        let ledgerPage = 1;
+        const LEDGER_PAGE_SIZE = 12;
+
+        function openFleetMasterLedger(filter) {
+            ledgerFilter = filter;
+            ledgerPage = 1;
+            document.getElementById('ledgerSearchInput').value = '';
+            const titles = { ALL: 'Master Vehicle Ledger', ONLINE: 'Online Vehicles', OVERDUE: 'Service Overdue Vehicles', OFFLINE: 'Offline Vehicles' };
+            document.getElementById('ledgerModalTitle').innerText = titles[filter] || 'Master Vehicle Ledger';
+            document.getElementById('ledgerModal').classList.remove('hidden');
+            renderLedgerTable();
+        }
+
+        function closeLedgerModal() {
+            document.getElementById('ledgerModal').classList.add('hidden');
+        }
+
+        function getFilteredLedgerRows() {
+            const onlinePlates = new Set(activeDrivers.map(d => d.plateNumber));
+            const searchTerm = (document.getElementById('ledgerSearchInput').value || '').toLowerCase().trim();
+
+            return registeredVehicles.filter(v => {
+                const isOnline = onlinePlates.has(v.plateNumber);
+                const isOverdue = v.passport && v.passport.currentServiceKm >= 1500;
+
+                if (ledgerFilter === 'ONLINE' && !isOnline) return false;
+                if (ledgerFilter === 'OFFLINE' && isOnline) return false;
+                if (ledgerFilter === 'OVERDUE' && !isOverdue) return false;
+
+                if (searchTerm) {
+                    const haystack = `${v.plateNumber} ${v.assignedDriverPhone || ''}`.toLowerCase();
+                    if (!haystack.includes(searchTerm)) return false;
+                }
+                return true;
+            });
+        }
+
+        function renderLedgerTable() {
+            const rows = getFilteredLedgerRows();
+            const totalPages = Math.max(1, Math.ceil(rows.length / LEDGER_PAGE_SIZE));
+            if (ledgerPage > totalPages) ledgerPage = totalPages;
+
+            const pageRows = rows.slice((ledgerPage - 1) * LEDGER_PAGE_SIZE, ledgerPage * LEDGER_PAGE_SIZE);
+            const onlinePlates = new Set(activeDrivers.map(d => d.plateNumber));
+
+            const container = document.getElementById('ledgerTableContainer');
+            if (pageRows.length === 0) {
+                container.innerHTML = `<div class="text-xs text-slate-500 italic text-center py-8">No vehicles match this filter.</div>`;
+            } else {
+                container.innerHTML = pageRows.map(v => {
+                    const isOnline = onlinePlates.has(v.plateNumber);
+                    const isOverdue = v.passport && v.passport.currentServiceKm >= 1500;
+                    return `
+                        <div class="flex justify-between items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs">
+                            <div class="font-mono">
+                                <span class="text-amber-400 font-bold">${escapeHtml(v.plateNumber)}</span>
+                                <span class="text-slate-400 ml-2">${escapeHtml(v.assignedDriverPhone) || 'Unassigned'}</span>
+                                ${isOverdue ? '<span class="text-red-400 ml-2">⚠️ Overdue</span>' : ''}
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[9px] font-bold px-2 py-0.5 rounded ${isOnline ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-500'}">${isOnline ? '🟢 Online' : '⚪ Offline'}</span>
+                                <button onclick="locateVehicleOnMap('${escapeJsAttr(v.plateNumber)}')" class="bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 px-2 py-1 rounded-lg font-bold text-[10px]">🎯 Locate</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            document.getElementById('ledgerPageLabel').innerText = `Page ${ledgerPage} of ${totalPages}`;
+        }
+
+        function ledgerNextPage() {
+            const rows = getFilteredLedgerRows();
+            const totalPages = Math.max(1, Math.ceil(rows.length / LEDGER_PAGE_SIZE));
+            if (ledgerPage < totalPages) { ledgerPage++; renderLedgerTable(); }
+        }
+
+        function ledgerPrevPage() {
+            if (ledgerPage > 1) { ledgerPage--; renderLedgerTable(); }
+        }
+    </script>
+</body>
+</html>

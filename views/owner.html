@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fleet Owner Portal | PragyaLink Ghana</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #map { width: 100%; height: 100%; min-height: 400px; background-color: #0f172a; }
+        .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
+
+    <div id="ownerAuthModal" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-amber-500/30 shadow-2xl space-y-4">
+            <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
+                <span class="text-3xl">🔑</span>
+                <div>
+                    <h2 class="text-xl font-black text-white">Fleet Access Key</h2>
+                    <p class="text-xs text-slate-400">Enter your Fleet Phone / Code to access saved assets</p>
+                </div>
+            </div>
+
+            <form onsubmit="authenticateOwnerSession(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Fleet Owner Phone / Key *</label>
+                    <input type="tel" id="ownerAccessKey" required placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
+                </div>
+
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg text-sm mt-2">
+                    🔓 Access My Fleet Portal
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="vehicleModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-amber-500/30 shadow-2xl space-y-4">
+            <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
+                <span class="text-3xl">📝</span>
+                <div>
+                    <h2 id="modalTitle" class="text-xl font-black text-white">Manage Fleet Vehicle</h2>
+                    <p class="text-xs text-slate-400">Add or edit asset information in DB</p>
+                </div>
+            </div>
+
+            <form onsubmit="saveVehicleForm(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Plate Number *</label>
+                    <input type="text" id="regPlate" required placeholder="e.g. M-24-AS" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono uppercase">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Chassis / VIN Serial *</label>
+                    <input type="text" id="regVin" required placeholder="e.g. MD2A25AY4MW123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono uppercase">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1">Vehicle Model</label>
+                        <select id="regModel" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none">
+                            <option value="Bajaj RE">Bajaj RE</option>
+                            <option value="TVS King">TVS King</option>
+                            <option value="Mahindra Alfa">Mahindra Alfa</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-300 mb-1">Daily Target (GH₵) *</label>
+                        <input type="number" id="regTarget" required placeholder="120" value="120" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 mb-1">Assigned Driver Phone</label>
+                    <input type="tel" id="regDriverPhone" placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 font-mono">
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeVehicleModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="w-1/2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs transition shadow-lg">
+                        💾 Save Asset
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
+        <div class="flex items-center space-x-3">
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-amber-400">Fleet 📊</span></a>
+            <span id="activeKeyBadge" class="bg-amber-500/20 text-amber-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-amber-500/30">
+                Key: Not Set
+            </span>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <button onclick="openVehicleModal()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                ➕ Add Vehicle
+            </button>
+            <label class="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1 cursor-pointer">
+                📥 Bulk CSV Import
+                <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="handleBulkCsvUpload(event)">
+            </label>
+        </div>
+    </header>
+
+    <div class="flex-1 relative flex flex-col md:flex-row min-h-0 w-full">
+        <div class="flex-1 relative h-full w-full">
+            <div id="map"></div>
+        </div>
+
+        <aside class="w-full md:w-96 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
+            <div class="border-b border-slate-800 pb-3">
+                <h2 class="text-base font-black text-white">Registered Fleet Registry</h2>
+                <p class="text-[10px] text-slate-400">Persistent asset management stored in JSON database</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-bold">Total Saved Assets</span>
+                    <div id="totalRegisteredCount" class="text-xl font-black text-amber-400 font-mono">0</div>
+                </div>
+                <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-bold">Active On Road</span>
+                    <div id="activeCount" class="text-xl font-black text-emerald-400 font-mono">0</div>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Fleet Inventory</h3>
+                <div id="fleetList" class="space-y-2">
+                    <div class="text-xs text-slate-500 italic p-3 text-center border border-dashed border-slate-800 rounded-xl">
+                        No registered vehicles found for this fleet key.
+                    </div>
+                </div>
+            </div>
+
+            <div id="unregisteredSection" class="space-y-3 hidden">
+                <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">⚠️ Driving Under Your Code, Not Yet Registered</h3>
+                <div id="unregisteredList" class="space-y-2"></div>
+            </div>
+
+            <div id="safetyAlertPanel" class="hidden bg-red-500/10 border border-red-500/40 rounded-2xl p-3 space-y-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-black text-red-400">🆘 Passenger Safety Alerts</span>
+                    <span id="safetyAlertCount" class="text-[9px] font-mono bg-red-500/20 text-red-300 px-2 py-0.5 rounded">0</span>
+                </div>
+                <div id="safetyAlertList" class="space-y-1.5 max-h-40 overflow-y-auto"></div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        const socket = io();
+        const fleetMarkers = {};
+        let currentOwnerKey = "";
+
+        // Every field below (names, plates, phone numbers) is free text a driver or owner
+        // typed — never trust it into innerHTML unescaped. This is the one place that does
+        // the escaping; everywhere else in this file routes through it before rendering.
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // For user text embedded as a quoted JS argument inside onclick="fn('...')" —
+        // HTML-entity escaping alone does NOT protect this context (the browser decodes
+        // entities before evaluating the attribute as JS), so this escapes for both layers.
+        function escapeJsAttr(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://tiles.openfreemap.org/styles/liberty',
+            center: [-1.6244, 6.6885],
+            zoom: 13,
+            pitch: 45
+        });
+        map.addControl(new maplibregl.NavigationControl());
+
+        const STATUS_LABEL = { IDLE: 'Idle', EN_ROUTE: 'En Route to Pickup', ON_TRIP: 'On Trip' };
+        const STATUS_COLOR = { IDLE: '#10b981', EN_ROUTE: '#0ea5e9', ON_TRIP: '#f59e0b' };
+
+        function authenticateOwnerSession(e) {
+            e.preventDefault();
+            const keyInput = document.getElementById('ownerAccessKey');
+            if (!keyInput.value.trim()) return;
+
+            currentOwnerKey = keyInput.value.trim();
+            localStorage.setItem('pragya_owner_key', currentOwnerKey);
+            socket.emit('register-owner-session', currentOwnerKey);
+
+            document.getElementById('activeKeyBadge').innerText = `Key: ${currentOwnerKey}`;
+            document.getElementById('ownerAuthModal').classList.add('hidden');
+        }
+
+        // Restore the owner's session across refreshes, same as the driver console does
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedKey = localStorage.getItem('pragya_owner_key');
+            if (savedKey) {
+                currentOwnerKey = savedKey;
+                document.getElementById('activeKeyBadge').innerText = `Key: ${currentOwnerKey}`;
+                document.getElementById('ownerAuthModal').classList.add('hidden');
+                socket.emit('register-owner-session', currentOwnerKey);
+            }
+        });
+        socket.on('connect', () => {
+            if (currentOwnerKey) socket.emit('register-owner-session', currentOwnerKey);
+        });
+
+        function openVehicleModal(editVehicle = null) {
+            if (editVehicle) {
+                document.getElementById('modalTitle').innerText = 'Manage Fleet Vehicle';
+                document.getElementById('regPlate').value = editVehicle.plateNumber;
+                document.getElementById('regVin').value = editVehicle.vin;
+                document.getElementById('regModel').value = editVehicle.model;
+                document.getElementById('regTarget').value = editVehicle.dailyTargetGhs;
+                document.getElementById('regDriverPhone').value = editVehicle.assignedDriverPhone || '';
+                document.getElementById('regPlate').readOnly = true;
+            } else {
+                document.getElementById('modalTitle').innerText = 'Manage Fleet Vehicle';
+                document.getElementById('regPlate').value = '';
+                document.getElementById('regVin').value = '';
+                document.getElementById('regDriverPhone').value = '';
+                document.getElementById('regPlate').readOnly = false;
+            }
+            document.getElementById('vehicleModal').classList.remove('hidden');
+        }
+
+        // Pre-fill the plate when registering a vehicle spotted via the "unregistered" list
+        function openVehicleModalForPlate(plateNumber, driverPhone) {
+            document.getElementById('modalTitle').innerText = 'Register This Vehicle';
+            document.getElementById('regPlate').value = plateNumber;
+            document.getElementById('regPlate').readOnly = false;
+            document.getElementById('regVin').value = '';
+            document.getElementById('regDriverPhone').value = driverPhone || '';
+            document.getElementById('vehicleModal').classList.remove('hidden');
+        }
+
+        function closeVehicleModal() {
+            document.getElementById('vehicleModal').classList.add('hidden');
+            document.getElementById('regPlate').readOnly = false;
+        }
+
+        function saveVehicleForm(e) {
+            e.preventDefault();
+            const vehicleData = {
+                plateNumber: document.getElementById('regPlate').value.trim().toUpperCase(),
+                vin: document.getElementById('regVin').value.trim().toUpperCase(),
+                model: document.getElementById('regModel').value,
+                dailyTargetGhs: parseFloat(document.getElementById('regTarget').value),
+                assignedDriverPhone: document.getElementById('regDriverPhone').value.trim(),
+                ownerCode: currentOwnerKey
+            };
+
+            socket.emit('owner-register-vehicle', vehicleData);
+            closeVehicleModal();
+        }
+
+        function handleBulkCsvUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const lines = e.target.result.split('\n');
+                let count = 0;
+
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+
+                    const [plateNumber, vin, model, dailyTargetGhs, assignedDriverPhone] = line.split(',');
+
+                    if (plateNumber && plateNumber.trim().length >= 4) {
+                        socket.emit('owner-register-vehicle', {
+                            plateNumber: plateNumber.trim().toUpperCase(),
+                            vin: vin ? vin.trim().toUpperCase() : 'N/A',
+                            model: model ? model.trim() : 'Bajaj RE',
+                            dailyTargetGhs: parseFloat(dailyTargetGhs) || 120,
+                            assignedDriverPhone: assignedDriverPhone ? assignedDriverPhone.trim() : '',
+                            ownerCode: currentOwnerKey
+                        });
+                        count++;
+                    }
+                }
+                alert(`🎉 Registered ${count} assets to Fleet Key: ${currentOwnerKey}`);
+            };
+            reader.readAsText(file);
+        }
+
+        socket.on('current-riders', (payload) => {
+            renderFleetRegistry(payload.registeredVehicles || [], payload.activeDrivers || []);
+            renderUnregisteredDrivers(payload.registeredVehicles || [], payload.activeDrivers || []);
+            renderMapMarkers(payload.activeDrivers || []);
+        });
+
+        // ---- Passenger safety (panic button) alerts for this fleet's riders ----
+        let safetyAlerts = [];
+        socket.on('passenger-sos-alert', (alert) => {
+            safetyAlerts.unshift(alert);
+            if (safetyAlerts.length > 20) safetyAlerts.pop();
+
+            document.getElementById('safetyAlertPanel').classList.remove('hidden');
+            document.getElementById('safetyAlertCount').innerText = safetyAlerts.length;
+            document.getElementById('safetyAlertList').innerHTML = safetyAlerts.map(a => `
+                <div class="bg-slate-950 p-2 rounded-lg border border-red-500/30 text-[10px] space-y-0.5">
+                    <div class="flex justify-between">
+                        <span class="text-red-400 font-bold">🆘 Passenger: ${escapeHtml(a.passengerPhone)}</span>
+                        <span class="text-slate-500 font-mono">${new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <div class="text-slate-400">Vehicle: <span class="text-amber-400 font-mono">${escapeHtml(a.plateNumber) || 'Unknown'}</span> · Driver: ${escapeHtml(a.driverName) || 'Unknown'}</div>
+                    <button onclick="map.flyTo({center:[${Number(a.lng) || 0},${Number(a.lat) || 0}], zoom:17, pitch:55, duration:1200})" class="text-sky-400 font-bold hover:underline">📍 Locate on map</button>
+                </div>
+            `).join('');
+
+            const alarm = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+            alarm.play().catch(() => {});
+        });
+
+        function timeAgo(isoString) {
+            if (!isoString) return 'never';
+            const seconds = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+            if (seconds < 60) return `${seconds}s ago`;
+            if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+            return `${Math.floor(seconds / 3600)}h ago`;
+        }
+
+        function renderFleetRegistry(registeredVehicles, activeDrivers) {
+            document.getElementById('totalRegisteredCount').innerText = registeredVehicles.length;
+            document.getElementById('activeCount').innerText = activeDrivers.length;
+
+            const fleetListEl = document.getElementById('fleetList');
+            if (registeredVehicles.length === 0) {
+                fleetListEl.innerHTML = `<div class="text-xs text-slate-500 italic p-3 text-center border border-dashed border-slate-800 rounded-xl">No saved assets in database for Fleet Key: ${escapeHtml(currentOwnerKey)}</div>`;
+                return;
+            }
+
+            fleetListEl.innerHTML = '';
+
+            registeredVehicles.forEach(v => {
+                const activeDriver = activeDrivers.find(d => d.plateNumber === v.plateNumber);
+                const passport = v.passport || {};
+
+                let statusBadge = `<span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px]">⚪ Offline</span>`;
+                let statusLine = '';
+                let earningsLine = '';
+                if (activeDriver) {
+                    const label = STATUS_LABEL[activeDriver.status] || 'Online';
+                    statusBadge = `<span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px]">🟢 ${escapeHtml(label)}</span>`;
+                    statusLine = `<div class="text-[10px] text-slate-400">Driver now: <strong class="text-slate-200">${escapeHtml(activeDriver.fullName || activeDriver.username)}</strong> · last seen ${timeAgo(activeDriver.lastSeen)}</div>`;
+                    earningsLine = `<div class="text-[10px] text-slate-400">Shift earnings: <strong class="text-emerald-400 font-mono">GH₵ ${(activeDriver.shiftEarnings || 0).toFixed(2)}</strong></div>`;
+                }
+
+                let serviceLine = '';
+                if (passport && typeof passport.currentServiceKm === 'number') {
+                    const overdue = passport.currentServiceKm >= 1500;
+                    serviceLine = `<div class="text-[10px] ${overdue ? 'text-red-400 font-bold' : 'text-slate-400'}">
+                        ${overdue ? '⚠️ Service Overdue' : 'Service OK'} — ${passport.currentServiceKm.toFixed(0)} km since last oil change
+                    </div>`;
+                }
+
+                const card = document.createElement('div');
+                card.className = "bg-slate-900/80 p-3 rounded-2xl border border-slate-800 space-y-2 text-xs";
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-extrabold text-amber-400 font-mono">${escapeHtml(v.plateNumber)}</span>
+                        <div class="flex items-center space-x-1">
+                            ${statusBadge}
+                            <button onclick='openVehicleModal(${JSON.stringify(v).replace(/'/g, "&#39;")})' class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-0.5 rounded text-[10px] font-bold">✏️ Edit</button>
+                        </div>
+                    </div>
+                    <div class="text-[11px] text-slate-400 grid grid-cols-2 gap-1 font-mono">
+                        <span>VIN: ${escapeHtml(v.vin) || 'N/A'}</span>
+                        <span>Target: GH₵ ${escapeHtml(v.dailyTargetGhs)}</span>
+                    </div>
+                    <div class="text-[10px] text-slate-400 border-t border-slate-800/80 pt-1">
+                        Driver Phone: <strong class="text-slate-200 font-mono">${escapeHtml(v.assignedDriverPhone) || 'Unassigned'}</strong>
+                    </div>
+                    ${statusLine}
+                    ${earningsLine}
+                    ${serviceLine}
+                `;
+                fleetListEl.appendChild(card);
+            });
+        }
+
+        // Drivers broadcasting under this fleet code who aren't in the registry yet
+        function renderUnregisteredDrivers(registeredVehicles, activeDrivers) {
+            const registeredPlates = new Set(registeredVehicles.map(v => v.plateNumber));
+            const rogue = activeDrivers.filter(d => !registeredPlates.has(d.plateNumber));
+
+            const section = document.getElementById('unregisteredSection');
+            const list = document.getElementById('unregisteredList');
+
+            if (rogue.length === 0) {
+                section.classList.add('hidden');
+                list.innerHTML = '';
+                return;
+            }
+
+            section.classList.remove('hidden');
+            list.innerHTML = '';
+            rogue.forEach(d => {
+                const card = document.createElement('div');
+                card.className = "bg-amber-500/5 p-3 rounded-2xl border border-amber-500/30 space-y-2 text-xs";
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-extrabold text-amber-300 font-mono">${escapeHtml(d.plateNumber)}</span>
+                        <button onclick="openVehicleModalForPlate('${escapeJsAttr(d.plateNumber)}', '${escapeJsAttr(d.contact || '')}')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-2 py-0.5 rounded text-[10px] font-bold">
+                            ➕ Register
+                        </button>
+                    </div>
+                    <div class="text-[10px] text-slate-400">Driver: <strong class="text-slate-200">${escapeHtml(d.fullName || d.username)}</strong> · ${escapeHtml(d.contact) || 'No phone on file'}</div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        function renderMapMarkers(activeDrivers) {
+            const seenPlates = new Set();
+
+            activeDrivers.forEach(d => {
+                if (d.lat == null || d.lng == null) return;
+                seenPlates.add(d.plateNumber);
+                const color = STATUS_COLOR[d.status] || '#64748b';
+
+                if (fleetMarkers[d.plateNumber]) {
+                    fleetMarkers[d.plateNumber].setLngLat([d.lng, d.lat]);
+                    fleetMarkers[d.plateNumber].getElement().style.backgroundColor = color;
+                } else {
+                    const el = document.createElement('div');
+                    el.style.width = '14px';
+                    el.style.height = '14px';
+                    el.style.borderRadius = '50%';
+                    el.style.border = '2px solid white';
+                    el.style.backgroundColor = color;
+
+                    const marker = new maplibregl.Marker({ element: el })
+                        .setLngLat([d.lng, d.lat])
+                        .setPopup(new maplibregl.Popup().setHTML(`<b>${escapeHtml(d.plateNumber)}</b><br>${escapeHtml(d.fullName || d.username)}<br>${escapeHtml(STATUS_LABEL[d.status] || 'Online')}`))
+                        .addTo(map);
+                    fleetMarkers[d.plateNumber] = marker;
+                }
+            });
+
+            // Remove markers for vehicles no longer online
+            Object.keys(fleetMarkers).forEach(plate => {
+                if (!seenPlates.has(plate)) {
+                    fleetMarkers[plate].remove();
+                    delete fleetMarkers[plate];
+                }
+            });
+        }
+    </script>
+</body>
+</html>
