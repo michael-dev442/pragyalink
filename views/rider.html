@@ -53,14 +53,20 @@
 
         <aside class="w-full md:w-80 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
             
-            <div id="driverBadgeCard" class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800 flex items-center justify-between">
-                <div>
-                    <div class="text-[10px] text-slate-400">Driver Rank</div>
-                    <div id="dispDriverBadge" class="text-sm font-black text-slate-300">New Driver</div>
+            <div id="driverBadgeCard" class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800 space-y-2">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] text-slate-400">Driver Rank</div>
+                        <div id="dispDriverBadge" class="text-sm font-black text-slate-300">New Driver</div>
+                    </div>
+                    <div class="text-right text-[10px] font-mono text-slate-400">
+                        <div>⭐ <strong id="dispAvgRating" class="text-amber-400">–</strong></div>
+                        <div><strong id="dispTotalTrips" class="text-slate-200">0</strong> trips</div>
+                    </div>
                 </div>
-                <div class="text-right text-[10px] font-mono text-slate-400">
-                    <div>⭐ <strong id="dispAvgRating" class="text-amber-400">–</strong></div>
-                    <div><strong id="dispTotalTrips" class="text-slate-200">0</strong> trips</div>
+                <div class="flex items-center justify-between border-t border-slate-800 pt-2">
+                    <span class="text-[10px] font-mono text-emerald-400" id="driverWalletBadge">🎁 GH₵ 0.00 wallet</span>
+                    <button onclick="shareDriverReferralCode()" class="text-[10px] font-bold text-sky-400 hover:underline">Invite drivers →</button>
                 </div>
             </div>
 
@@ -180,6 +186,21 @@
                 <div id="fleetCodeContainer" class="hidden">
                     <label class="block font-bold text-sky-400 mb-1">Fleet Owner Code / Manager ID *</label>
                     <input type="text" id="modalFleetCode" placeholder="e.g. KUMASI_FLEET_01" class="w-full bg-slate-950 border border-sky-500/50 rounded-xl px-3 py-2 text-sky-300 font-mono focus:outline-none focus:border-sky-400">
+                </div>
+
+                <div class="pt-2 border-t border-slate-800/60 space-y-2">
+                    <label class="block font-bold text-emerald-400 mb-1">📱 Mobile Money Payout</label>
+                    <select id="modalMomoNetwork" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500">
+                        <option value="MTN">MTN Mobile Money</option>
+                        <option value="VODAFONE">Vodafone Cash</option>
+                        <option value="AIRTELTIGO">AirtelTigo Money</option>
+                    </select>
+                    <input type="tel" id="modalMomoNumber" placeholder="MoMo number for trip payouts" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div id="modalReferralRow" class="pt-2 border-t border-slate-800/60">
+                    <label class="block font-bold text-slate-300 mb-1">Referral Code (optional)</label>
+                    <input type="text" id="modalReferralCode" placeholder="Have a code from another driver?" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
                 </div>
             </div>
 
@@ -743,6 +764,12 @@
             document.getElementById('modalDriverPhone').value = localStorage.getItem('pragya_driver_phone') || '';
             document.getElementById('modalDriverPlate').value = localStorage.getItem('pragya_driver_plate') || '';
             document.getElementById('modalFleetCode').value = localStorage.getItem('pragya_fleet_code') === INDEPENDENT_CODE ? '' : (localStorage.getItem('pragya_fleet_code') || '');
+            document.getElementById('modalMomoNetwork').value = localStorage.getItem('pragya_momo_network') || 'MTN';
+            document.getElementById('modalMomoNumber').value = localStorage.getItem('pragya_momo_number') || '';
+
+            // A referral only ever applies once — hide the field on later profile edits
+            document.getElementById('modalReferralRow').classList.toggle('hidden', !!localStorage.getItem('pragya_referral_submitted'));
+            document.getElementById('modalReferralCode').value = '';
 
             const savedMode = localStorage.getItem('pragya_operating_mode') || 'OWNER';
             selectOperatingModel(savedMode);
@@ -758,6 +785,9 @@
             const phone = document.getElementById('modalDriverPhone').value.trim();
             const plate = document.getElementById('modalDriverPlate').value.trim().toUpperCase();
             const fleet = document.getElementById('modalFleetCode').value.trim().toUpperCase();
+            const momoNetwork = document.getElementById('modalMomoNetwork').value;
+            const momoNumber = document.getElementById('modalMomoNumber').value.trim();
+            const referralCode = document.getElementById('modalReferralCode').value.trim();
 
             if (!name || !phone || !plate) {
                 alert("⚠️ Please enter your Name, Phone Number, and Plate Number!");
@@ -774,9 +804,21 @@
             localStorage.setItem('pragya_operating_mode', selectedOperatingMode);
             localStorage.setItem('pragya_fleet_code', selectedOperatingMode === 'FLEET' ? fleet : INDEPENDENT_CODE);
 
+            if (momoNumber) {
+                localStorage.setItem('pragya_momo_network', momoNetwork);
+                localStorage.setItem('pragya_momo_number', momoNumber);
+                socket.emit('register-payout-number', { plateNumber: plate, network: momoNetwork, momoNumber });
+            }
+
+            if (referralCode && !localStorage.getItem('pragya_referral_submitted')) {
+                socket.emit('submit-referral-code', { code: referralCode, refereeId: plate, type: 'driver' });
+                localStorage.setItem('pragya_referral_submitted', '1');
+            }
+
             restoreDriverSession();
             closeOwnershipModal();
             speakPragyaText("Profile and vehicle operating settings saved.");
+            refreshReferralInfo();
         }
 
         function restoreDriverSession() {
@@ -803,7 +845,10 @@
 
             updateEngineHealthUI();
 
-            if (plate) socket.emit('request-driver-stats', plate);
+            if (plate) {
+                socket.emit('request-driver-stats', plate);
+                socket.emit('request-referral-info', plate);
+            }
 
             if (savedShift === 'ONLINE' && !isOnline) {
                 setOnlineState(true, { silent: true });
@@ -813,7 +858,8 @@
         socket.on('driver-stats-update', (stats) => {
             if (!stats) return;
             const avgRating = stats.ratingCount > 0 ? (stats.ratingSum / stats.ratingCount) : 0;
-            document.getElementById('dispDriverBadge').innerText = `${badgeEmoji(stats.badge)} ${stats.badge}`;
+            const builderTag = stats.isCommunityBuilder ? ' 🤝' : '';
+            document.getElementById('dispDriverBadge').innerText = `${badgeEmoji(stats.badge)} ${stats.badge}${builderTag}`;
             document.getElementById('dispAvgRating').innerText = stats.ratingCount > 0 ? avgRating.toFixed(1) : '–';
             document.getElementById('dispTotalTrips').innerText = stats.totalTrips;
         });
@@ -822,10 +868,35 @@
             return { Gold: '🥇', Silver: '🥈', Bronze: '🥉' }[badge] || '🆕';
         }
 
+        // ---- Referral program ----
+        function refreshReferralInfo() {
+            const plate = localStorage.getItem('pragya_driver_plate');
+            if (plate) socket.emit('request-referral-info', plate);
+        }
+
+        let myDriverReferralCode = null;
+        socket.on('referral-info-update', (info) => {
+            myDriverReferralCode = info.code;
+            document.getElementById('driverWalletBadge').innerText = `🎁 GH₵ ${info.walletCredit.toFixed(2)} wallet`;
+        });
+
+        function shareDriverReferralCode() {
+            if (!myDriverReferralCode) { alert('Save your profile first to get your invite code.'); return; }
+            const text = `Drive with PragyaLink in Kumasi & Accra — use my code ${myDriverReferralCode} when you sign up and we both earn GH₵ credit! 🛺`;
+            if (navigator.share) {
+                navigator.share({ text }).catch(() => {});
+            } else {
+                navigator.clipboard.writeText(text).then(() => alert('Copied — send it to a friend!'));
+            }
+        }
+
         // Re-request stats once reconnected, in case a trip completed while offline changed them
         socket.on('connect', () => {
             const plate = localStorage.getItem('pragya_driver_plate');
-            if (plate) socket.emit('request-driver-stats', plate);
+            if (plate) {
+                socket.emit('request-driver-stats', plate);
+                socket.emit('request-referral-info', plate);
+            }
         });
 
         // =========================================================

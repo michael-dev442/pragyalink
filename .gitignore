@@ -1,0 +1,15 @@
+# Secrets — never commit real credentials
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# Runtime data
+database.json
+database.json.tmp
+
+# OS/editor cruft
+.DS_Store
+*.log

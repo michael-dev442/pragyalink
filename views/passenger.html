@@ -70,6 +70,25 @@
                 <p class="text-[10px] text-slate-400">Used for dispatch confirmation & digital receipts.</p>
             </div>
 
+            <div id="referralSection" class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-300">🎁 Invite & Earn</span>
+                    <span id="walletCreditBadge" class="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">GH₵ 0.00</span>
+                </div>
+                <div id="referralCodeDisplay" class="hidden space-y-1.5">
+                    <p class="text-[10px] text-slate-400">Your code — share it, you both earn credit once they take their first ride:</p>
+                    <div class="flex gap-2">
+                        <span id="myReferralCode" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-sm text-amber-400 font-mono font-bold text-center"></span>
+                        <button onclick="shareReferralCode()" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-black px-3 rounded-xl text-xs">Share</button>
+                    </div>
+                </div>
+                <div id="referralEntryRow" class="flex gap-2">
+                    <input type="text" id="referralCodeInput" placeholder="Have a code? Enter it" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-sky-500">
+                    <button onclick="submitReferralCode()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 rounded-xl text-xs border border-slate-700">Apply</button>
+                </div>
+                <p id="referralMsg" class="text-[10px] hidden"></p>
+            </div>
+
             <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
                 <label class="block text-xs font-bold text-slate-300 mb-1">Ride Mode</label>
                 <div class="grid grid-cols-2 gap-2">
@@ -350,14 +369,69 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             const savedPhone = localStorage.getItem('pragya_passenger_phone');
-            if (savedPhone) document.getElementById('passengerPhoneInput').value = savedPhone;
+            if (savedPhone) {
+                document.getElementById('passengerPhoneInput').value = savedPhone;
+                refreshReferralInfo();
+            }
             renderLocalRideHistory();
         });
 
         function savePassengerPhone() {
             const phone = document.getElementById('passengerPhoneInput').value.trim();
-            if (phone) localStorage.setItem('pragya_passenger_phone', phone);
+            if (phone) {
+                localStorage.setItem('pragya_passenger_phone', phone);
+                refreshReferralInfo();
+            }
         }
+
+        // ---- Referral program ----
+        function refreshReferralInfo() {
+            const phone = localStorage.getItem('pragya_passenger_phone');
+            if (phone) socket.emit('request-referral-info', phone);
+        }
+
+        socket.on('referral-info-update', (info) => {
+            document.getElementById('walletCreditBadge').innerText = `GH₵ ${info.walletCredit.toFixed(2)}`;
+            document.getElementById('myReferralCode').innerText = info.code;
+            document.getElementById('referralCodeDisplay').classList.remove('hidden');
+        });
+
+        function shareReferralCode() {
+            const code = document.getElementById('myReferralCode').innerText;
+            const text = `Ride PragyaLink tricycles in Kumasi & Accra — use my code ${code} and we both get GH₵ credit! 🛺`;
+            if (navigator.share) {
+                navigator.share({ text }).catch(() => {});
+            } else {
+                navigator.clipboard.writeText(text).then(() => alert('Copied — paste it to a friend!'));
+            }
+        }
+
+        function submitReferralCode() {
+            const code = document.getElementById('referralCodeInput').value.trim();
+            const phone = localStorage.getItem('pragya_passenger_phone');
+            const msgEl = document.getElementById('referralMsg');
+            if (!code || !phone) {
+                msgEl.innerText = '⚠️ Enter your phone number above first.';
+                msgEl.className = 'text-[10px] text-amber-400';
+                msgEl.classList.remove('hidden');
+                return;
+            }
+            socket.emit('submit-referral-code', { code, refereeId: phone, type: 'passenger' });
+        }
+
+        socket.on('referral-submit-result', (result) => {
+            const msgEl = document.getElementById('referralMsg');
+            if (result.success) {
+                msgEl.innerText = '✅ Code applied — GH₵ credit added to your wallet!';
+                msgEl.className = 'text-[10px] text-emerald-400';
+                document.getElementById('referralEntryRow').classList.add('hidden');
+                refreshReferralInfo();
+            } else {
+                msgEl.innerText = '⚠️ That code is invalid or already used.';
+                msgEl.className = 'text-[10px] text-red-400';
+            }
+            msgEl.classList.remove('hidden');
+        });
 
         function toggleHistoryDrawer() {
             document.getElementById('historySection').scrollIntoView({ behavior: 'smooth' });
@@ -540,22 +614,122 @@
             localHistory.unshift(newReceipt);
             localStorage.setItem('pragya_passenger_receipts', JSON.stringify(localHistory));
 
+            renderPaymentStep(newReceipt);
+            renderLocalRideHistory();
+        });
+
+        // ---- Payment step: Cash or MoMo, then rating ----
+        let pendingPaymentContext = null;
+
+        function renderPaymentStep(receipt) {
+            pendingPaymentContext = { tripId: receipt.tripId, plateNumber: receipt.plateNumber, fareGhs: receipt.fareGhs };
             document.getElementById('passengerActionArea').innerHTML = `
                 <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
                     <p class="text-emerald-400 font-bold">🏁 Trip Arrived & Completed!</p>
-                    <p class="text-xs text-slate-200">Total Fare: <strong class="text-emerald-400 font-mono text-sm">GH₵ ${parseFloat(summary.fareGhs).toFixed(2)}</strong></p>
+                    <p class="text-xs text-slate-200">Total Fare: <strong class="text-emerald-400 font-mono text-sm">GH₵ ${parseFloat(receipt.fareGhs).toFixed(2)}</strong></p>
+                    <div class="pt-2 border-t border-slate-800/60 space-y-2">
+                        <p class="text-[10px] text-slate-400">How would you like to pay?</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="payWithCash()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs border border-slate-700 transition">💵 Cash</button>
+                            <button onclick="openMomoPayment()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2 rounded-xl text-xs transition">📱 MoMo</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function payWithCash() {
+            if (!pendingPaymentContext) return;
+            const { tripId, plateNumber, fareGhs } = pendingPaymentContext;
+            const phone = localStorage.getItem('pragya_passenger_phone');
+            socket.emit('mark-paid-cash', { tripId, payerId: phone, payerPhone: phone, amountGhs: fareGhs, plateNumber });
+            renderRatingStep(plateNumber, fareGhs, 'Cash', 0);
+        }
+
+        function openMomoPayment() {
+            if (!pendingPaymentContext) return;
+            const walletCredit = parseFloat((document.getElementById('walletCreditBadge').innerText.match(/[\d.]+/) || ['0'])[0]);
+            const estimatedDue = Math.max(0, pendingPaymentContext.fareGhs - walletCredit);
+            const creditNote = walletCredit > 0
+                ? `<p class="text-[10px] text-sky-400">🎁 Up to GH₵ ${Math.min(walletCredit, pendingPaymentContext.fareGhs).toFixed(2)} wallet credit will be applied automatically</p>`
+                : '';
+
+            document.getElementById('passengerActionArea').innerHTML = `
+                <div class="space-y-2 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30">
+                    <p class="text-amber-400 font-bold text-xs">📱 Pay with Mobile Money</p>
+                    ${creditNote}
+                    <select id="momoNetworkSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                        <option value="MTN">MTN Mobile Money</option>
+                        <option value="VODAFONE">Vodafone Cash</option>
+                        <option value="AIRTELTIGO">AirtelTigo Money</option>
+                    </select>
+                    <button onclick="confirmMomoPayment()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs transition">
+                        Pay GH₵ ${estimatedDue.toFixed(2)}
+                    </button>
+                    <button onclick="renderPaymentStep(pendingPaymentContext)" class="w-full text-slate-500 text-[10px] font-bold">← Back</button>
+                </div>
+            `;
+        }
+
+        function confirmMomoPayment() {
+            if (!pendingPaymentContext) return;
+            const network = document.getElementById('momoNetworkSelect').value;
+            const phone = localStorage.getItem('pragya_passenger_phone');
+            const { tripId, plateNumber, fareGhs } = pendingPaymentContext;
+
+            renderPendingMomoUI(network, fareGhs);
+            socket.emit('initiate-payment', { tripId, payerId: phone, payerPhone: phone, network, amountGhs: parseFloat(fareGhs), plateNumber });
+        }
+
+        // Real MoMo approval happens on the payer's phone and can take anywhere from a
+        // few seconds to about a minute — this isn't an instant round-trip, so the UI
+        // needs a real escape hatch instead of an indefinite spinner.
+        function renderPendingMomoUI(network, fareGhs) {
+            document.getElementById('passengerActionArea').innerHTML = `
+                <div class="space-y-2 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30 text-center">
+                    <div class="animate-pulse text-amber-400 font-bold text-xs">📲 Check your phone to approve payment...</div>
+                    <p class="text-[10px] text-slate-400">GH₵ ${parseFloat(fareGhs).toFixed(2)} via ${escapeHtml(network)}</p>
+                    <p class="text-[10px] text-slate-500">This can take up to a minute.</p>
+                    <button onclick="payWithCash()" class="text-slate-400 text-[10px] font-bold underline">Taking too long? Pay with cash instead</button>
+                </div>
+            `;
+        }
+
+        socket.on('payment-status-update', (data) => {
+            if (!pendingPaymentContext || data.tripId !== pendingPaymentContext.tripId) return;
+            if (data.status === 'PENDING') return; // "check your phone" UI is already showing
+
+            const { plateNumber, fareGhs } = pendingPaymentContext;
+            if (data.status === 'SUCCESS') {
+                renderRatingStep(plateNumber, fareGhs, 'MoMo', data.creditApplied || 0);
+            } else {
+                document.getElementById('passengerActionArea').innerHTML = `
+                    <div class="space-y-2 bg-red-500/10 p-3 rounded-xl border border-red-500/30 text-center">
+                        <p class="text-red-400 font-bold text-xs">❌ Payment failed or was declined.</p>
+                        <button onclick="openMomoPayment()" class="text-amber-400 text-[11px] font-bold underline block mx-auto mt-1">Try again</button>
+                        <button onclick="payWithCash()" class="text-slate-400 text-[11px] font-bold underline block mx-auto mt-1">Pay with cash instead</button>
+                    </div>
+                `;
+            }
+        });
+
+        function renderRatingStep(plateNumber, fareGhs, method, creditApplied) {
+            document.getElementById('passengerActionArea').innerHTML = `
+                <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
+                    <p class="text-emerald-400 font-bold text-xs">✅ Paid via ${escapeHtml(method)} — GH₵ ${parseFloat(fareGhs).toFixed(2)}</p>
+                    ${creditApplied > 0 ? `<p class="text-[10px] text-sky-400">🎁 GH₵ ${creditApplied.toFixed(2)} wallet credit applied</p>` : ''}
                     <div class="pt-2 border-t border-slate-800/60 space-y-1.5">
                         <p class="text-[10px] text-slate-400">Rate your driver:</p>
                         <div id="ratingStars" class="flex gap-1 text-2xl">
-                            ${[1, 2, 3, 4, 5].map(n => `<span onclick="submitDriverRating('${escapeJsAttr(newReceipt.plateNumber)}', ${n})" class="cursor-pointer hover:scale-125 transition">⭐</span>`).join('')}
+                            ${[1, 2, 3, 4, 5].map(n => `<span onclick="submitDriverRating('${escapeJsAttr(plateNumber)}', ${n})" class="cursor-pointer hover:scale-125 transition">⭐</span>`).join('')}
                         </div>
                         <p id="ratingThanksMsg" class="text-[10px] text-emerald-400 font-bold hidden">Thanks for your feedback!</p>
                     </div>
                 </div>
             `;
-
-            renderLocalRideHistory();
-        });
+            pendingPaymentContext = null;
+            refreshReferralInfo();
+        }
 
         function submitDriverRating(plateNumber, stars) {
             if (!plateNumber || plateNumber === 'N/A') return;

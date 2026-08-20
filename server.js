@@ -3,13 +3,28 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+
+// CORS: configurable via ALLOWED_ORIGINS env var (comma-separated), since this app can be
+// deployed at any domain. Defaults to wide-open for local/demo use, with a clear warning —
+// set this before exposing the server publicly.
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+    : '*';
+if (allowedOrigins === '*') {
+    console.warn('⚠️  CORS is wide open (origin: "*"). Set the ALLOWED_ORIGINS env var (comma-separated) before deploying publicly.');
+}
+const io = new Server(server, { cors: { origin: allowedOrigins } });
 
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
+// The `verify` hook stashes the exact raw bytes of every request body onto req.rawBody.
+// Needed specifically for the Paystack webhook below — its signature is computed over the
+// raw body, and re-serializing the already-parsed JSON can produce different bytes than
+// what Paystack actually signed, causing verification to fail even on a legitimate call.
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 
 // =========================================================
 // 📦 PERSISTENT JSON FILE STORAGE
@@ -20,7 +35,9 @@ function loadDatabase() {
     if (!fs.existsSync(DB_FILE)) {
         const initialData = {
             servicePassports: {}, rideHistory: [], registeredFleet: {},
-            driverStats: {}, safetyAlerts: [], persistedPoolTrips: {}
+            driverStats: {}, safetyAlerts: [], persistedPoolTrips: {},
+            transactions: [], driverPayouts: {}, referralCodes: {}, referrals: [], walletCredits: {},
+            payoutRecipientCodes: {}
         };
         fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
         return initialData;
@@ -35,24 +52,65 @@ function loadDatabase() {
         parsed.driverStats = parsed.driverStats || {};
         parsed.safetyAlerts = parsed.safetyAlerts || [];
         parsed.persistedPoolTrips = parsed.persistedPoolTrips || {};
+        parsed.transactions = parsed.transactions || [];
+        parsed.driverPayouts = parsed.driverPayouts || {};
+        parsed.referralCodes = parsed.referralCodes || {};
+        parsed.referrals = parsed.referrals || [];
+        parsed.walletCredits = parsed.walletCredits || {};
+        parsed.payoutRecipientCodes = parsed.payoutRecipientCodes || {};
         return parsed;
     } catch (e) {
         console.error("Error reading database.json, re-initializing...", e);
-        return { servicePassports: {}, rideHistory: [], registeredFleet: {}, driverStats: {}, safetyAlerts: [], persistedPoolTrips: {} };
+        return {
+            servicePassports: {}, rideHistory: [], registeredFleet: {}, driverStats: {}, safetyAlerts: [], persistedPoolTrips: {},
+            transactions: [], driverPayouts: {}, referralCodes: {}, referrals: [], walletCredits: {}, payoutRecipientCodes: {}
+        };
     }
 }
 
+// Debounced async save: every mutation site below just marks the DB dirty and this
+// flushes at most once per DB_SAVE_DEBOUNCE_MS. Fixes a real bottleneck — every GPS tick
+// that moved the odometer, every trip, every rating was previously a synchronous
+// writeFileSync of the WHOLE (ever-growing) database.json, blocking Node's single thread
+// on every single one. Still atomic (temp file + rename), just no longer on the hot path.
+let dbDirty = false;
+let dbSaveTimer = null;
+const DB_SAVE_DEBOUNCE_MS = 1500;
+
 function saveDatabase(data) {
-    // Atomic write: write to a temp file then rename, so a crash mid-write can never
-    // leave database.json half-written/corrupted.
+    dbDirty = true;
+    if (dbSaveTimer) return; // a flush is already scheduled, this write will be included in it
+    dbSaveTimer = setTimeout(() => flushDatabaseAsync(data), DB_SAVE_DEBOUNCE_MS);
+}
+
+function flushDatabaseAsync(data) {
+    dbSaveTimer = null;
+    if (!dbDirty) return;
+    dbDirty = false;
     const tmpFile = DB_FILE + '.tmp';
+    const payload = JSON.stringify(data, null, 2);
+    fs.writeFile(tmpFile, payload, (err) => {
+        if (err) { console.error('❌ Failed to write temp db file:', err); dbDirty = true; return; }
+        fs.rename(tmpFile, DB_FILE, (err2) => {
+            if (err2) { console.error('❌ Failed to rename temp db file:', err2); dbDirty = true; }
+        });
+    });
+}
+
+// Best-effort synchronous flush so a graceful shutdown never drops the last ~1.5s of writes
+function flushDatabaseSync() {
+    if (!dbDirty) return;
+    dbDirty = false;
     try {
-        fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2));
+        const tmpFile = DB_FILE + '.tmp';
+        fs.writeFileSync(tmpFile, JSON.stringify(db, null, 2));
         fs.renameSync(tmpFile, DB_FILE);
     } catch (e) {
-        console.error('❌ Failed to save database.json:', e);
+        console.error('❌ Failed final sync flush on shutdown:', e);
     }
 }
+process.on('SIGINT', () => { flushDatabaseSync(); process.exit(0); });
+process.on('SIGTERM', () => { flushDatabaseSync(); process.exit(0); });
 
 let db = loadDatabase();
 
@@ -62,8 +120,36 @@ let db = loadDatabase();
 // Wraps every socket event handler so a malformed payload or unexpected null throws
 // inside ONE handler for ONE client, instead of crashing the process for every
 // connected driver, passenger, and dashboard. Use this instead of socket.on() directly.
+// Also rate-limits per socket per event — a buggy or malicious client spamming, say,
+// telemetry updates or SOS alerts gets silently throttled instead of hammering the server
+// or flooding every connected dashboard with broadcasts.
+const RATE_LIMITS = {
+    'update-rider-location': { max: 4, windowMs: 1000 },
+    'driver-go-online': { max: 5, windowMs: 5000 },
+    'request-ride': { max: 5, windowMs: 10000 },
+    'request-pool-ride': { max: 5, windowMs: 10000 },
+    'submit-driver-rating': { max: 3, windowMs: 10000 },
+    'passenger-sos-alert': { max: 3, windowMs: 30000 },
+    'driver-sos-alert': { max: 3, windowMs: 30000 },
+    'initiate-payment': { max: 5, windowMs: 30000 },
+    'mark-paid-cash': { max: 5, windowMs: 30000 },
+    'submit-referral-code': { max: 3, windowMs: 30000 }
+};
+const DEFAULT_RATE_LIMIT = { max: 20, windowMs: 5000 };
+
 function safeOn(socket, eventName, handler) {
+    const limit = RATE_LIMITS[eventName] || DEFAULT_RATE_LIMIT;
+    let windowStart = Date.now();
+    let count = 0;
+
     socket.on(eventName, (...args) => {
+        const now = Date.now();
+        if (now - windowStart > limit.windowMs) { windowStart = now; count = 0; }
+        count++;
+        if (count > limit.max) {
+            console.warn(`🚦 Rate limit hit: '${eventName}' from ${socket.id} — dropped`);
+            return;
+        }
         try {
             handler(...args);
         } catch (err) {
@@ -167,7 +253,8 @@ function ensureDriverStats(plate) {
             ratingCount: 0,
             smoothnessSum: 0,
             smoothnessCount: 0,
-            badge: 'New Driver'
+            badge: 'New Driver',
+            qualifiedReferrals: 0
         };
     }
     return db.driverStats[plate];
@@ -186,6 +273,213 @@ function recomputeBadge(stats) {
     } else {
         stats.badge = 'New Driver';
     }
+    // Free recognition on top of the tier badge — costs nothing, reuses the existing
+    // badge/leaderboard display everywhere a driver's identity already shows up.
+    stats.isCommunityBuilder = (stats.qualifiedReferrals || 0) >= 3;
+}
+
+// =========================================================
+// 💳 MOBILE MONEY (MoMo) — Paystack integration (Ghana)
+// =========================================================
+// Collect-then-disburse: the passenger pays into the platform's own merchant account,
+// the platform takes its commission, then pays the driver out separately. This is the
+// only model that actually supports Pool (each passenger pays their own share
+// independently) and matches how every real ride-hail platform handles payment.
+//
+// Falls back to a SIMULATED mode automatically if PAYSTACK_SECRET_KEY isn't set, so the
+// app still works end-to-end for local development without real credentials. Set that
+// env var with your Paystack secret key (test or live) to go live — nothing else in the
+// app needs to change.
+const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || null;
+const PAYSTACK_BASE_URL = 'https://api.paystack.co';
+const PLATFORM_COMMISSION_RATE = 0.15;
+
+if (!PAYSTACK_SECRET_KEY) {
+    console.warn('⚠️  PAYSTACK_SECRET_KEY not set — MoMo payments are running in SIMULATED mode. Set that env var (your Paystack secret key) to charge/pay out for real.');
+}
+
+// Maps our network selector values (used across rider.html / passenger.html) to
+// Paystack's own provider codes (for charges) and bank codes (for transfer recipients) —
+// these are two different code sets for the same three telcos, confirmed against
+// Paystack's current docs.
+const NETWORK_MAP = {
+    MTN: { chargeProvider: 'mtn', bankCode: 'MTN' },
+    VODAFONE: { chargeProvider: 'vod', bankCode: 'VOD' },
+    AIRTELTIGO: { chargeProvider: 'atl', bankCode: 'ATL' }
+};
+
+async function paystackRequest(method, endpoint, body) {
+    const res = await fetch(`${PAYSTACK_BASE_URL}${endpoint}`, {
+        method,
+        headers: {
+            'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+            'Content-Type': 'application/json'
+        },
+        body: body ? JSON.stringify(body) : undefined
+    });
+    const json = await res.json();
+    if (!res.ok || json.status === false) {
+        throw new Error(json.message || `Paystack API error (HTTP ${res.status})`);
+    }
+    return json.data;
+}
+
+// Requests a MoMo charge. IMPORTANT: Ghana MoMo charges complete OFFLINE — this call
+// only confirms the approval PROMPT was sent to the payer's phone, not that they actually
+// approved it. The real result (approved / declined / timed out) arrives later via the
+// /api/payment/webhook route below, which is why onResult() here reports "request
+// accepted" (awaitingWebhook: true) rather than a final outcome in real mode. Only the
+// simulated fallback (no API key set) resolves instantly, matching how the earlier stub
+// behaved for local testing.
+function initiateMomoCharge(payerId, network, amountGhs, onResult) {
+    if (!PAYSTACK_SECRET_KEY) {
+        console.log(`[MoMo SIMULATED] Charging ${amountGhs.toFixed(2)} GHS from ${payerId} via ${network}...`);
+        setTimeout(() => onResult({ success: true, reference: 'SIM-' + Date.now(), awaitingWebhook: false }), 2200);
+        return;
+    }
+
+    const mapping = NETWORK_MAP[network] || NETWORK_MAP.MTN;
+    const reference = 'PL-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+
+    paystackRequest('POST', '/charge', {
+        email: `${payerId.replace(/[^0-9a-zA-Z]/g, '')}@pragyalink.local`, // Paystack requires an email even for MoMo charges — synthesized since passengers don't have one
+        amount: Math.round(amountGhs * 100), // GHS -> pesewas (Paystack's currency subunit)
+        currency: 'GHS',
+        reference,
+        mobile_money: { phone: payerId, provider: mapping.chargeProvider }
+    }).then(data => {
+        onResult({ success: true, reference: data.reference || reference, awaitingWebhook: true });
+    }).catch(err => {
+        console.error('❌ Paystack charge request failed:', err.message);
+        onResult({ success: false, reference, awaitingWebhook: false });
+    });
+}
+
+// Pays a driver their share via Paystack Transfer. Creates (and caches) a transfer
+// recipient per phone number the first time, then initiates the transfer. In Paystack
+// test mode, transfers auto-succeed immediately (their documented behavior) — real
+// production transfers go through actual processing.
+async function payoutToDriver(driverMomoNumber, network, amountGhs) {
+    if (!driverMomoNumber) {
+        console.warn(`[MoMo] No payout number on file — skipping payout of ${amountGhs.toFixed(2)} GHS`);
+        return;
+    }
+    if (!PAYSTACK_SECRET_KEY) {
+        console.log(`[MoMo SIMULATED] Paying out ${amountGhs.toFixed(2)} GHS to driver ${driverMomoNumber} via ${network}`);
+        return;
+    }
+
+    try {
+        const mapping = NETWORK_MAP[network] || NETWORK_MAP.MTN;
+        db.payoutRecipientCodes = db.payoutRecipientCodes || {};
+        let recipientCode = db.payoutRecipientCodes[driverMomoNumber];
+
+        if (!recipientCode) {
+            const recipient = await paystackRequest('POST', '/transferrecipient', {
+                type: 'mobile_money',
+                name: `PragyaLink Driver ${driverMomoNumber}`,
+                account_number: driverMomoNumber,
+                bank_code: mapping.bankCode,
+                currency: 'GHS'
+            });
+            recipientCode = recipient.recipient_code;
+            db.payoutRecipientCodes[driverMomoNumber] = recipientCode;
+            saveDatabase(db);
+        }
+
+        await paystackRequest('POST', '/transfer', {
+            source: 'balance',
+            reason: 'PragyaLink trip earnings',
+            amount: Math.round(amountGhs * 100),
+            recipient: recipientCode,
+            reference: 'PAYOUT-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)
+        });
+        console.log(`✅ Paid out ${amountGhs.toFixed(2)} GHS to ${driverMomoNumber}`);
+    } catch (err) {
+        console.error(`❌ Payout failed for ${driverMomoNumber}:`, err.message);
+    }
+}
+
+function recordTransaction(tx) {
+    const record = { id: 'TXN-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), timestamp: new Date().toISOString(), ...tx };
+    db.transactions.push(record);
+    saveDatabase(db);
+    return record;
+}
+
+// =========================================================
+// 🎁 REFERRAL PROGRAM
+// =========================================================
+// Layered on purpose: a small instant credit on signup (low fraud risk — the amount is
+// small enough that gaming it isn't worth the effort) plus a bigger milestone bonus that
+// only pays out once the referred person proves they're a real, repeat user. Paying the
+// big reward for a signup alone is exactly the fraud pattern (bot signups, one person
+// making a pile of "referred" accounts) this two-tier structure exists to avoid.
+const REFERRAL_INSTANT_CREDIT_GHS = 2;
+const REFERRAL_MILESTONE_BONUS_REFERRER_GHS = 10;
+const REFERRAL_MILESTONE_BONUS_REFEREE_GHS = 5;
+const REFERRAL_DRIVER_TRIP_THRESHOLD = 10;
+
+function generateReferralCode(identifier) {
+    if (!identifier) return null;
+    if (db.referralCodes[identifier]) return db.referralCodes[identifier];
+    const code = 'PL' + Math.random().toString(36).slice(2, 7).toUpperCase();
+    db.referralCodes[identifier] = code;
+    saveDatabase(db);
+    return code;
+}
+
+function findReferrerByCode(code) {
+    if (!code) return null;
+    const normalized = code.trim().toUpperCase();
+    return Object.keys(db.referralCodes).find(id => db.referralCodes[id] === normalized) || null;
+}
+
+function creditWallet(identifier, amountGhs) {
+    if (!identifier) return;
+    db.walletCredits[identifier] = (db.walletCredits[identifier] || 0) + amountGhs;
+}
+
+// Called once, when the referee first enters a code (registration / ownership setup)
+function registerReferral(referrerCode, refereeId, type) {
+    if (!referrerCode || !refereeId) return null;
+    const referrerId = findReferrerByCode(referrerCode);
+    if (!referrerId || referrerId === refereeId) return null; // invalid code or self-referral
+    if (db.referrals.some(r => r.refereeId === refereeId)) return null; // already referred once
+
+    const referral = { referrerId, refereeId, type, status: 'pending', createdAt: new Date().toISOString() };
+    db.referrals.push(referral);
+    creditWallet(refereeId, REFERRAL_INSTANT_CREDIT_GHS);
+    saveDatabase(db);
+    return referral;
+}
+
+// Called wherever a referee's activity might cross the qualification bar — a driver's
+// Nth completed trip, or a passenger's first successfully paid trip.
+function checkReferralQualification(refereeId) {
+    const referral = db.referrals.find(r => r.refereeId === refereeId && r.status === 'pending');
+    if (!referral) return;
+
+    let qualifies = false;
+    if (referral.type === 'driver') {
+        const stats = db.driverStats[refereeId];
+        qualifies = !!stats && stats.totalTrips >= REFERRAL_DRIVER_TRIP_THRESHOLD;
+    } else if (referral.type === 'passenger') {
+        qualifies = db.transactions.some(t => t.payerId === refereeId && t.status === 'SUCCESS');
+    }
+    if (!qualifies) return;
+
+    creditWallet(referral.referrerId, REFERRAL_MILESTONE_BONUS_REFERRER_GHS);
+    creditWallet(referral.refereeId, REFERRAL_MILESTONE_BONUS_REFEREE_GHS);
+    referral.status = 'rewarded';
+    referral.rewardedAt = new Date().toISOString();
+
+    if (referral.type === 'driver') {
+        const referrerStats = ensureDriverStats(referral.referrerId);
+        referrerStats.qualifiedReferrals = (referrerStats.qualifiedReferrals || 0) + 1;
+        recomputeBadge(referrerStats);
+    }
+    saveDatabase(db);
 }
 
 // Build the filtered payload a fleet-owner dashboard (owner.html / fleet.html) needs:
@@ -211,8 +505,18 @@ function emitFleetToOwner(ownerSocketId) {
     });
 }
 
-function broadcastFleetUpdates() {
-    Object.keys(fleetOwnerSockets).forEach(socketId => emitFleetToOwner(socketId));
+function broadcastFleetUpdates(fleetCode) {
+    // When the affected fleet is known, only recompute+resend for owners watching THAT
+    // fleet — not every connected owner/fleet dashboard on every single driver's every
+    // telemetry tick. Falls back to updating everyone only when the caller genuinely
+    // doesn't know which fleet was affected.
+    if (fleetCode) {
+        Object.keys(fleetOwnerSockets).forEach(socketId => {
+            if (fleetOwnerSockets[socketId] === fleetCode) emitFleetToOwner(socketId);
+        });
+    } else {
+        Object.keys(fleetOwnerSockets).forEach(socketId => emitFleetToOwner(socketId));
+    }
 }
 
 // Pool trips live in `activePoolTrips` keyed by socket.id, which is meaningless after a
@@ -275,6 +579,65 @@ app.get('/api/passenger/history/:phone', (req, res) => {
     res.json(history);
 });
 
+// Finalizes a payment exactly once, however it was triggered (real webhook or the stub's
+// simulated callback) — idempotent by design, since payment gateways commonly retry or
+// duplicate webhook delivery.
+function finalizePayment(reference, status) {
+    const tx = db.transactions.find(t => t.reference === reference);
+    if (!tx || tx.status !== 'PENDING') return null; // unknown reference, or already settled
+
+    tx.status = status === 'SUCCESS' ? 'SUCCESS' : 'FAILED';
+    tx.settledAt = new Date().toISOString();
+
+    if (tx.status === 'SUCCESS') {
+        checkReferralQualification(tx.payerId);
+        const payout = db.driverPayouts[tx.plateNumber];
+        if (payout) {
+            payoutToDriver(payout.momoNumber, payout.network, +(tx.amountGhs * (1 - PLATFORM_COMMISSION_RATE)).toFixed(2));
+        }
+    }
+    saveDatabase(db);
+
+    if (tx.payerSocketId) {
+        io.to(tx.payerSocketId).emit('payment-status-update', {
+            tripId: tx.tripId, status: tx.status, reference,
+            amountGhs: tx.amountGhs, amountDue: tx.amountDue, creditApplied: tx.creditApplied
+        });
+    }
+    return tx;
+}
+
+// Paystack calls this URL when a charge (or transfer) reaches a final state — this is
+// the ONLY authoritative source of truth for whether a Ghana MoMo charge actually got
+// approved, since those charges complete offline on the payer's phone. Signature
+// verification is real: HMAC-SHA512 of the raw request body, keyed with your Paystack
+// secret key, compared against the x-paystack-signature header — confirmed against
+// Paystack's current docs. Falls back to accepting unverified calls ONLY when no secret
+// key is configured (simulated/local-dev mode) — do not run this in that state with a
+// public URL, since anyone who finds it could then fabricate a "payment succeeded" call.
+app.post('/api/payment/webhook', (req, res) => {
+    if (PAYSTACK_SECRET_KEY) {
+        const signature = req.headers['x-paystack-signature'];
+        const expectedHash = crypto.createHmac('sha512', PAYSTACK_SECRET_KEY).update(req.rawBody).digest('hex');
+        if (!signature || signature !== expectedHash) {
+            console.warn('⚠️  Rejected a webhook call with an invalid or missing Paystack signature');
+            return res.status(401).json({ error: 'Invalid signature' });
+        }
+    } else {
+        console.warn('⚠️  PAYSTACK_SECRET_KEY not set — accepted a webhook call WITHOUT signature verification (only acceptable in local/simulated dev mode)');
+    }
+
+    const { event, data } = req.body || {};
+    if (event === 'charge.success' && data && data.reference) {
+        finalizePayment(data.reference, 'SUCCESS');
+    } else if (event === 'charge.failed' && data && data.reference) {
+        finalizePayment(data.reference, 'FAILED');
+    }
+    // Always 200 — Paystack retries on non-2xx, and there's nothing to retry for events
+    // we don't act on (e.g. transfer.success, which we already treat as fire-and-forget).
+    res.sendStatus(200);
+});
+
 // =========================================================
 // 📡 REALTIME ENGINE — single connection handler
 // =========================================================
@@ -320,7 +683,7 @@ io.on('connection', (socket) => {
         const liveEntry = Object.values(activeRiders).find(r => r.plateNumber === plate);
         if (liveEntry) {
             liveEntry.isRegisteredVehicle = true;
-            broadcastFleetUpdates();
+            broadcastFleetUpdates(ownerCode);
         }
     });
 
@@ -443,16 +806,17 @@ io.on('connection', (socket) => {
 
         socket.emit('passport-update', passport);
         io.emit('rider-location-updated', activeRiders[socket.id]);
-        broadcastFleetUpdates();
+        broadcastFleetUpdates(fleetOwnerCode);
     }
 
     // Driver explicitly goes offline without disconnecting the socket
     safeOn(socket, 'driver-go-offline', () => {
         if (activeRiders[socket.id]) {
+            const affectedFleetCode = activeRiders[socket.id].fleetOwnerCode;
             delete activeRiders[socket.id];
             delete activePoolTrips[socket.id];
             io.emit('rider-disconnected', socket.id);
-            broadcastFleetUpdates();
+            broadcastFleetUpdates(affectedFleetCode);
         }
     });
 
@@ -483,7 +847,7 @@ io.on('connection', (socket) => {
         if (rider && resData.status === 'accepted') {
             rider.status = 'EN_ROUTE';
             io.emit('rider-location-updated', rider);
-            broadcastFleetUpdates();
+            broadcastFleetUpdates(rider.fleetOwnerCode);
         }
         if (resData.passengerSocketId) {
             io.to(resData.passengerSocketId).emit('ride-request-response', resData);
@@ -495,7 +859,7 @@ io.on('connection', (socket) => {
         if (rider) {
             rider.status = 'ON_TRIP';
             io.emit('rider-location-updated', rider);
-            broadcastFleetUpdates();
+            broadcastFleetUpdates(rider.fleetOwnerCode);
         }
         io.emit('trip-meter-started', data);
     });
@@ -510,6 +874,7 @@ io.on('connection', (socket) => {
             const stats = ensureDriverStats(rider.plateNumber);
             stats.totalTrips += 1;
             recomputeBadge(stats);
+            checkReferralQualification(rider.plateNumber);
 
             const tripRecord = {
                 tripId: 'TRIP-' + Date.now(),
@@ -534,7 +899,7 @@ io.on('connection', (socket) => {
             }
 
             io.emit('rider-location-updated', rider);
-            broadcastFleetUpdates();
+            broadcastFleetUpdates(rider.fleetOwnerCode);
         }
     });
 
@@ -552,7 +917,7 @@ io.on('connection', (socket) => {
         saveDatabase(db);
 
         socket.emit('passport-update', passport);
-        broadcastFleetUpdates();
+        broadcastFleetUpdates(passport.ownerCode);
     });
 
     // =========================================================
@@ -672,18 +1037,19 @@ io.on('connection', (socket) => {
         });
         io.to(socket.id).emit('pool-trip-updated', trip);
         io.emit('rider-location-updated', rider);
-        broadcastFleetUpdates();
+        broadcastFleetUpdates(rider.fleetOwnerCode);
 
         // If every stop is dropped, close out the pool trip
         if (trip.stops.every(s => s.status === 'DROPPED')) {
             const stats = ensureDriverStats(rider.plateNumber);
             stats.totalTrips += 1;
             recomputeBadge(stats);
+            checkReferralQualification(rider.plateNumber);
             delete activePoolTrips[socket.id];
             persistPoolTrip(rider.plateNumber, null);
             rider.status = 'IDLE';
             io.emit('rider-location-updated', rider);
-            broadcastFleetUpdates();
+            broadcastFleetUpdates(rider.fleetOwnerCode);
         } else {
             persistPoolTrip(rider.plateNumber, trip);
         }
@@ -711,7 +1077,7 @@ io.on('connection', (socket) => {
             };
             persistPoolTrip(rider.plateNumber, activePoolTrips[socket.id]);
             io.emit('rider-location-updated', rider);
-            broadcastFleetUpdates();
+            broadcastFleetUpdates(rider.fleetOwnerCode);
         }
 
         if (resData.passengerSocketId) {
@@ -741,6 +1107,115 @@ io.on('connection', (socket) => {
     safeOn(socket, 'request-driver-stats', (plateNumber) => {
         if (!plateNumber) return;
         socket.emit('driver-stats-update', db.driverStats[plateNumber.toUpperCase()] || null);
+    });
+
+    // ---- Payments (Mobile Money) ----
+
+    // Driver registers where their payout goes. Called from the ownership modal.
+    safeOn(socket, 'register-payout-number', (data) => {
+        if (!data || !data.plateNumber || !data.momoNumber || !data.network) return;
+        const plate = data.plateNumber.toUpperCase();
+        db.driverPayouts[plate] = { momoNumber: data.momoNumber, network: data.network };
+        saveDatabase(db);
+        socket.emit('payout-number-saved', db.driverPayouts[plate]);
+    });
+
+    // Passenger pays for a completed trip (private or one Pool stop). Wallet credit is
+    // applied automatically before any MoMo charge is attempted.
+    safeOn(socket, 'initiate-payment', (paymentData) => {
+        const { tripId, payerId, payerPhone, network, amountGhs, plateNumber, poolStopId } = paymentData || {};
+        if (!payerId || !amountGhs || amountGhs <= 0) return;
+
+        const availableCredit = db.walletCredits[payerId] || 0;
+        const creditApplied = +Math.min(availableCredit, amountGhs).toFixed(2);
+        const amountDue = +(amountGhs - creditApplied).toFixed(2);
+        if (creditApplied > 0) db.walletCredits[payerId] = +(availableCredit - creditApplied).toFixed(2);
+
+        if (amountDue <= 0) {
+            // Fully covered by wallet credit — no MoMo charge needed
+            const tx = recordTransaction({
+                tripId, payerId, payerPhone, network: network || null, method: 'WALLET_CREDIT',
+                amountGhs, creditApplied, amountDue: 0, status: 'SUCCESS',
+                payerSocketId: socket.id, plateNumber, poolStopId, reference: 'CREDIT-' + Date.now()
+            });
+            checkReferralQualification(payerId);
+            const payout = db.driverPayouts[plateNumber];
+            if (payout) payoutToDriver(payout.momoNumber, payout.network, +(amountGhs * (1 - PLATFORM_COMMISSION_RATE)).toFixed(2));
+            saveDatabase(db);
+            socket.emit('payment-status-update', { tripId, status: 'SUCCESS', reference: tx.reference, amountGhs, creditApplied, amountDue: 0 });
+            return;
+        }
+
+        const tx = recordTransaction({
+            tripId, payerId, payerPhone, network, method: 'MOMO',
+            amountGhs, creditApplied, amountDue, status: 'PENDING',
+            payerSocketId: socket.id, plateNumber, poolStopId, reference: null
+        });
+        socket.emit('payment-status-update', { tripId, status: 'PENDING', amountGhs, amountDue, creditApplied });
+
+        initiateMomoCharge(payerId, network, amountDue, (result) => {
+            tx.reference = result.reference;
+            saveDatabase(db);
+            if (!result.awaitingWebhook) {
+                // Simulated mode (no Paystack key configured) — result IS the final outcome
+                finalizePayment(result.reference, result.success ? 'SUCCESS' : 'FAILED');
+            } else if (!result.success) {
+                // Real mode, but the charge REQUEST itself failed (bad number, network
+                // error) — no prompt was ever sent, so there's no webhook coming for this one
+                finalizePayment(result.reference, 'FAILED');
+            }
+            // else: real mode, prompt sent successfully — stays PENDING until the
+            // /api/payment/webhook route above hears back from Paystack
+        });
+    });
+
+    // Cash fallback — no gateway involved, still logged for the ledger and still eligible
+    // to trigger referral qualification.
+    safeOn(socket, 'mark-paid-cash', (data) => {
+        const { tripId, payerId, payerPhone, amountGhs, plateNumber, poolStopId } = data || {};
+        if (!payerId || !amountGhs) return;
+
+        // If the passenger backed out of a pending MoMo prompt to pay cash instead,
+        // cancel that pending transaction. Otherwise, if they later approve the old
+        // prompt on their phone out of habit, a late webhook would trigger a second
+        // driver payout for the same trip — finalizePayment()'s idempotency check only
+        // protects against a transaction being finalized twice, not against two separate
+        // successful transactions existing for one trip.
+        const pendingMomo = db.transactions.find(t => t.tripId === tripId && t.status === 'PENDING');
+        if (pendingMomo) {
+            pendingMomo.status = 'CANCELLED';
+            pendingMomo.settledAt = new Date().toISOString();
+        }
+
+        recordTransaction({
+            tripId, payerId, payerPhone, method: 'CASH', amountGhs,
+            creditApplied: 0, amountDue: amountGhs, status: 'SUCCESS',
+            payerSocketId: socket.id, plateNumber, poolStopId, reference: 'CASH-' + Date.now()
+        });
+        checkReferralQualification(payerId);
+    });
+
+    // ---- Referral program ----
+
+    safeOn(socket, 'request-referral-info', (identifier) => {
+        if (!identifier) return;
+        const code = generateReferralCode(identifier);
+        const myReferrals = db.referrals.filter(r => r.referrerId === identifier);
+        socket.emit('referral-info-update', {
+            code,
+            walletCredit: db.walletCredits[identifier] || 0,
+            referrals: myReferrals.map(r => ({ status: r.status, type: r.type, createdAt: r.createdAt }))
+        });
+    });
+
+    safeOn(socket, 'submit-referral-code', (data) => {
+        const { code, refereeId, type } = data || {};
+        if (!code || !refereeId || !type) return;
+        const referral = registerReferral(code, refereeId, type);
+        socket.emit('referral-submit-result', {
+            success: !!referral,
+            walletCredit: db.walletCredits[refereeId] || 0
+        });
     });
 
     // ---- Roadside assistance (mechanic <-> driver) ----
@@ -803,10 +1278,11 @@ io.on('connection', (socket) => {
 
     safeOn(socket, 'disconnect', () => {
         if (activeRiders[socket.id]) {
+            const affectedFleetCode = activeRiders[socket.id].fleetOwnerCode;
             delete activeRiders[socket.id];
             delete activePoolTrips[socket.id];
             io.emit('rider-disconnected', socket.id);
-            broadcastFleetUpdates();
+            broadcastFleetUpdates(affectedFleetCode);
         }
         if (fleetOwnerSockets[socket.id]) {
             delete fleetOwnerSockets[socket.id];

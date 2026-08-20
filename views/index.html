@@ -5,15 +5,90 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PragyaLink Ghana | Intelligent Tricycle Network</title>
     <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col justify-between">
+    <style>
+        @keyframes driftBlob {
+            0%   { transform: translate(0, 0) scale(1); }
+            33%  { transform: translate(3vw, -2vh) scale(1.08); }
+            66%  { transform: translate(-2vw, 3vh) scale(0.95); }
+            100% { transform: translate(0, 0) scale(1); }
+        }
+        .blob {
+            position: absolute;
+            border-radius: 9999px;
+            filter: blur(70px);
+            opacity: 0.28;
+            animation: driftBlob 22s ease-in-out infinite;
+        }
 
-    <header class="border-b border-slate-800 px-6 py-4 flex justify-between items-center max-w-7xl mx-auto w-full">
+        @keyframes routePulse {
+            to { stroke-dashoffset: -1000; }
+        }
+        .route-path {
+            stroke-dasharray: 6 14;
+            animation: routePulse 18s linear infinite;
+        }
+
+        @keyframes driftVehicle {
+            from { transform: translate(-10vw, 0) rotate(-3deg); }
+            to   { transform: translate(110vw, -6vh) rotate(3deg); }
+        }
+        .drift-vehicle {
+            position: absolute;
+            opacity: 0.16;
+            animation-name: driftVehicle;
+            animation-timing-function: linear;
+            animation-iteration-count: infinite;
+            filter: grayscale(0.2);
+        }
+
+        @keyframes captionFade {
+            0%, 100% { opacity: 0; transform: translateY(4px); }
+            8%, 22%  { opacity: 1; transform: translateY(0); }
+        }
+        .caption-line {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            animation: captionFade 32s ease-in-out infinite;
+        }
+
+        /* Respect motion-sensitivity preferences: freeze everything to a calm static frame */
+        @media (prefers-reduced-motion: reduce) {
+            .blob, .route-path, .drift-vehicle { animation: none !important; }
+            .caption-line { animation: none !important; opacity: 0 !important; }
+            .caption-line:first-child { opacity: 1 !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col justify-between relative overflow-x-hidden">
+
+    <!-- Ambient background: drifting network glow + animated road routes + tricycles + rotating captions.
+         Purely decorative — pointer-events disabled so it never blocks the real UI beneath it. -->
+    <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        <div class="blob w-[32rem] h-[32rem] bg-emerald-500 -top-24 -left-24" style="animation-delay: 0s;"></div>
+        <div class="blob w-[28rem] h-[28rem] bg-amber-500 top-1/3 -right-20" style="animation-delay: -7s;"></div>
+        <div class="blob w-[26rem] h-[26rem] bg-sky-500 bottom-0 left-1/4" style="animation-delay: -14s;"></div>
+
+        <svg class="absolute inset-0 w-full h-full opacity-30" preserveAspectRatio="none">
+            <path class="route-path" d="M -50 120 Q 300 40, 600 160 T 1400 100" fill="none" stroke="#34d399" stroke-width="2" />
+            <path class="route-path" d="M -50 420 Q 400 500, 750 380 T 1500 440" fill="none" stroke="#fbbf24" stroke-width="2" style="animation-delay: -6s;" />
+            <path class="route-path" d="M -50 650 Q 500 560, 900 680 T 1600 600" fill="none" stroke="#38bdf8" stroke-width="2" style="animation-delay: -12s;" />
+        </svg>
+
+        <div class="drift-vehicle text-3xl" style="top: 15%; animation-duration: 34s; animation-delay: -2s;">🛺</div>
+        <div class="drift-vehicle text-2xl" style="top: 55%; animation-duration: 42s; animation-delay: -18s;">🛺</div>
+        <div class="drift-vehicle text-3xl" style="top: 78%; animation-duration: 38s; animation-delay: -9s;">🛺</div>
+    </div>
+
+    <header class="relative z-10 border-b border-slate-800 px-6 py-4 flex justify-between items-center max-w-7xl mx-auto w-full">
         <a href="/" class="text-2xl font-black text-white tracking-wider">Pragya<span class="text-emerald-400">Link 🛺</span></a>
         <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-3 py-1 rounded-full">Ghana Operating System</span>
     </header>
 
-    <main class="max-w-5xl mx-auto px-6 py-12 flex-1 flex flex-col justify-center items-center text-center space-y-10">
+    <main class="relative z-10 max-w-5xl mx-auto px-6 py-12 flex-1 flex flex-col justify-center items-center text-center space-y-10">
         <div class="space-y-4 max-w-2xl">
             <h1 class="text-4xl sm:text-6xl font-black text-white tracking-tight">
                 The Digital Infrastructure for <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-amber-400">Urban Mobility</span>
@@ -21,9 +96,25 @@
             <p class="text-slate-400 text-sm sm:text-base">
                 Connecting passengers, tricycle drivers, authorized mechanic workshops, and fleet owners on a unified 3D geospatial network.
             </p>
+
+            <!-- Ambient rotating captions — cross-fades through real platform features -->
+            <div class="relative h-5 w-full mt-2" aria-hidden="true">
+                <div class="caption-line" style="animation-delay: 0s;">
+                    <span class="text-[11px] sm:text-xs font-mono text-emerald-400/70 tracking-wide">🛺 Live GPS across Kumasi &amp; Accra</span>
+                </div>
+                <div class="caption-line" style="animation-delay: -8s;">
+                    <span class="text-[11px] sm:text-xs font-mono text-amber-400/70 tracking-wide">🗣️ Pragya Voice speaks Twi &amp; English</span>
+                </div>
+                <div class="caption-line" style="animation-delay: -16s;">
+                    <span class="text-[11px] sm:text-xs font-mono text-sky-400/70 tracking-wide">🚏 Pool a ride, split the fare automatically</span>
+                </div>
+                <div class="caption-line" style="animation-delay: -24s;">
+                    <span class="text-[11px] sm:text-xs font-mono text-emerald-400/70 tracking-wide">🆘 One-tap SOS reaches your operator instantly</span>
+                </div>
+            </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full">
             
             <a href="/passenger" class="bg-slate-900 border border-slate-800 hover:border-emerald-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
                 <div class="text-4xl">🧳</div>
@@ -44,12 +135,21 @@
             </a>
 
             <a href="/owner" class="bg-slate-900 border border-slate-800 hover:border-amber-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
-                <div class="text-4xl">📊</div>
+                <div class="text-4xl">📋</div>
                 <div>
-                    <h3 class="text-lg font-black text-white group-hover:text-amber-400 transition">Fleet Portal</h3>
-                    <p class="text-xs text-slate-400 mt-1">Monitor multi-vehicle stats, lease targets & health status.</p>
+                    <h3 class="text-lg font-black text-white group-hover:text-amber-400 transition">Owner Portal</h3>
+                    <p class="text-xs text-slate-400 mt-1">Register vehicles, set lease targets & manage your fleet registry.</p>
                 </div>
                 <span class="text-xs font-bold text-amber-400 flex items-center gap-1">Open Portal &rarr;</span>
+            </a>
+
+            <a href="/fleet" class="bg-slate-900 border border-slate-800 hover:border-indigo-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
+                <div class="text-4xl">🗺️</div>
+                <div>
+                    <h3 class="text-lg font-black text-white group-hover:text-indigo-400 transition">Fleet Command</h3>
+                    <p class="text-xs text-slate-400 mt-1">Live map, searchable ledger & driver leaderboard, in real time.</p>
+                </div>
+                <span class="text-xs font-bold text-indigo-400 flex items-center gap-1">Open Portal &rarr;</span>
             </a>
 
             <a href="/mechanic" class="bg-slate-900 border border-slate-800 hover:border-sky-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
@@ -64,7 +164,7 @@
         </div>
     </main>
 
-    <footer class="border-t border-slate-800 px-6 py-4 text-center text-xs text-slate-500">
+    <footer class="relative z-10 border-t border-slate-800 px-6 py-4 text-center text-xs text-slate-500">
         PragyaLink Open Telematics Platform &copy; 2026
     </footer>
 
