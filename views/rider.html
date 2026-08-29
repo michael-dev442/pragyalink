@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Cockpit & Pragya AI | PragyaLink</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #map { width: 100%; height: 100%; min-height: 400px; background-color: #020617; }
+        .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
+        .modal-overlay { background: rgba(2, 6, 23, 0.88); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
+
+    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
+        <div class="flex items-center space-x-3">
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-amber-400">Rider 🛺</span></a>
+            <span id="shiftBadge" class="bg-slate-800 text-slate-400 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-slate-700">
+                Offline
+            </span>
+            <span id="gpsQualityBadge" class="text-[9px] font-mono text-slate-500 bg-slate-800/50 border border-slate-700 px-2 py-0.5 rounded hidden sm:inline-block">
+                📡 Acquiring GPS...
+            </span>
+            <span id="speedBadge" class="text-[9px] font-mono text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded hidden sm:inline-block">
+                🚀 0 km/h
+            </span>
+            <button id="compassToggleBtn" onclick="toggleCompassMode()" class="text-[9px] font-mono text-slate-400 bg-slate-800/50 border border-slate-700 px-2 py-0.5 rounded hover:border-sky-500 transition">
+                🧭 Compass Off
+            </button>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <button id="langToggleBtn" onclick="toggleLanguage()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition">
+                🌐 EN
+            </button>
+            <button id="voiceToggleBtn" onclick="toggleVoiceAssistantPermission()" class="text-xs bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition">
+                <span id="voiceIndicatorDot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+                <span id="voiceBtnText">Activate Voice AI</span>
+            </button>
+            
+            <button onclick="openOwnershipModal()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
+                ⚙️ Profile / Ownership
+            </button>
+        </div>
+    </header>
+
+    <div id="offlineBanner" class="hidden bg-red-500/90 text-white text-[11px] font-bold text-center py-1.5 z-30">
+        📡 No connection — actions will be queued and sent automatically once you're back online.
+    </div>
+
+    <div class="flex-1 relative flex flex-col md:flex-row min-h-0 w-full">
+        <div class="flex-1 relative h-full w-full">
+            <div id="map"></div>
+        </div>
+
+        <aside class="w-full md:w-80 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
+            
+            <div id="driverBadgeCard" class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800 space-y-2">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] text-slate-400">Driver Rank</div>
+                        <div id="dispDriverBadge" class="text-sm font-black text-slate-300">New Driver</div>
+                    </div>
+                    <div class="text-right text-[10px] font-mono text-slate-400">
+                        <div>⭐ <strong id="dispAvgRating" class="text-amber-400">–</strong></div>
+                        <div><strong id="dispTotalTrips" class="text-slate-200">0</strong> trips</div>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between border-t border-slate-800 pt-2">
+                    <span class="text-[10px] font-mono text-emerald-400" id="driverWalletBadge">🎁 GH₵ 0.00 wallet</span>
+                    <button onclick="shareDriverReferralCode()" class="text-[10px] font-bold text-sky-400 hover:underline">Invite drivers →</button>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-3">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-300">Driver Console Status</span>
+                    <div class="flex items-center gap-2">
+                        <button onclick="forceGpsRefresh()" class="text-[9px] font-bold text-sky-400 hover:underline">🔄 GPS</button>
+                        <span id="ownershipTag" class="text-[9px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+                            Not Configured
+                        </span>
+                    </div>
+                </div>
+
+                <div class="text-xs space-y-1 font-mono text-slate-300 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                    <div>Driver: <strong id="dispDriverName" class="text-white">Not Set</strong></div>
+                    <div>Phone: <strong id="dispDriverPhone" class="text-sky-400">Not Set</strong></div>
+                    <div>Plate: <strong id="dispDriverPlate" class="text-amber-400">Not Set</strong></div>
+                    <div>Mode: <strong id="dispOperatingMode" class="text-slate-400">Not Set</strong></div>
+                    <div>Shift Earnings: <strong id="dispShiftEarnings" class="text-emerald-400">GH₵ 0.00</strong></div>
+                </div>
+
+                <div id="workAndPayCard" class="hidden bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                    <div class="flex justify-between items-center text-[10px]">
+                        <span class="font-bold text-slate-300">💼 Today's Work & Pay Target</span>
+                        <span id="workAndPayLabel" class="font-mono text-slate-400">GH₵ 0 / 0</span>
+                    </div>
+                    <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                        <div id="workAndPayBar" class="h-full bg-amber-400 transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <p id="workAndPayMsg" class="text-[9px] text-slate-500"></p>
+                </div>
+
+                <button id="shiftToggleBtn" onclick="toggleShiftStatus()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
+                    🟢 Go Online & Start Shift
+                </button>
+                <button onclick="reportBreakdownSOS()" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold py-2 rounded-xl border border-red-500/30 transition text-[11px]">
+                    🆘 Report Breakdown / Call Nearest Workshop
+                </button>
+            </div>
+
+            <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        🛠️ Engine Health Tracker
+                    </span>
+                    <span id="engineStatusBadge" class="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        Good
+                    </span>
+                </div>
+
+                <div class="space-y-1 text-[11px] font-mono text-slate-300">
+                    <div class="flex justify-between">
+                        <span>Odometer:</span>
+                        <strong id="dispOdometerKm" class="text-white">0.0 km</strong>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Next Oil Service:</span>
+                        <strong id="dispNextServiceKm" class="text-amber-400">1500.0 km</strong>
+                    </div>
+                </div>
+
+                <div class="w-full bg-slate-950 rounded-full h-2 border border-slate-800 overflow-hidden">
+                    <div id="healthProgressBar" class="bg-emerald-400 h-full transition-all duration-500" style="width: 100%;"></div>
+                </div>
+
+                <button onclick="openMaintenanceModal()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold py-1.5 rounded-lg border border-slate-700 transition">
+                    🔧 Maintenance & Reset Counter
+                </button>
+            </div>
+
+            <div id="tripStatusCard" class="bg-slate-900/90 p-4 rounded-2xl border border-amber-500/40 space-y-3">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span class="text-xs font-black text-amber-400">🎙️ Active Dispatch Panel</span>
+                    <span id="tripStatusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Idle</span>
+                </div>
+                <div id="tripActionArea" class="space-y-2 text-xs">
+                    <p class="text-slate-400 italic text-[11px]">Go online to start receiving passenger dispatches.</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-[10px] space-y-1 font-mono">
+                <div class="text-slate-500 font-bold uppercase tracking-wider flex justify-between">
+                    <span>Pragya Voice Status</span>
+                    <span id="voiceEngineState" class="text-slate-400">Stopped</span>
+                </div>
+                <div id="speechTranscript" class="text-sky-300 italic min-h-[20px]">Standard English assistant ready.</div>
+                <div id="twiCaption" class="text-amber-300 font-bold min-h-[16px]"></div>
+            </div>
+        </aside>
+    </div>
+
+    <div id="ownershipModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-black text-white flex items-center gap-2">
+                    🛺 Vehicle Ownership Setup
+                </h3>
+                <button onclick="closeOwnershipModal()" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
+            </div>
+
+            <p class="text-xs text-slate-400">
+                How are you operating this tricycle today? Select your operational model below:
+            </p>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button id="optOwnerBtn" onclick="selectOperatingModel('OWNER')" class="p-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-left hover:border-amber-500 transition space-y-1">
+                    <div class="text-xs font-black text-amber-400">👑 I Own Vehicle</div>
+                    <div class="text-[10px] text-slate-400">Independent operator. Direct payouts.</div>
+                </button>
+                <button id="optFleetBtn" onclick="selectOperatingModel('FLEET')" class="p-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-left hover:border-sky-500 transition space-y-1">
+                    <div class="text-xs font-black text-sky-400">🏢 Fleet Driver</div>
+                    <div class="text-[10px] text-slate-400">Work & Pay / Driving for Manager.</div>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs pt-2">
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1">Driver Full Name *</label>
+                    <input type="text" id="modalDriverName" placeholder="e.g. Kofi Mensah" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1">Phone Number *</label>
+                    <input type="tel" id="modalDriverPhone" placeholder="e.g. 0244123456" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1">Tricycle Plate Number *</label>
+                    <input type="text" id="modalDriverPlate" placeholder="e.g. M-24-AS" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-amber-400 font-mono focus:outline-none focus:border-amber-500">
+                </div>
+
+                <div id="fleetCodeContainer" class="hidden">
+                    <label class="block font-bold text-sky-400 mb-1">Fleet Owner Code / Manager ID *</label>
+                    <input type="text" id="modalFleetCode" placeholder="e.g. KUMASI_FLEET_01" class="w-full bg-slate-950 border border-sky-500/50 rounded-xl px-3 py-2 text-sky-300 font-mono focus:outline-none focus:border-sky-400">
+                </div>
+
+                <div class="pt-2 border-t border-slate-800/60 space-y-2">
+                    <label class="block font-bold text-emerald-400 mb-1">📱 Mobile Money Payout</label>
+                    <select id="modalMomoNetwork" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500">
+                        <option value="MTN">MTN Mobile Money</option>
+                        <option value="VODAFONE">Vodafone Cash</option>
+                        <option value="AIRTELTIGO">AirtelTigo Money</option>
+                    </select>
+                    <input type="tel" id="modalMomoNumber" placeholder="MoMo number for trip payouts" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div id="modalReferralRow" class="pt-2 border-t border-slate-800/60">
+                    <label class="block font-bold text-slate-300 mb-1">Referral Code (optional)</label>
+                    <input type="text" id="modalReferralCode" placeholder="Have a code from another driver?" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
+                </div>
+            </div>
+
+            <div class="pt-2">
+                <button onclick="saveOwnershipSettings()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
+                    💾 Save Profile & Continue
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="maintenanceModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center">
+            <div class="w-14 h-14 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-2xl mx-auto border border-amber-500/40">
+                🔧
+            </div>
+
+            <div>
+                <h3 class="text-lg font-black text-white">Engine Service Log</h3>
+                <p class="text-xs text-slate-400 mt-1">Recommended interval: Oil change every 1,500 km.</p>
+            </div>
+
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs font-mono text-left space-y-1">
+                <div>Total Distance: <strong id="maintOdometerVal" class="text-white">0.0 km</strong></div>
+                <div>Distance Since Service: <strong id="maintDistSinceVal" class="text-sky-400">0.0 km</strong></div>
+                <div>Status: <strong id="maintStatusText" class="text-emerald-400">Good Condition</strong></div>
+            </div>
+
+            <div class="space-y-2 pt-2">
+                <button onclick="resetOilServiceCounter()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
+                    🔄 Confirm Oil Change & Reset Counter
+                </button>
+                <button onclick="closeMaintenanceModal()" class="w-full bg-slate-800 text-slate-400 font-bold py-2 rounded-xl transition text-xs">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="dispatchAlertModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border-2 border-amber-500/80 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center">
+            <div class="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-3xl mx-auto border border-amber-500/40">
+                🛺
+            </div>
+            
+            <div>
+                <h3 id="dispatchModalTitle" class="text-lg font-black text-white">New Dispatch Request!</h3>
+                <p class="text-xs text-slate-400 mt-1">Passenger waiting at pickup location.</p>
+            </div>
+
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs font-mono text-left space-y-1">
+                <div>Passenger Phone: <strong id="modalPassengerPhone" class="text-sky-400">---</strong></div>
+                <div>Distance: <strong id="modalPickupDist" class="text-emerald-400">Calculating...</strong></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-2">
+                <button onclick="acceptRideFromModal()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
+                    ✅ Accept Ride
+                </button>
+                <button onclick="declineRideFromModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl transition text-xs border border-slate-700">
+                    ❌ Decline
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================
+        // 🧠 CORE STATE
+        // =========================================================
+        const socket = io();
+        let isOnline = false;
+
+        // Passenger phone numbers are free text someone else typed — never trust them into
+        // innerHTML or an href attribute unescaped.
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+        let selectedOperatingMode = "OWNER";
+        let driverPos = { lat: 6.6885, lng: -1.6244 };
+        let prevDriverPos = null;
+        let activePassenger = null;
+        let activeRouteCoordinates = [];
+
+        const INDEPENDENT_CODE = 'INDEPENDENT';
+        const SERVICE_INTERVAL_KM = 1500.0;
+        let totalOdometerKm = parseFloat(localStorage.getItem('pragya_odometer_km')) || 0.0;
+        let lastServiceOdometerKm = parseFloat(localStorage.getItem('pragya_last_service_km')) || 0.0;
+        let serviceAlertVoiceTriggered = false;
+
+        let recognition = null;
+        let voiceActive = false;
+        let lastSpokenText = "";
+        let milestoneAlerts = { m500: false, m200: false, m50: false };
+
+        let tripStartTime = null;
+        let tripStartOdometer = 0;
+        let heartbeatInterval = null;
+
+        // ---- Pragya Voice: language + bilingual phrase dictionary ----
+        let currentLang = localStorage.getItem('pragya_lang') || 'EN';
+        const PHRASES = {
+            welcomeOnline: { EN: "Welcome online. You are active on the dispatch network.", TWI: "Akwaaba. Wo ho aba adwuma no mu." },
+            wentOffline: { EN: "You are now offline.", TWI: "Wo afiri adwuma no mu." },
+            newDispatch: { EN: "New dispatch alert. Say Accept or tap the button.", TWI: "Akwantuo foforo aba. Ka Gye anaa fa botom no." },
+            arrivedPickup: { EN: "You have arrived at the pickup location.", TWI: "Woaduru faako a wobɛfa passenger no." },
+            passengerBoarded: { EN: "Passenger trip started. Navigation routing active.", TWI: "Akwantuo no afiri ase. Wo Akwantuo Aba Ase." },
+            tripComplete: { EN: "Arrived at destination. Please collect the fare from passenger.", TWI: "Woaduru baabi a worekɔ. Gye wo ka no." },
+            serviceAlert: { EN: "Service alert. You have reached 1,500 kilometers. Please schedule an oil change.", TWI: "Wo kaa no hia service. Kɔ mma wɔnhwɛ." },
+            serviceReset: { EN: "Engine service reset confirmed.", TWI: "Wɔasi wo kaa no service foforo." },
+            sosSent: { EN: "Breakdown reported. Nearby workshops have been notified.", TWI: "Yɛama mmoa. Wobɛba wo nkyɛn." },
+            reconnected: { EN: "Connection restored. Any pending actions have been sent.", TWI: "Wo network no aba bio." },
+            // Voice command confirmations — these used to only speak English regardless
+            // of language mode, so switching to Twi meant status/prompt phrases spoke
+            // Twi but the assistant's actual command replies stayed English the whole time.
+            cmdAccepted: { EN: "Ride accepted. Proceeding to pickup point.", TWI: "Magye. Merekɔ afa passenger no." },
+            cmdDeclined: { EN: "Ride declined.", TWI: "Mennye." },
+            cmdNoPendingRequest: { EN: "There is no pending ride request.", TWI: "Akwantuo biara nni hɔ." },
+            cmdCalling: { EN: "Calling passenger now.", TWI: "Merefrɛ passenger no." },
+            cmdNoActivePassenger: { EN: "No active passenger to call.", TWI: "Passenger biara nni hɔ a merefrɛ no." },
+            cmdNoPassengerBoarded: { EN: "No passenger is currently boarded.", TWI: "Passenger biara nhyɛn mu." },
+            cmdNoTripInProgress: { EN: "There is no trip in progress to end.", TWI: "Akwantuo biara nkɔ so." },
+            cmdAlreadyOnline: { EN: "You are already online.", TWI: "Wo ho aba dedaw adwuma no mu." },
+            cmdAlreadyOffline: { EN: "You are already offline.", TWI: "Wo afiri dedaw adwuma no mu." },
+            cmdSosOpening: { EN: "Opening breakdown report. Please describe the issue.", TWI: "Yɛrebue mmoa hwehwɛ. Ka asɛm no." },
+            cmdNotUnderstood: { EN: "Sorry, I didn't understand that command.", TWI: "Kafra, mente aseɛ." }
+        };
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'EN' ? 'TWI' : 'EN';
+            localStorage.setItem('pragya_lang', currentLang);
+            document.getElementById('langToggleBtn').innerText = currentLang === 'EN' ? '🌐 EN' : '🌐 TWI';
+
+            // Voice commands need to switch listening language too, not just what the
+            // assistant speaks back — restart recognition so it takes effect immediately
+            // rather than waiting for the next activation.
+            if (voiceActive && recognition) {
+                recognition.stop();
+                initSpeechRecognition();
+            }
+        }
+
+        // Speaks a dictionary phrase in the current language, with an on-screen caption in both
+        // languages. Browser text-to-speech support for Twi is inconsistent across devices — if
+        // the device has no Twi voice available, this falls back to speaking the English line
+        // while still showing the Twi caption on screen.
+        function speakPragyaPhrase(key) {
+            const entry = PHRASES[key];
+            if (!entry) return;
+
+            document.getElementById('twiCaption').innerText = `🇬🇭 ${entry.TWI}`;
+
+            if (currentLang === 'TWI') {
+                speakRaw(entry.TWI, 'tw-GH', entry.EN);
+            } else {
+                speakRaw(entry.EN, 'en-US');
+            }
+        }
+
+        // Low-level TTS call with graceful fallback if the requested language voice is missing
+        function speakRaw(text, langCode, fallbackText) {
+            lastSpokenText = text;
+            if (!('speechSynthesis' in window)) return;
+
+            window.speechSynthesis.cancel();
+            const voices = window.speechSynthesis.getVoices();
+            const hasVoice = voices.some(v => v.lang && v.lang.toLowerCase().startsWith(langCode.split('-')[0]));
+
+            const utterance = new SpeechSynthesisUtterance(hasVoice ? text : (fallbackText || text));
+            utterance.lang = hasVoice ? langCode : 'en-US';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // ---- Offline resilience: queue safety-critical emits while disconnected, auto-flush ----
+        function emitReliable(event, payload) {
+            if (socket.connected) {
+                socket.emit(event, payload);
+            } else {
+                const outbox = JSON.parse(localStorage.getItem('pragya_outbox') || '[]');
+                outbox.push({ event, payload, ts: Date.now() });
+                localStorage.setItem('pragya_outbox', JSON.stringify(outbox));
+            }
+        }
+
+        function flushOutbox() {
+            const outbox = JSON.parse(localStorage.getItem('pragya_outbox') || '[]');
+            if (outbox.length === 0) return;
+            outbox.forEach(item => socket.emit(item.event, item.payload));
+            localStorage.removeItem('pragya_outbox');
+            speakPragyaPhrase('reconnected');
+        }
+
+        function updateOfflineBanner(isConnected) {
+            document.getElementById('offlineBanner').classList.toggle('hidden', isConnected);
+        }
+
+        socket.io.on('reconnect', flushOutbox);
+        socket.on('connect', () => updateOfflineBanner(true));
+        socket.on('disconnect', () => updateOfflineBanner(false));
+
+        // ---- Driving smoothness scoring (feeds the Driver Leaderboard) ----
+        let lastSpeedSample = null; // {speedMps, timestamp}
+        let smoothnessRollingScore = 100;
+
+        function sampleSmoothness(newSpeedMps, timestamp) {
+            if (lastSpeedSample) {
+                const dtSec = (timestamp - lastSpeedSample.timestamp) / 1000;
+                if (dtSec > 0.5) {
+                    const accel = Math.abs(newSpeedMps - lastSpeedSample.speedMps) / dtSec; // m/s^2
+                    // Harsh accel/brake (>2.5 m/s^2) penalizes the rolling score; smooth driving recovers it
+                    const penalty = accel > 2.5 ? Math.min(30, (accel - 2.5) * 15) : 0;
+                    smoothnessRollingScore = Math.max(0, Math.min(100, smoothnessRollingScore - penalty + (penalty === 0 ? 1 : 0)));
+                }
+            }
+            lastSpeedSample = { speedMps: newSpeedMps, timestamp };
+        }
+
+        function getFleetCode() {
+            return localStorage.getItem('pragya_fleet_code') || INDEPENDENT_CODE;
+        }
+
+        // =========================================================
+        // 🗺️ MAP SETUP
+        // =========================================================
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: '__PRAGYA_MAP_STYLE_URL__',
+            center: [driverPos.lng, driverPos.lat],
+            zoom: 16.5,
+            pitch: 60,
+            bearing: -17.6
+        });
+        map.addControl(new maplibregl.NavigationControl());
+
+        const driverMarker = new maplibregl.Marker({ color: '#f59e0b' })
+            .setLngLat([driverPos.lng, driverPos.lat])
+            .setPopup(new maplibregl.Popup().setHTML('<b>🛺 Your Tricycle Console</b>'))
+            .addTo(map);
+
+        // Visualizes GPS uncertainty directly on the map — a translucent circle sized to
+        // the reading's accuracy radius, so a huge circle immediately signals "don't
+        // trust this position" the way a tiny one signals a solid fix.
+        function createGeoJSONCircle(centerLat, centerLng, radiusMeters, points = 48) {
+            const coords = [];
+            const km = radiusMeters / 1000;
+            const distanceX = km / (111.320 * Math.cos(centerLat * Math.PI / 180));
+            const distanceY = km / 110.574;
+            for (let i = 0; i < points; i++) {
+                const theta = (i / points) * (2 * Math.PI);
+                coords.push([centerLng + distanceX * Math.cos(theta), centerLat + distanceY * Math.sin(theta)]);
+            }
+            coords.push(coords[0]);
+            return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] } };
+        }
+
+        function updateAccuracyCircle(lat, lng, accuracyMeters) {
+            const feature = createGeoJSONCircle(lat, lng, accuracyMeters || 30);
+            if (map.getSource('gps-accuracy-circle')) {
+                map.getSource('gps-accuracy-circle').setData(feature);
+            } else if (map.isStyleLoaded()) {
+                map.addSource('gps-accuracy-circle', { type: 'geojson', data: feature });
+                map.addLayer({
+                    id: 'gps-accuracy-circle-fill', type: 'fill', source: 'gps-accuracy-circle',
+                    paint: { 'fill-color': '#f59e0b', 'fill-opacity': 0.12 }
+                });
+                map.addLayer({
+                    id: 'gps-accuracy-circle-line', type: 'line', source: 'gps-accuracy-circle',
+                    paint: { 'line-color': '#f59e0b', 'line-width': 1, 'line-opacity': 0.4 }
+                });
+            }
+        }
+
+        // =========================================================
+        // 📍 GEOLOCATION, ODOMETER & TELEMETRY BROADCAST
+        // =========================================================
+        function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+        }
+
+        // ---- GPS reliability layer ----
+        // Browser geolocation can silently fall back to cell-tower or IP-based positioning
+        // when satellite lock is weak or unavailable — those fallbacks can be off by
+        // kilometers, occasionally placing a device in an entirely different town. This
+        // layer refuses to trust a reading blindly: very-poor-accuracy readings are
+        // rejected outright, and any reading implying a physically impossible jump needs a
+        // second, consistent reading before it's accepted — a single bad sample can no
+        // longer relocate the marker.
+        const GPS_REJECT_ACCURACY_M = 1500;     // worse than this = almost certainly not real GPS
+        const GPS_WARN_ACCURACY_M = 100;        // worse than this = shown as "fair", not "good"
+        const GPS_MAX_PLAUSIBLE_SPEED_MPS = 42; // ~150 km/h — generous ceiling incl. GPS jitter margin
+
+        let lastGoodFix = null;
+        let pendingJumpCandidate = null;
+
+        function updateGpsQualityBadge(accuracy, status) {
+            const badge = document.getElementById('gpsQualityBadge');
+            if (!badge) return;
+            badge.classList.remove('hidden');
+            if (status === 'weak') {
+                badge.innerText = accuracy ? `🔴 Weak GPS (±${Math.round(accuracy)}m)` : '🔴 No GPS signal';
+                badge.className = 'text-[9px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded hidden sm:inline-block';
+            } else if (status === 'fair') {
+                badge.innerText = `🟡 GPS ±${Math.round(accuracy)}m`;
+                badge.className = 'text-[9px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded hidden sm:inline-block';
+            } else {
+                badge.innerText = `🟢 GPS ±${Math.round(accuracy)}m`;
+                badge.className = 'text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded hidden sm:inline-block';
+            }
+        }
+
+        // Returns the position to use this tick, or null if the reading should be ignored
+        // entirely — in which case the marker/broadcast simply stay at the last known good fix.
+        function evaluateGpsReading(lat, lng, accuracy, timestamp) {
+            accuracy = accuracy || 9999;
+
+            if (accuracy > GPS_REJECT_ACCURACY_M) {
+                // Almost certainly a network/IP-based fallback, not real GPS — this is
+                // exactly the "shows a different town" failure mode. Refuse it outright.
+                updateGpsQualityBadge(accuracy, 'weak');
+                pendingJumpCandidate = null;
+                return null;
+            }
+
+            if (!lastGoodFix) {
+                lastGoodFix = { lat, lng, accuracy, timestamp };
+                updateGpsQualityBadge(accuracy, accuracy > GPS_WARN_ACCURACY_M ? 'fair' : 'good');
+                return lastGoodFix;
+            }
+
+            const jumpMeters = calculateHaversineDistance(lastGoodFix.lat, lastGoodFix.lng, lat, lng);
+            const dtSec = Math.max(0.5, (timestamp - lastGoodFix.timestamp) / 1000);
+            const impliedSpeed = jumpMeters / dtSec;
+
+            if (impliedSpeed > GPS_MAX_PLAUSIBLE_SPEED_MPS) {
+                // Physically implausible jump for a ground vehicle. Don't snap to it on a
+                // single reading — require a second, consistent reading first (this also
+                // correctly handles a genuine relocation, e.g. after being in a multi-story
+                // car park or a long tunnel, without ever trusting just one sample).
+                if (pendingJumpCandidate &&
+                    calculateHaversineDistance(pendingJumpCandidate.lat, pendingJumpCandidate.lng, lat, lng) < 100) {
+                    lastGoodFix = { lat, lng, accuracy, timestamp };
+                    pendingJumpCandidate = null;
+                    updateGpsQualityBadge(accuracy, accuracy > GPS_WARN_ACCURACY_M ? 'fair' : 'good');
+                    return lastGoodFix;
+                }
+                pendingJumpCandidate = { lat, lng, timestamp };
+                updateGpsQualityBadge(accuracy, 'weak');
+                return null;
+            }
+
+            pendingJumpCandidate = null;
+            lastGoodFix = { lat, lng, accuracy, timestamp };
+            updateGpsQualityBadge(accuracy, accuracy > GPS_WARN_ACCURACY_M ? 'fair' : 'good');
+            return lastGoodFix;
+        }
+
+        function forceGpsRefresh() {
+            pendingJumpCandidate = null; // clear any stuck jump-confirmation state
+            updateGpsQualityBadge(null, 'weak');
+            document.getElementById('gpsQualityBadge').innerText = '📡 Refreshing...';
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition(
+                (pos) => handleGpsReading(pos),
+                () => updateGpsQualityBadge(null, 'weak'),
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+        }
+
+        function currentEngineHealthPayload() {
+            const distSinceService = totalOdometerKm - lastServiceOdometerKm;
+            const isServiceOverdue = distSinceService >= SERVICE_INTERVAL_KM;
+            return {
+                odometerKm: totalOdometerKm.toFixed(1),
+                distSinceServiceKm: distSinceService.toFixed(1),
+                serviceOverdue: isServiceOverdue,
+                vehicleStatus: isServiceOverdue ? 'MAINTENANCE_REQUIRED' : 'HEALTHY'
+            };
+        }
+
+        // ---- Bearing & speed ----
+        // Two independent rotation sources, both feeding the same map:
+        // 1. GPS course (direction of travel between consecutive fixes) — what actual car
+        //    navigation primarily relies on, since it isn't thrown off by a vehicle's own
+        //    magnetic interference the way a compass can be. Always computed; always sent
+        //    to the server (fleet dispatch cares about direction of travel, not which way
+        //    the phone happens to be held).
+        // 2. Device compass heading (which way the TOP of the phone is physically
+        //    pointing right now, from the magnetometer) — opt-in via the button, since it
+        //    needs an explicit permission tap on iOS and can be jittery/inaccurate near
+        //    metal or electronics. When on, it drives the map's visual rotation instead of
+        //    GPS course, since it updates instantly even while stationary — GPS course
+        //    only changes once you've actually moved between two points.
+        let currentBearingDeg = null;
+        const MIN_MOVEMENT_FOR_BEARING_M = 3; // ignore GPS jitter while stationary
+
+        function calculateBearingDeg(lat1, lon1, lat2, lon2) {
+            const toRad = d => d * Math.PI / 180;
+            const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
+            const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+                      Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
+            return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+        }
+
+        // ---- Device compass heading ----
+        let compassModeEnabled = false;
+        let compassSmoothedHeading = null;
+        let compassListenerAttached = false;
+        let compassNoSignalTimer = null;
+
+        function shortestAngleDelta(from, to) {
+            let diff = (to - from + 540) % 360 - 180;
+            return diff;
+        }
+
+        function handleDeviceOrientation(event) {
+            // iOS Safari gives this directly — already 0-360, clockwise from true north,
+            // no conversion needed, and generally more reliable than alpha on iOS.
+            let heading = (typeof event.webkitCompassHeading === 'number') ? event.webkitCompassHeading : null;
+
+            if (heading == null && event.alpha != null) {
+                // Standard DeviceOrientation alpha increases counter-clockwise from the
+                // device's initial orientation; compass heading increases clockwise from
+                // north. This conversion is the widely-used approach, but cross-device
+                // consistency here is genuinely one of the least standardized parts of
+                // this API — some devices/browsers report alpha relative to true north
+                // (event.absolute === true) and some don't reliably set that flag at all
+                // even when the value is usable. Accepting it either way rather than
+                // requiring absolute===true, since being strict here often means the
+                // compass "never works" on devices that just don't set that flag properly.
+                heading = (360 - event.alpha) % 360;
+            }
+            if (heading == null) return;
+
+            clearTimeout(compassNoSignalTimer);
+            compassNoSignalTimer = setTimeout(() => {
+                document.getElementById('compassToggleBtn').innerText = '🧭 No signal';
+            }, 4000);
+
+            // Raw magnetometer readings are naturally jittery — smooth with an
+            // exponential moving average, and only actually redraw the map once the
+            // change is big enough to be a real turn rather than sensor noise.
+            if (compassSmoothedHeading == null) {
+                compassSmoothedHeading = heading;
+            } else {
+                compassSmoothedHeading = (compassSmoothedHeading + shortestAngleDelta(compassSmoothedHeading, heading) * 0.25 + 360) % 360;
+            }
+
+            if (compassModeEnabled) {
+                document.getElementById('compassToggleBtn').innerText = `🧭 ${Math.round(compassSmoothedHeading)}°`;
+                map.easeTo({ bearing: compassSmoothedHeading, duration: 150 });
+            }
+        }
+
+        function toggleCompassMode() {
+            if (compassModeEnabled) {
+                compassModeEnabled = false;
+                document.getElementById('compassToggleBtn').innerText = '🧭 Compass Off';
+                document.getElementById('compassToggleBtn').className = 'text-[9px] font-mono text-slate-400 bg-slate-800/50 border border-slate-700 px-2 py-0.5 rounded hover:border-sky-500 transition';
+                return;
+            }
+
+            if (!window.isSecureContext) {
+                alert('🧭 Compass needs a secure connection (HTTPS) to work — same requirement as GPS.');
+                return;
+            }
+            if (typeof DeviceOrientationEvent === 'undefined') {
+                alert('🧭 This device/browser doesn\'t support compass heading.');
+                return;
+            }
+
+            const startListening = () => {
+                if (!compassListenerAttached) {
+                    const eventName = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
+                    window.addEventListener(eventName, handleDeviceOrientation);
+                    compassListenerAttached = true;
+                }
+                compassModeEnabled = true;
+                document.getElementById('compassToggleBtn').className = 'text-[9px] font-mono text-sky-400 bg-sky-500/10 border border-sky-500/40 px-2 py-0.5 rounded transition';
+            };
+
+            // iOS requires this to be requested from directly inside a user tap — it
+            // cannot be requested automatically on page load, and asking anywhere else
+            // silently fails.
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().then(result => {
+                    if (result === 'granted') {
+                        startListening();
+                    } else {
+                        alert('🧭 Compass permission was declined. You can re-enable it from your browser/site settings.');
+                    }
+                }).catch(() => alert('🧭 Could not request compass permission on this device.'));
+            } else {
+                startListening(); // Android and most other browsers don't need explicit permission
+            }
+        }
+
+        function updateSpeedBadge(speedKmh) {
+            const badge = document.getElementById('speedBadge');
+            if (!badge) return;
+            badge.classList.remove('hidden');
+            badge.innerText = `🚀 ${Math.round(speedKmh)} km/h`;
+        }
+
+        // Single canonical telemetry emitter — used by GPS updates AND the heartbeat
+        function broadcastTelemetry() {
+            if (!isOnline) return;
+            socket.emit('update-rider-location', {
+                username: localStorage.getItem('pragya_driver_name') || 'Driver',
+                fullName: localStorage.getItem('pragya_driver_name') || 'Driver',
+                contact: localStorage.getItem('pragya_driver_phone') || null,
+                plateNumber: localStorage.getItem('pragya_driver_plate') || 'N/A',
+                fleetOwnerCode: getFleetCode(),
+                operatingMode: localStorage.getItem('pragya_operating_mode') || 'OWNER',
+                lat: driverPos.lat,
+                lng: driverPos.lng,
+                bearingDeg: currentBearingDeg,
+                gpsAccuracyM: lastGoodFix ? Math.round(lastGoodFix.accuracy) : null,
+                engineHealth: currentEngineHealthPayload(),
+                smoothnessSample: Math.round(smoothnessRollingScore)
+            });
+        }
+
+        function handleGpsReading(pos) {
+            const accepted = evaluateGpsReading(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, Date.now());
+            if (!accepted) return; // rejected reading — hold at last known good position
+
+            const newLat = accepted.lat;
+            const newLng = accepted.lng;
+            const now = accepted.timestamp;
+
+            if (prevDriverPos) {
+                const deltaMeters = calculateHaversineDistance(prevDriverPos.lat, prevDriverPos.lng, newLat, newLng);
+                const dtSec = Math.max(0.1, (now - (prevDriverPos.timestamp || now)) / 1000);
+                // Scales the "was that real movement?" threshold to this reading's own
+                // accuracy instead of a flat number — GPS jitter while genuinely
+                // stationary routinely exceeds a fixed 5m, which was letting an
+                // oil-change reset visibly climb back up within seconds of being
+                // confirmed, even with the vehicle sitting still.
+                const noiseFloorMeters = Math.max(15, accepted.accuracy * 2);
+
+                if (deltaMeters > noiseFloorMeters && deltaMeters < 500) {
+                    totalOdometerKm += (deltaMeters / 1000.0);
+                    localStorage.setItem('pragya_odometer_km', totalOdometerKm.toFixed(3));
+                    updateEngineHealthUI();
+                    sampleSmoothness(deltaMeters / dtSec, now);
+                }
+
+                // Speed: prefer the browser's own GPS-derived speed when it's actually
+                // available (position.coords.speed, in m/s) — this comes from the device's
+                // GPS chip directly and is usually more accurate than a two-point estimate.
+                // Falls back to computing it from consecutive fixes when the device doesn't
+                // report speed (common on some Android GPS implementations).
+                const speedMps = (pos.coords.speed != null && pos.coords.speed >= 0)
+                    ? pos.coords.speed
+                    : deltaMeters / dtSec;
+                updateSpeedBadge(speedMps * 3.6);
+
+                // GPS course still gets computed and sent to the server regardless of
+                // compass mode — fleet dispatch cares about direction of travel, not
+                // which way the driver happens to be holding the phone. Only the map's
+                // own visual rotation defers to compass mode when that's active.
+                if (deltaMeters > Math.max(MIN_MOVEMENT_FOR_BEARING_M, accepted.accuracy)) {
+                    currentBearingDeg = calculateBearingDeg(prevDriverPos.lat, prevDriverPos.lng, newLat, newLng);
+                    if (!compassModeEnabled) {
+                        map.easeTo({ bearing: currentBearingDeg, duration: 600 });
+                    }
+                }
+            }
+
+            driverPos.lat = newLat;
+            driverPos.lng = newLng;
+            prevDriverPos = { lat: newLat, lng: newLng, timestamp: now };
+            driverMarker.setLngLat([driverPos.lng, driverPos.lat]);
+            updateAccuracyCircle(newLat, newLng, accepted.accuracy);
+
+            if (isOnline) {
+                broadcastTelemetry();
+                if (activePassenger) checkDistanceMilestonesAndClipTrail();
+            }
+        }
+
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(handleGpsReading, () => {
+                updateGpsQualityBadge(null, 'weak');
+            }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
+        }
+
+        // =========================================================
+        // 🛠️ ENGINE HEALTH & MAINTENANCE
+        // =========================================================
+        function updateEngineHealthUI() {
+            const distSinceService = totalOdometerKm - lastServiceOdometerKm;
+            const remainingKm = Math.max(0, SERVICE_INTERVAL_KM - distSinceService);
+            const healthPercentage = Math.max(0, Math.min(100, (remainingKm / SERVICE_INTERVAL_KM) * 100));
+
+            document.getElementById('dispOdometerKm').innerText = `${totalOdometerKm.toFixed(1)} km`;
+            document.getElementById('dispNextServiceKm').innerText = `${remainingKm.toFixed(1)} km remaining`;
+
+            const progressBar = document.getElementById('healthProgressBar');
+            const statusBadge = document.getElementById('engineStatusBadge');
+            progressBar.style.width = `${healthPercentage}%`;
+
+            if (remainingKm <= 0) {
+                progressBar.className = "bg-red-500 h-full transition-all duration-500 animate-pulse";
+                statusBadge.innerText = "Service Overdue ⚠️";
+                statusBadge.className = "text-[9px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30";
+
+                if (!serviceAlertVoiceTriggered) {
+                    serviceAlertVoiceTriggered = true;
+                    speakPragyaPhrase('serviceAlert');
+                }
+            } else if (remainingKm <= 200) {
+                progressBar.className = "bg-amber-400 h-full transition-all duration-500";
+                statusBadge.innerText = "Service Soon";
+                statusBadge.className = "text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30";
+            } else {
+                progressBar.className = "bg-emerald-400 h-full transition-all duration-500";
+                statusBadge.innerText = "Good";
+                statusBadge.className = "text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+            }
+        }
+
+        function openMaintenanceModal() {
+            const distSinceService = totalOdometerKm - lastServiceOdometerKm;
+            document.getElementById('maintOdometerVal').innerText = `${totalOdometerKm.toFixed(1)} km`;
+            document.getElementById('maintDistSinceVal').innerText = `${distSinceService.toFixed(1)} km`;
+
+            const statusText = document.getElementById('maintStatusText');
+            if (distSinceService >= SERVICE_INTERVAL_KM) {
+                statusText.innerText = "Oil Change Overdue ⚠️";
+                statusText.className = "text-red-400 font-bold";
+            } else {
+                statusText.innerText = "Engine Operating Normally";
+                statusText.className = "text-emerald-400 font-bold";
+            }
+            document.getElementById('maintenanceModal').classList.remove('hidden');
+        }
+
+        function closeMaintenanceModal() {
+            document.getElementById('maintenanceModal').classList.add('hidden');
+        }
+
+        function resetOilServiceCounter() {
+            lastServiceOdometerKm = totalOdometerKm;
+            localStorage.setItem('pragya_last_service_km', lastServiceOdometerKm.toFixed(3));
+            serviceAlertVoiceTriggered = false;
+
+            // Sync the reset to the server so the fleet owner's dashboard reflects it too
+            emitReliable('confirm-service-reset', {
+                plateNumber: localStorage.getItem('pragya_driver_plate') || 'N/A'
+            });
+
+            // Push an immediate telemetry update rather than waiting for the next natural
+            // GPS tick or heartbeat (up to 15s away) — otherwise a fleet owner watching the
+            // live feed sees stale "Overdue" status for a while after a real reset.
+            if (isOnline) broadcastTelemetry();
+
+            updateEngineHealthUI();
+            closeMaintenanceModal();
+            speakPragyaPhrase('serviceReset');
+        }
+
+        // Reconciles the client's locally-computed "distance since last service" against
+        // the server's independently-tracked figure — these were two completely separate
+        // odometer trackers (different GPS-delta filters, computed from different data)
+        // that could silently drift apart over a shift. This listener didn't exist before,
+        // which meant a driver's own console could show a different service status than
+        // what the fleet owner's dashboard showed for the same vehicle, and a reset could
+        // look like it "didn't work" depending on which one you were looking at. Server
+        // truth wins — arrives on every telemetry tick, so this keeps them in sync
+        // continuously, not just at reset time.
+        socket.on('passport-update', (passport) => {
+            if (!passport || typeof passport.currentServiceKm !== 'number') return;
+            lastServiceOdometerKm = totalOdometerKm - passport.currentServiceKm;
+            localStorage.setItem('pragya_last_service_km', lastServiceOdometerKm.toFixed(3));
+            updateEngineHealthUI();
+        });
+
+        socket.on('trip-completed-summary', (summary) => {
+            const el = document.getElementById('dispShiftEarnings');
+            if (el && typeof summary.totalShiftEarnings === 'number') {
+                el.innerText = `GH₵ ${summary.totalShiftEarnings.toFixed(2)}`;
+            }
+        });
+
+        // Fires once this trip's fare actually settles (payment confirmed, Work & Pay
+        // split applied) — earnings are no longer credited at trip-end itself, since the
+        // real driver share isn't known until settlement. This is what actually updates
+        // the total once the passenger pays, whether that's instant (cash, wallet credit)
+        // or delayed (a real MoMo approval arriving later via webhook).
+        socket.on('shift-earnings-update', (data) => {
+            const el = document.getElementById('dispShiftEarnings');
+            if (el && typeof data.shiftEarnings === 'number') {
+                el.innerText = `GH₵ ${data.shiftEarnings.toFixed(2)}`;
+            }
+        });
+
+        // =========================================================
+        // 🆘 BREAKDOWN / ROADSIDE SOS
+        // =========================================================
+        function reportBreakdownSOS() {
+            const name = localStorage.getItem('pragya_driver_name');
+            if (!name) { openOwnershipModal(); return; }
+
+            const issue = prompt("Briefly describe the issue (e.g. flat tyre, engine won't start):", "");
+            if (issue === null) return; // cancelled
+
+            emitReliable('driver-sos-alert', {
+                username: name,
+                fullName: name,
+                contact: localStorage.getItem('pragya_driver_phone') || 'N/A',
+                plateNumber: localStorage.getItem('pragya_driver_plate') || 'N/A',
+                issue: issue.trim() || 'Breakdown reported',
+                lat: driverPos.lat,
+                lng: driverPos.lng
+            });
+
+            speakPragyaPhrase('sosSent');
+            alert("🆘 SOS sent to nearby registered workshops.");
+        }
+
+        // =========================================================
+        // 🎙️ VOICE ASSISTANT ENGINE
+        // =========================================================
+        function speakPragyaText(text) {
+            lastSpokenText = text;
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'en-US';
+                utterance.rate = 1.0;
+                utterance.pitch = 1.0;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function toggleVoiceAssistantPermission() {
+            if (!voiceActive) {
+                voiceActive = true;
+                document.getElementById('voiceIndicatorDot').className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping";
+                document.getElementById('voiceBtnText').innerText = "Voice AI Active";
+                document.getElementById('voiceEngineState').innerText = "Listening...";
+
+                if (currentLang === 'TWI') {
+                    speakRaw(
+                        "Pragya voice assistant asɔ. Ka Gye, Mennye, Aba mu, Wie, Kɔ adwuma, Gyae adwuma, Mmoa, Tebea, anaa San ka.",
+                        'tw-GH',
+                        "Pragya AI voice assistant activated. Say Accept, Decline, Start Trip, End Trip, Go Online, Go Offline, SOS, Status, or Repeat."
+                    );
+                } else {
+                    speakPragyaText("Pragya AI voice assistant activated. Say Accept, Decline, Start Trip, End Trip, Go Online, Go Offline, SOS, Status, or Repeat.");
+                }
+                initSpeechRecognition();
+            } else {
+                voiceActive = false;
+                document.getElementById('voiceIndicatorDot').className = "w-2.5 h-2.5 rounded-full bg-slate-500";
+                document.getElementById('voiceBtnText').innerText = "Activate Voice AI";
+                document.getElementById('voiceEngineState').innerText = "Stopped";
+
+                if (recognition) recognition.stop();
+                speakPragyaText("Voice assistant deactivated.");
+            }
+        }
+
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                document.getElementById('voiceEngineState').innerText = "Unsupported on this browser";
+                document.getElementById('speechTranscript').innerText = "Voice recognition isn't supported in this browser.";
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            // Twi speech RECOGNITION (understanding what you say) is a separate capability
+            // from Twi speech SYNTHESIS (speaking replies) — far fewer devices support it,
+            // since it needs a full speech-to-text model for the language, not just a
+            // voice. This used to stay hardcoded to English even in Twi mode, so the
+            // assistant could speak Twi but never actually understand it back. Attempts
+            // real Twi recognition now; command matching below accepts both languages'
+            // keywords regardless of which one actually gets recognized, so it degrades
+            // gracefully on devices where Twi recognition isn't available — the browser
+            // just hears English-sounding words instead and this still works if the
+            // driver says the English command.
+            recognition.lang = currentLang === 'TWI' ? 'tw-GH' : 'en-US';
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript.toLowerCase().trim();
+                document.getElementById('speechTranscript').innerText = `"${transcript}"`;
+                handleVoiceCommand(transcript);
+            };
+
+            recognition.onerror = (event) => {
+                console.warn("Speech recognition error:", event.error);
+                if (currentLang === 'TWI' && (event.error === 'language-not-supported' || event.error === 'no-speech')) {
+                    document.getElementById('voiceEngineState').innerText = `Twi recognition may not be supported on this device — try speaking English commands, or switch to 🌐 EN`;
+                } else {
+                    document.getElementById('voiceEngineState').innerText = `Error: ${event.error} — retrying...`;
+                }
+            };
+
+            recognition.onend = () => {
+                if (voiceActive) {
+                    try { recognition.start(); } catch (e) { /* already starting */ }
+                }
+            };
+
+            try { recognition.start(); } catch (e) { /* already running */ }
+        }
+
+        // Each command matches BOTH English and Twi keywords, regardless of which
+        // language mode is active — a driver's actual speech might come back as English
+        // text even in Twi mode (if the device's recognizer doesn't fully support Twi),
+        // or the reverse. Matching both means the command still works either way. The Twi
+        // words used here are simple, commonly understood terms, kept consistent with the
+        // vocabulary already used in the phrase dictionary above (e.g. "Gye" for
+        // accept) — same caveat as that dictionary: worth a native speaker's review
+        // before relying on this for anything beyond a pilot.
+        function handleVoiceCommand(transcript) {
+            const has = (...words) => words.some(w => transcript.includes(w));
+
+            if (has("accept", "gye")) {
+                if (activePassenger) {
+                    speakPragyaPhrase('cmdAccepted');
+                    acceptRideFromModal();
+                } else {
+                    speakPragyaPhrase('cmdNoPendingRequest');
+                }
+            } else if (has("decline", "reject", "mpo", "menp")) {
+                if (activePassenger) {
+                    speakPragyaPhrase('cmdDeclined');
+                    declineRideFromModal();
+                } else {
+                    speakPragyaPhrase('cmdNoPendingRequest');
+                }
+            } else if (has("call", "frɛ", "fre no")) {
+                if (activePassenger) {
+                    speakPragyaPhrase('cmdCalling');
+                    window.location.href = `tel:${activePassenger.passengerPhone}`;
+                } else {
+                    speakPragyaPhrase('cmdNoActivePassenger');
+                }
+            } else if (has("passenger boarded", "start trip", "aba mu", "hyɛn mu")) {
+                if (activePassenger) {
+                    passengerBoardedStartMeter();
+                } else {
+                    speakPragyaPhrase('cmdNoPassengerBoarded');
+                }
+            } else if (has("end trip", "arrived", "aduru", "wie")) {
+                if (activePassenger && tripStartTime) {
+                    arriveAtDestinationAndCalculateFare();
+                } else {
+                    speakPragyaPhrase('cmdNoTripInProgress');
+                }
+            } else if (has("go online", "kɔ adwuma", "fi ase")) {
+                if (!isOnline) { toggleShiftStatus(); } else { speakPragyaPhrase('cmdAlreadyOnline'); }
+            } else if (has("go offline", "gyae adwuma")) {
+                if (isOnline) { toggleShiftStatus(); } else { speakPragyaPhrase('cmdAlreadyOffline'); }
+            } else if (has("sos", "breakdown", "emergency", "mmoa", "asɛm")) {
+                speakPragyaPhrase('cmdSosOpening');
+                reportBreakdownSOS();
+            } else if (has("status", "tebea")) {
+                const distSinceService = totalOdometerKm - lastServiceOdometerKm;
+                if (currentLang === 'TWI') {
+                    speakRaw(
+                        `Wo ho ${isOnline ? 'aba adwuma no mu' : 'nni adwuma no mu'}. Wo kaa no adu kilomita ${totalOdometerKm.toFixed(0)}, na kilomita ${distSinceService.toFixed(0)} firi service a etwa toɔ no.`,
+                        'tw-GH',
+                        `You are currently ${isOnline ? 'online' : 'offline'}. Odometer reads ${totalOdometerKm.toFixed(1)} kilometers, ${distSinceService.toFixed(1)} kilometers since last service.`
+                    );
+                } else {
+                    speakPragyaText(`You are currently ${isOnline ? 'online' : 'offline'}. Odometer reads ${totalOdometerKm.toFixed(1)} kilometers, ${distSinceService.toFixed(1)} kilometers since last service.`);
+                }
+            } else if (has("repeat", "say again", "san ka", "ti bio")) {
+                if (lastSpokenText) speakPragyaText(lastSpokenText);
+            } else {
+                speakPragyaPhrase('cmdNotUnderstood');
+            }
+        }
+
+        // =========================================================
+        // ✂️ DISTANCE MILESTONES
+        // =========================================================
+        function checkDistanceMilestonesAndClipTrail() {
+            if (!activePassenger) return;
+            const distMeters = calculateHaversineDistance(
+                driverPos.lat, driverPos.lng,
+                activePassenger.pickupLat, activePassenger.pickupLng
+            );
+
+            if (distMeters <= 500 && !milestoneAlerts.m500) {
+                milestoneAlerts.m500 = true;
+                speakPragyaText("In 500 meters, prepare to reach passenger pickup location.");
+            } else if (distMeters <= 200 && !milestoneAlerts.m200) {
+                milestoneAlerts.m200 = true;
+                speakPragyaText("In 200 meters, slow down. Passenger is nearby.");
+            } else if (distMeters <= 50 && !milestoneAlerts.m50) {
+                milestoneAlerts.m50 = true;
+                speakPragyaPhrase('arrivedPickup');
+            }
+        }
+
+        // =========================================================
+        // 🎛️ OWNERSHIP SELECTION
+        // =========================================================
+        function selectOperatingModel(mode) {
+            selectedOperatingMode = mode;
+            const ownerBtn = document.getElementById('optOwnerBtn');
+            const fleetBtn = document.getElementById('optFleetBtn');
+            const fleetContainer = document.getElementById('fleetCodeContainer');
+
+            if (mode === 'OWNER') {
+                ownerBtn.className = "p-3 bg-amber-500/10 border-2 border-amber-500 rounded-xl text-left space-y-1";
+                fleetBtn.className = "p-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-left hover:border-sky-500 transition space-y-1";
+                fleetContainer.classList.add('hidden');
+            } else {
+                fleetBtn.className = "p-3 bg-sky-500/10 border-2 border-sky-500 rounded-xl text-left space-y-1";
+                ownerBtn.className = "p-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-left hover:border-amber-500 transition space-y-1";
+                fleetContainer.classList.remove('hidden');
+            }
+        }
+
+        function openOwnershipModal() {
+            document.getElementById('modalDriverName').value = localStorage.getItem('pragya_driver_name') || '';
+            document.getElementById('modalDriverPhone').value = localStorage.getItem('pragya_driver_phone') || '';
+            document.getElementById('modalDriverPlate').value = localStorage.getItem('pragya_driver_plate') || '';
+            document.getElementById('modalFleetCode').value = localStorage.getItem('pragya_fleet_code') === INDEPENDENT_CODE ? '' : (localStorage.getItem('pragya_fleet_code') || '');
+            document.getElementById('modalMomoNetwork').value = localStorage.getItem('pragya_momo_network') || 'MTN';
+            document.getElementById('modalMomoNumber').value = localStorage.getItem('pragya_momo_number') || '';
+
+            // A referral only ever applies once — hide the field on later profile edits
+            document.getElementById('modalReferralRow').classList.toggle('hidden', !!localStorage.getItem('pragya_referral_submitted'));
+            document.getElementById('modalReferralCode').value = '';
+
+            const savedMode = localStorage.getItem('pragya_operating_mode') || 'OWNER';
+            selectOperatingModel(savedMode);
+            document.getElementById('ownershipModal').classList.remove('hidden');
+        }
+
+        function closeOwnershipModal() {
+            document.getElementById('ownershipModal').classList.add('hidden');
+        }
+
+        function saveOwnershipSettings() {
+            const name = document.getElementById('modalDriverName').value.trim();
+            const phone = document.getElementById('modalDriverPhone').value.trim();
+            const plate = document.getElementById('modalDriverPlate').value.trim().toUpperCase();
+            const fleet = document.getElementById('modalFleetCode').value.trim().toUpperCase();
+            const momoNetwork = document.getElementById('modalMomoNetwork').value;
+            const momoNumber = document.getElementById('modalMomoNumber').value.trim();
+            const referralCode = document.getElementById('modalReferralCode').value.trim();
+
+            if (!name || !phone || !plate) {
+                alert("⚠️ Please enter your Name, Phone Number, and Plate Number!");
+                return;
+            }
+            if (selectedOperatingMode === 'FLEET' && !fleet) {
+                alert("⚠️ Please enter your Fleet Owner Code / Manager ID!");
+                return;
+            }
+
+            localStorage.setItem('pragya_driver_name', name);
+            localStorage.setItem('pragya_driver_phone', phone);
+            localStorage.setItem('pragya_driver_plate', plate);
+            localStorage.setItem('pragya_operating_mode', selectedOperatingMode);
+            localStorage.setItem('pragya_fleet_code', selectedOperatingMode === 'FLEET' ? fleet : INDEPENDENT_CODE);
+
+            if (momoNumber) {
+                localStorage.setItem('pragya_momo_network', momoNetwork);
+                localStorage.setItem('pragya_momo_number', momoNumber);
+                socket.emit('register-payout-number', { plateNumber: plate, network: momoNetwork, momoNumber });
+            }
+
+            if (referralCode && !localStorage.getItem('pragya_referral_submitted')) {
+                socket.emit('submit-referral-code', { code: referralCode, refereeId: plate, type: 'driver' });
+                localStorage.setItem('pragya_referral_submitted', '1');
+            }
+
+            restoreDriverSession();
+            closeOwnershipModal();
+            speakPragyaText("Profile and vehicle operating settings saved.");
+            refreshReferralInfo();
+        }
+
+        function restoreDriverSession() {
+            const name = localStorage.getItem('pragya_driver_name');
+            const phone = localStorage.getItem('pragya_driver_phone');
+            const plate = localStorage.getItem('pragya_driver_plate');
+            const mode = localStorage.getItem('pragya_operating_mode') || 'OWNER';
+            const savedShift = localStorage.getItem('pragya_shift_status');
+
+            if (!name) {
+                openOwnershipModal();
+                return;
+            }
+
+            document.getElementById('dispDriverName').innerText = name;
+            document.getElementById('dispDriverPhone').innerText = phone;
+            document.getElementById('dispDriverPlate').innerText = plate;
+            document.getElementById('dispOperatingMode').innerText = mode === 'OWNER' ? 'Owner Operator' : 'Fleet Driver';
+
+            document.getElementById('ownershipTag').innerText = mode === 'OWNER' ? 'Independent' : 'Fleet Linked';
+            document.getElementById('ownershipTag').className = mode === 'OWNER' ?
+                'text-[9px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded' :
+                'text-[9px] font-mono text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded';
+
+            updateEngineHealthUI();
+
+            if (plate) {
+                socket.emit('request-driver-stats', plate);
+                socket.emit('request-referral-info', plate);
+                socket.emit('request-work-and-pay-status', plate);
+            }
+
+            if (savedShift === 'ONLINE' && !isOnline) {
+                setOnlineState(true, { silent: true });
+            }
+        }
+
+        socket.on('driver-stats-update', (stats) => {
+            if (!stats) return;
+            const avgRating = stats.ratingCount > 0 ? (stats.ratingSum / stats.ratingCount) : 0;
+            const builderTag = stats.isCommunityBuilder ? ' 🤝' : '';
+            document.getElementById('dispDriverBadge').innerText = `${badgeEmoji(stats.badge)} ${stats.badge}${builderTag}`;
+            document.getElementById('dispAvgRating').innerText = stats.ratingCount > 0 ? avgRating.toFixed(1) : '–';
+            document.getElementById('dispTotalTrips').innerText = stats.totalTrips;
+        });
+
+        function badgeEmoji(badge) {
+            return { Gold: '🥇', Silver: '🥈', Bronze: '🥉' }[badge] || '🆕';
+        }
+
+        // ---- Work & Pay: this vehicle's daily settlement target, if it's fleet-linked ----
+        socket.on('work-and-pay-update', (status) => {
+            const card = document.getElementById('workAndPayCard');
+            if (!status || !status.dailyTargetGhs) {
+                // Independent driver, or no target set — nothing to show
+                card.classList.add('hidden');
+                return;
+            }
+            card.classList.remove('hidden');
+            document.getElementById('workAndPayLabel').innerText = `GH₵ ${status.collectedTodayGhs.toFixed(2)} / ${status.dailyTargetGhs.toFixed(2)}`;
+            document.getElementById('workAndPayBar').style.width = `${status.progressPct}%`;
+
+            const bar = document.getElementById('workAndPayBar');
+            const msg = document.getElementById('workAndPayMsg');
+            if (status.targetMet) {
+                bar.className = 'h-full bg-emerald-400 transition-all duration-500';
+                msg.innerText = '✅ Target met — you keep 100% of every fare for the rest of today.';
+                msg.className = 'text-[9px] text-emerald-400 font-bold';
+            } else {
+                bar.className = 'h-full bg-amber-400 transition-all duration-500';
+                msg.innerText = '';
+            }
+        });
+
+        // ---- Referral program ----
+        function refreshReferralInfo() {
+            const plate = localStorage.getItem('pragya_driver_plate');
+            if (plate) socket.emit('request-referral-info', plate);
+        }
+
+        let myDriverReferralCode = null;
+        socket.on('referral-info-update', (info) => {
+            myDriverReferralCode = info.code;
+            document.getElementById('driverWalletBadge').innerText = `🎁 GH₵ ${info.walletCredit.toFixed(2)} wallet`;
+        });
+
+        function shareDriverReferralCode() {
+            if (!myDriverReferralCode) { alert('Save your profile first to get your invite code.'); return; }
+            const text = `Drive with PragyaLink in Kumasi & Accra — use my code ${myDriverReferralCode} when you sign up and we both earn GH₵ credit! 🛺`;
+            if (navigator.share) {
+                navigator.share({ text }).catch(() => {});
+            } else {
+                navigator.clipboard.writeText(text).then(() => alert('Copied — send it to a friend!'));
+            }
+        }
+
+        // Re-request stats once reconnected, in case a trip completed while offline changed them
+        socket.on('connect', () => {
+            const plate = localStorage.getItem('pragya_driver_plate');
+            if (plate) {
+                socket.emit('request-driver-stats', plate);
+                socket.emit('request-referral-info', plate);
+                socket.emit('request-work-and-pay-status', plate);
+            }
+        });
+
+        // =========================================================
+        // 🔌 SHIFT / ONLINE STATE (single canonical implementation)
+        // =========================================================
+        function setOnlineState(goingOnline, opts = {}) {
+            isOnline = goingOnline;
+            const btn = document.getElementById('shiftToggleBtn');
+            const badge = document.getElementById('shiftBadge');
+
+            if (goingOnline) {
+                localStorage.setItem('pragya_shift_status', 'ONLINE');
+                btn.innerText = "🔴 Go Offline / End Shift";
+                btn.className = "w-full bg-red-500 hover:bg-red-400 text-white font-black py-2.5 rounded-xl transition text-xs shadow-lg";
+                badge.innerText = "Online";
+                badge.className = "bg-emerald-500/20 text-emerald-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-500/30";
+
+                broadcastTelemetry();
+                socket.emit('driver-go-online', {
+                    driverName: localStorage.getItem('pragya_driver_name') || 'Driver',
+                    driverPhone: localStorage.getItem('pragya_driver_phone') || null,
+                    plateNumber: localStorage.getItem('pragya_driver_plate') || 'N/A',
+                    fleetOwnerCode: getFleetCode(),
+                    operatingMode: localStorage.getItem('pragya_operating_mode') || 'OWNER',
+                    lat: driverPos.lat,
+                    lng: driverPos.lng
+                });
+
+                if (!heartbeatInterval) {
+                    // Keeps the driver visibly "online" even while stationary (GPS watch may not fire)
+                    heartbeatInterval = setInterval(broadcastTelemetry, 15000);
+                }
+
+                if (!opts.silent) speakPragyaPhrase('welcomeOnline');
+            } else {
+                localStorage.setItem('pragya_shift_status', 'OFFLINE');
+                btn.innerText = "🟢 Go Online & Start Shift";
+                btn.className = "w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg";
+                badge.innerText = "Offline";
+                badge.className = "bg-slate-800 text-slate-400 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-slate-700";
+
+                socket.emit('driver-go-offline', {
+                    plateNumber: localStorage.getItem('pragya_driver_plate') || 'N/A'
+                });
+
+                if (heartbeatInterval) {
+                    clearInterval(heartbeatInterval);
+                    heartbeatInterval = null;
+                }
+                if (!opts.silent) speakPragyaPhrase('wentOffline');
+            }
+        }
+
+        function toggleShiftStatus() {
+            const name = localStorage.getItem('pragya_driver_name');
+            if (!name) { openOwnershipModal(); return; }
+            setOnlineState(!isOnline);
+        }
+
+        // Re-announce online state on (re)connect, e.g. after a network drop or refresh
+        socket.on('connect', () => {
+            if (isOnline) {
+                socket.emit('driver-go-online', {
+                    driverName: localStorage.getItem('pragya_driver_name') || 'Driver',
+                    driverPhone: localStorage.getItem('pragya_driver_phone') || null,
+                    plateNumber: localStorage.getItem('pragya_driver_plate') || 'N/A',
+                    fleetOwnerCode: getFleetCode(),
+                    operatingMode: localStorage.getItem('pragya_operating_mode') || 'OWNER',
+                    lat: driverPos.lat,
+                    lng: driverPos.lng
+                });
+            }
+        });
+
+        // =========================================================
+        // 🚀 DISPATCH LIFECYCLE
+        // =========================================================
+        socket.on('incoming-ride-request', (req) => {
+            activePassenger = req;
+            milestoneAlerts = { m500: false, m200: false, m50: false };
+
+            const distMeters = calculateHaversineDistance(driverPos.lat, driverPos.lng, req.pickupLat, req.pickupLng);
+
+            document.getElementById('dispatchModalTitle').innerText = req.isPool ? "🚏 New Pool Ride Request!" : "New Dispatch Request!";
+            document.getElementById('modalPassengerPhone').innerText = req.passengerPhone;
+            document.getElementById('modalPickupDist').innerText = `${Math.round(distMeters)} meters away`;
+            document.getElementById('dispatchAlertModal').classList.remove('hidden');
+
+            speakPragyaPhrase('newDispatch');
+
+            activeRouteCoordinates = [[driverPos.lng, driverPos.lat], [req.pickupLng, req.pickupLat]];
+            if (map.getSource('route-line')) {
+                map.getSource('route-line').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: activeRouteCoordinates } });
+            } else {
+                map.addSource('route-line', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: activeRouteCoordinates } } });
+                map.addLayer({ id: 'route-line-layer', type: 'line', source: 'route-line', paint: { 'line-color': '#38bdf8', 'line-width': 6, 'line-opacity': 0.85 } });
+            }
+        });
+
+        function acceptRideFromModal() {
+            document.getElementById('dispatchAlertModal').classList.add('hidden');
+
+            if (activePassenger.isPool) {
+                emitReliable('respond-pool-ride-request', {
+                    passengerSocketId: activePassenger.passengerSocketId,
+                    passengerPhone: activePassenger.passengerPhone,
+                    pickupLat: activePassenger.pickupLat, pickupLng: activePassenger.pickupLng,
+                    dropoffLat: activePassenger.dropoffLat, dropoffLng: activePassenger.dropoffLng,
+                    status: 'accepted'
+                });
+                document.getElementById('tripStatusTag').innerText = "Pool Trip Active";
+                document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30";
+                drawRoadRoute(driverPos.lng, driverPos.lat, activePassenger.pickupLng, activePassenger.pickupLat);
+                return;
+            }
+
+            emitReliable('respond-ride-request', {
+                passengerSocketId: activePassenger.passengerSocketId,
+                status: 'accepted',
+                riderName: localStorage.getItem('pragya_driver_name') || 'Driver',
+                plateNumber: localStorage.getItem('pragya_driver_plate') || 'N/A',
+                riderContact: localStorage.getItem('pragya_driver_phone') || 'N/A'
+            });
+
+            document.getElementById('tripStatusTag').innerText = "En Route to Pickup";
+            document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30";
+
+            document.getElementById('tripActionArea').innerHTML = `
+                <div class="space-y-2 bg-slate-900 p-3 rounded-xl border border-slate-800 text-xs">
+                    <p class="text-sky-400 font-bold">🚏 Navigating to Passenger Pickup</p>
+                    <a href="tel:${escapeHtml(activePassenger.passengerPhone)}" class="text-slate-300 font-mono text-[11px] block">📞 Call Passenger</a>
+                    <button onclick="passengerBoardedStartMeter()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition shadow-lg">
+                        ▶️ Passenger Boarded (Start Trip Meter)
+                    </button>
+                </div>
+            `;
+
+            // Draw the real road-network route to pickup (OSRM), replacing the straight-line preview
+            drawRoadRoute(driverPos.lng, driverPos.lat, activePassenger.pickupLng, activePassenger.pickupLat);
+        }
+
+        function declineRideFromModal() {
+            document.getElementById('dispatchAlertModal').classList.add('hidden');
+
+            if (activePassenger) {
+                const event = activePassenger.isPool ? 'respond-pool-ride-request' : 'respond-ride-request';
+                emitReliable(event, {
+                    passengerSocketId: activePassenger.passengerSocketId,
+                    status: 'declined'
+                });
+            }
+            activePassenger = null;
+
+            if (map.getSource('route-line')) {
+                map.getSource('route-line').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+            }
+        }
+
+        // =========================================================
+        // 🚏 PRAGYA POOL — driver-side manifest
+        // =========================================================
+        let activePoolTrip = null;
+
+        socket.on('pool-passenger-added', (data) => {
+            activePoolTrip = data.trip;
+            renderPoolManifest();
+            speakPragyaText("A new pool passenger has been added to your route.");
+        });
+
+        socket.on('pool-trip-updated', (trip) => {
+            activePoolTrip = trip;
+            renderPoolManifest();
+        });
+
+        function renderPoolManifest() {
+            if (!activePoolTrip) return;
+            const rows = activePoolTrip.stops.map((s, i) => {
+                let actionBtn = '';
+                if (s.status === 'WAITING_PICKUP') {
+                    actionBtn = `<button onclick="poolMarkPickedUp('${s.passengerSocketId}')" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-1.5 rounded-lg text-[10px]">▶️ Mark Picked Up</button>`;
+                } else if (s.status === 'ONBOARD') {
+                    actionBtn = `<button onclick="poolMarkDroppedOff('${s.passengerSocketId}')" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-1.5 rounded-lg text-[10px]">🏁 Mark Dropped Off</button>`;
+                } else {
+                    actionBtn = `<span class="text-[10px] text-emerald-400 font-bold">✅ Dropped — GH₵ ${s.fareShareGhs?.toFixed(2) || '0.00'}</span>`;
+                }
+                return `
+                    <div class="bg-slate-950 p-2 rounded-lg border border-slate-800 space-y-1">
+                        <div class="flex justify-between text-[10px] text-slate-400">
+                            <span>Passenger ${i + 1}: ${escapeHtml(s.passengerPhone) || 'N/A'}</span>
+                            <span>${s.status.replace('_', ' ')}</span>
+                        </div>
+                        ${actionBtn}
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('tripActionArea').innerHTML = `
+                <div class="space-y-2">
+                    <p class="text-sky-400 font-bold text-xs">🚏 Pool Trip — ${activePoolTrip.stops.length} passenger(s)</p>
+                    ${rows}
+                </div>
+            `;
+        }
+
+        function poolMarkPickedUp(passengerSocketId) {
+            emitReliable('pool-mark-picked-up', { passengerSocketId });
+        }
+
+        function poolMarkDroppedOff(passengerSocketId) {
+            emitReliable('pool-mark-dropped-off', { passengerSocketId });
+            // If this was the last stop, the server will close the trip and rider goes IDLE
+            const allWillBeDropped = activePoolTrip.stops.every(s => s.passengerSocketId === passengerSocketId || s.status === 'DROPPED');
+            if (allWillBeDropped) {
+                activePoolTrip = null;
+                document.getElementById('tripStatusTag').innerText = "Idle / Waiting";
+                document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400";
+            }
+        }
+
+        function passengerBoardedStartMeter() {
+            tripStartTime = new Date();
+            tripStartOdometer = totalOdometerKm;
+
+            socket.emit('start-trip-meter', {
+                passengerSocketId: activePassenger ? activePassenger.passengerSocketId : null,
+                startTime: tripStartTime
+            });
+
+            speakPragyaPhrase('passengerBoarded');
+
+            document.getElementById('tripStatusTag').innerText = "Trip In Progress";
+            document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+
+            document.getElementById('tripActionArea').innerHTML = `
+                <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30 text-xs">
+                    <p class="text-emerald-400 font-bold">🚕 Driving to Destination...</p>
+                    <p class="text-[10px] text-slate-400">Fare will be calculated upon arrival at dropoff point.</p>
+                    <button onclick="arriveAtDestinationAndCalculateFare()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl transition shadow-lg">
+                        🏁 Arrived at Destination & Collect Fare
+                    </button>
+                </div>
+            `;
+
+            if (activePassenger && activePassenger.dropoffLat && activePassenger.dropoffLng) {
+                drawRoadRoute(driverPos.lng, driverPos.lat, activePassenger.dropoffLng, activePassenger.dropoffLat);
+            }
+        }
+
+        function arriveAtDestinationAndCalculateFare() {
+            const tripDistanceKm = Math.max(0.5, totalOdometerKm - tripStartOdometer);
+
+            // Commercial Tricycle Fare Formula: Base 5.00 GHS + 3.00 GHS/km
+            const baseFareGhs = 5.00;
+            const ratePerKm = 3.00;
+            const finalFareGhs = (baseFareGhs + (tripDistanceKm * ratePerKm)).toFixed(2);
+
+            emitReliable('end-trip', {
+                passengerSocketId: activePassenger ? activePassenger.passengerSocketId : null,
+                distanceDrivenKm: tripDistanceKm.toFixed(2),
+                fareGhs: finalFareGhs
+            });
+
+            speakPragyaPhrase('tripComplete');
+            speakPragyaText(`Please collect ${finalFareGhs} Ghana Cedis from the passenger.`);
+
+            document.getElementById('tripStatusTag').innerText = "Idle / Waiting";
+            document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400";
+            document.getElementById('tripActionArea').innerHTML = `<p class="text-slate-400 italic text-[11px]">Trip completed! Receipt sent to fleet ledger.</p>`;
+
+            if (map.getSource('route-line')) {
+                map.getSource('route-line').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });
+            }
+            if (map.getLayer('active-road-route')) {
+                map.removeLayer('active-road-route');
+                map.removeSource('active-road-route');
+            }
+
+            activePassenger = null;
+            tripStartTime = null;
+        }
+
+        // =========================================================
+        // 🛣️ REAL ROAD ROUTING (OSRM)
+        // =========================================================
+        async function drawRoadRoute(startLng, startLat, endLng, endLat) {
+            startLng = parseFloat(startLng); startLat = parseFloat(startLat);
+            endLng = parseFloat(endLng); endLat = parseFloat(endLat);
+            if ([startLng, startLat, endLng, endLat].some(isNaN)) {
+                console.error("Invalid coordinates supplied for routing.");
+                return;
+            }
+
+            const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
+
+            try {
+                const response = await fetch(url);
+                const json = await response.json();
+                if (!json.routes || json.routes.length === 0) {
+                    console.warn("No road route found between these points.");
+                    return;
+                }
+
+                const roadGeometry = json.routes[0].geometry;
+
+                if (map.getLayer('active-road-route')) {
+                    map.removeLayer('active-road-route');
+                    map.removeSource('active-road-route');
+                }
+
+                map.addSource('active-road-route', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: roadGeometry } });
+                map.addLayer({
+                    id: 'active-road-route',
+                    type: 'line',
+                    source: 'active-road-route',
+                    layout: { 'line-join': 'round', 'line-cap': 'round' },
+                    paint: { 'line-color': '#0284c7', 'line-width': 6, 'line-opacity': 0.85 }
+                });
+
+                const routeCoords = roadGeometry.coordinates;
+                const bounds = routeCoords.reduce((b, coord) => b.extend(coord), new maplibregl.LngLatBounds(routeCoords[0], routeCoords[0]));
+                map.fitBounds(bounds, { padding: 60 });
+            } catch (err) {
+                console.error("OSRM Road Network Error:", err);
+            }
+        }
+
+        // Auto-restore on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            restoreDriverSession();
+        });
+    </script>
+</body>
+</html>

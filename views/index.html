@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PragyaLink Ghana | Intelligent Tricycle Network</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes driftBlob {
+            0%   { transform: translate(0, 0) scale(1); }
+            33%  { transform: translate(3vw, -2vh) scale(1.08); }
+            66%  { transform: translate(-2vw, 3vh) scale(0.95); }
+            100% { transform: translate(0, 0) scale(1); }
+        }
+        .blob {
+            position: absolute;
+            border-radius: 9999px;
+            filter: blur(70px);
+            opacity: 0.28;
+            animation: driftBlob 22s ease-in-out infinite;
+        }
+
+        @keyframes routePulse {
+            to { stroke-dashoffset: -1000; }
+        }
+        .route-path {
+            stroke-dasharray: 6 14;
+            animation: routePulse 18s linear infinite;
+        }
+
+        @keyframes driftVehicle {
+            from { transform: translate(-10vw, 0) rotate(-3deg); }
+            to   { transform: translate(110vw, -6vh) rotate(3deg); }
+        }
+        .drift-vehicle {
+            position: absolute;
+            opacity: 0.16;
+            animation-name: driftVehicle;
+            animation-timing-function: linear;
+            animation-iteration-count: infinite;
+            filter: grayscale(0.2);
+        }
+
+        @keyframes captionFade {
+            0%, 100% { opacity: 0; transform: translateY(4px); }
+            8%, 22%  { opacity: 1; transform: translateY(0); }
+        }
+        .caption-line {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            animation: captionFade 32s ease-in-out infinite;
+        }
+
+        /* ---- Splash intro: 3D-rendered tricycle picks up a hailing passenger ---- */
+        #splashIntro {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            background: #020617;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        #splashIntro.splash-hidden { display: none; }
+        #splashIntro.splash-fading #splashCanvas,
+        #splashIntro.splash-fading #splashLogo,
+        #splashIntro.splash-fading #splashSkipHint {
+            animation: splashFadeOut 0.6s ease forwards;
+        }
+        @keyframes splashFadeOut { to { opacity: 0; } }
+
+        #splashCanvas { position: absolute; inset: 0; display: block; }
+
+        @keyframes splashLogoIn {
+            0%   { opacity: 0; transform: translateY(-8px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        #splashLogo {
+            position: absolute; top: 8%; left: 50%; transform: translateX(-50%);
+            opacity: 0; animation: splashLogoIn 0.6s ease-out 0.1s forwards;
+        }
+
+        @keyframes splashFadeIn { to { opacity: 1; } }
+        #splashSkipHint {
+            position: absolute; bottom: 6%; left: 50%; transform: translateX(-50%);
+            font-size: 0.65rem; color: #64748b; opacity: 0;
+            animation: splashFadeIn 0.4s ease-out 1.8s forwards;
+        }
+
+        /* Splash is genuinely non-essential motion — skip it outright rather than a
+           reduced version, and reveal the homepage immediately. */
+        @media (prefers-reduced-motion: reduce) {
+            #splashIntro { display: none !important; }
+        }
+
+        /* Respect motion-sensitivity preferences: freeze everything to a calm static frame */
+        @media (prefers-reduced-motion: reduce) {
+            .blob, .route-path, .drift-vehicle { animation: none !important; }
+            .caption-line { animation: none !important; opacity: 0 !important; }
+            .caption-line:first-child { opacity: 1 !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col justify-between relative overflow-x-hidden">
+
+    <!-- Splash intro: plays once per browser session, tap anywhere to skip. A real 3D
+         scene (geometry, lighting, camera — not just flat icons with perspective tricks),
+         but purely decorative, so it's skipped outright for reduced-motion preferences
+         and whenever WebGL isn't available — see the script below. -->
+    <div id="splashIntro" aria-hidden="true">
+        <canvas id="splashCanvas"></canvas>
+        <div id="splashLogo" class="text-xl font-black text-white tracking-wider">
+            Pragya<span class="text-emerald-400">Link 🛺</span>
+        </div>
+        <div id="splashSkipHint">Tap to skip</div>
+    </div>
+
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script>
+        (function () {
+            const splash = document.getElementById('splashIntro');
+            const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const alreadySeen = sessionStorage.getItem('pragya_splash_seen');
+
+            // WebGL support varies on lower-end/older Android devices in particular —
+            // skip straight to the homepage rather than showing a blank or broken canvas
+            // if it isn't available, or if the Three.js CDN failed to load.
+            function webglAvailable() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    return !!(window.WebGLRenderingContext &&
+                        (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+                } catch (e) { return false; }
+            }
+
+            if (reducedMotion || alreadySeen || typeof THREE === 'undefined' || !webglAvailable()) {
+                splash.classList.add('splash-hidden');
+                return;
+            }
+            sessionStorage.setItem('pragya_splash_seen', '1');
+
+            // ---- Scene ----
+            const canvas = document.getElementById('splashCanvas');
+            const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); // cap render cost on high-DPI phones
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x020617);
+            scene.fog = new THREE.Fog(0x020617, 14, 26);
+
+            const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 3.6, 9);
+            camera.lookAt(0, 0.4, 0);
+
+            // Lighting: soft ambient fill + a key light for real shadows + a brand-colored
+            // rim light for a bit of visual flair rather than flat, generic lighting.
+            scene.add(new THREE.AmbientLight(0x8899aa, 0.6));
+            const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
+            keyLight.position.set(4, 7, 5);
+            keyLight.castShadow = true;
+            keyLight.shadow.mapSize.set(1024, 1024);
+            keyLight.shadow.camera.left = -8; keyLight.shadow.camera.right = 8;
+            keyLight.shadow.camera.top = 8; keyLight.shadow.camera.bottom = -8;
+            scene.add(keyLight);
+            const rimLight = new THREE.DirectionalLight(0x34d399, 0.5);
+            rimLight.position.set(-5, 3, -4);
+            scene.add(rimLight);
+
+            // Ground + road strip
+            const ground = new THREE.Mesh(
+                new THREE.PlaneGeometry(40, 40),
+                new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.95 })
+            );
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            const road = new THREE.Mesh(
+                new THREE.PlaneGeometry(40, 2.6),
+                new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 })
+            );
+            road.rotation.x = -Math.PI / 2;
+            road.position.y = 0.001;
+            road.receiveShadow = true;
+            scene.add(road);
+
+            // Dashed lane-line down the middle of the road, reusing the same visual idea
+            // as the homepage's animated route paths in the background behind this splash.
+            for (let x = -18; x < 18; x += 1.4) {
+                const dash = new THREE.Mesh(
+                    new THREE.PlaneGeometry(0.6, 0.08),
+                    new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
+                );
+                dash.rotation.x = -Math.PI / 2;
+                dash.position.set(x, 0.002, 0);
+                scene.add(dash);
+            }
+
+            // ---- Tricycle (stylized low-poly group) ----
+            const tricycle = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.5, metalness: 0.15 });
+            const darkMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
+
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.7, 1.0), bodyMat);
+            body.position.y = 0.55; body.castShadow = true;
+            tricycle.add(body);
+
+            const canopy = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 0.9), darkMat);
+            canopy.position.set(-0.2, 1.1, 0); canopy.castShadow = true;
+            tricycle.add(canopy);
+
+            const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.22, 16);
+            wheelGeo.rotateX(Math.PI / 2); // bakes the axle orientation (left-right, along Z) into the geometry itself — kept separate from the mesh's own .rotation, which the render loop uses purely for spinning
+            function makeWheel(x, z) {
+                const w = new THREE.Mesh(wheelGeo, darkMat);
+                w.position.set(x, 0.32, z);
+                w.castShadow = true;
+                tricycle.add(w);
+                return w;
+            }
+            const wheelFront = makeWheel(0.75, 0);
+            const wheelRearL = makeWheel(-0.65, 0.55);
+            const wheelRearR = makeWheel(-0.65, -0.55);
+
+            const headlight = new THREE.Mesh(
+                new THREE.SphereGeometry(0.09, 8, 8),
+                new THREE.MeshStandardMaterial({ color: 0xfef3c7, emissive: 0xfbbf24, emissiveIntensity: 0.8 })
+            );
+            headlight.position.set(0.82, 0.6, 0);
+            tricycle.add(headlight);
+
+            tricycle.position.set(-7, 0, 1.1);
+            tricycle.scale.setScalar(0.01); // pops in from zero scale
+            scene.add(tricycle);
+
+            // ---- Passenger (stylized low-poly figure) ----
+            const passenger = new THREE.Group();
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xa9714f, roughness: 0.6 });
+            const shirtMat = new THREE.MeshStandardMaterial({ color: 0x0ea5e9, roughness: 0.6 });
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), skinMat);
+            head.position.y = 1.55; head.castShadow = true;
+            passenger.add(head);
+
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.7, 12), shirtMat);
+            torso.position.y = 1.05; torso.castShadow = true;
+            passenger.add(torso);
+
+            const legGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.7, 8);
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
+            [-0.12, 0.12].forEach(x => {
+                const leg = new THREE.Mesh(legGeo, legMat);
+                leg.position.set(x, 0.35, 0); leg.castShadow = true;
+                passenger.add(leg);
+            });
+
+            // Resting arm
+            const armMat = skinMat;
+            const restArm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.55, 8), armMat);
+            restArm.position.set(-0.28, 0.95, 0);
+            passenger.add(restArm);
+
+            // Raised arm, pivoted at the shoulder so rotation reads naturally
+            const armPivot = new THREE.Group();
+            armPivot.position.set(0.28, 1.28, 0);
+            const raisedArm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.55, 8), armMat);
+            raisedArm.position.y = -0.275; // hangs down from the pivot by default
+            raisedArm.castShadow = true;
+            armPivot.add(raisedArm);
+
+            const phone = new THREE.Mesh(
+                new THREE.BoxGeometry(0.14, 0.26, 0.03),
+                new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x38bdf8, emissiveIntensity: 0.6 })
+            );
+            phone.position.y = -0.55;
+            armPivot.add(phone);
+            passenger.add(armPivot);
+
+            passenger.position.set(3.2, 0, -1.1);
+            passenger.scale.setScalar(0.01);
+            scene.add(passenger);
+
+            // ---- Animation timeline ----
+            const easeOutBack = t => 1 + 2.7 * Math.pow(t - 1, 3) + 1.7 * Math.pow(t - 1, 2);
+            const easeInOutCubic = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+            const clamp01 = t => Math.max(0, Math.min(1, t));
+
+            const startTime = performance.now();
+            let animFrameId = null;
+            let stopped = false;
+
+            function render(now) {
+                if (stopped) return;
+                const t = (now - startTime) / 1000; // seconds elapsed
+
+                // Passenger pops in: 0.5s - 0.9s
+                const passengerScale = clamp01((t - 0.5) / 0.4);
+                passenger.scale.setScalar(0.01 + 0.99 * easeOutBack(passengerScale));
+
+                // Arm raises: 1.0s - 1.35s
+                const armT = easeInOutCubic(clamp01((t - 1.0) / 0.35));
+                armPivot.rotation.z = armT * (Math.PI * 0.85); // swings up from hanging to raised
+
+                // Tricycle pops in: 1.0s - 1.3s, then drives across: 1.3s - 3.4s
+                const tricycleScale = clamp01((t - 1.0) / 0.3);
+                tricycle.scale.setScalar(0.01 + 0.99 * easeOutBack(tricycleScale));
+
+                const driveT = easeInOutCubic(clamp01((t - 1.3) / 2.1));
+                const startX = -7, endX = 2.1;
+                const traveled = (endX - startX) * driveT;
+                tricycle.position.x = startX + traveled;
+                tricycle.position.y = Math.abs(Math.sin(t * 9)) * 0.04; // subtle drive bounce
+                tricycle.rotation.z = Math.sin(t * 9) * 0.02; // subtle body roll
+
+                const wheelSpin = traveled * 3.2;
+                wheelFront.rotation.z = wheelRearL.rotation.z = wheelRearR.rotation.z = wheelSpin;
+
+                // Arrival beat: ~3.4s - 4.0s — both characters give a little bounce
+                if (t > 3.4 && t < 4.0) {
+                    const bounce = Math.sin((t - 3.4) / 0.6 * Math.PI);
+                    passenger.scale.setScalar(1 + bounce * 0.12);
+                    tricycle.scale.setScalar(1 + bounce * 0.08);
+                }
+
+                // Gentle cinematic camera drift throughout
+                camera.position.x = Math.sin(t * 0.15) * 0.6;
+                camera.lookAt(0, 0.4, 0);
+
+                renderer.render(scene, camera);
+                animFrameId = requestAnimationFrame(render);
+            }
+            animFrameId = requestAnimationFrame(render);
+
+            function onResize() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+            window.addEventListener('resize', onResize);
+
+            // Fully tears down the WebGL context and stops rendering — important on the
+            // kind of mid/low-range Android hardware this app actually targets, where an
+            // orphaned render loop or lingering context is a real battery/GPU cost, not
+            // just a theoretical one.
+            function teardown() {
+                stopped = true;
+                cancelAnimationFrame(animFrameId);
+                window.removeEventListener('resize', onResize);
+                scene.traverse(obj => {
+                    if (obj.geometry) obj.geometry.dispose();
+                    if (obj.material) obj.material.dispose();
+                });
+                renderer.dispose();
+            }
+
+            const dismiss = () => {
+                if (splash.classList.contains('splash-fading') || splash.classList.contains('splash-hidden')) return;
+                splash.classList.add('splash-fading');
+                setTimeout(() => { splash.classList.add('splash-hidden'); teardown(); }, 650);
+            };
+
+            splash.addEventListener('click', dismiss);
+            setTimeout(dismiss, 4600);
+        })();
+    </script>
+
+
+    <!-- Ambient background: drifting network glow + animated road routes + tricycles + rotating captions.
+         Purely decorative — pointer-events disabled so it never blocks the real UI beneath it. -->
+    <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        <div class="blob w-[32rem] h-[32rem] bg-emerald-500 -top-24 -left-24" style="animation-delay: 0s;"></div>
+        <div class="blob w-[28rem] h-[28rem] bg-amber-500 top-1/3 -right-20" style="animation-delay: -7s;"></div>
+        <div class="blob w-[26rem] h-[26rem] bg-sky-500 bottom-0 left-1/4" style="animation-delay: -14s;"></div>
+
+        <svg class="absolute inset-0 w-full h-full opacity-30" preserveAspectRatio="none">
+            <path class="route-path" d="M -50 120 Q 300 40, 600 160 T 1400 100" fill="none" stroke="#34d399" stroke-width="2" />
+            <path class="route-path" d="M -50 420 Q 400 500, 750 380 T 1500 440" fill="none" stroke="#fbbf24" stroke-width="2" style="animation-delay: -6s;" />
+            <path class="route-path" d="M -50 650 Q 500 560, 900 680 T 1600 600" fill="none" stroke="#38bdf8" stroke-width="2" style="animation-delay: -12s;" />
+        </svg>
+
+        <div class="drift-vehicle text-3xl" style="top: 15%; animation-duration: 34s; animation-delay: -2s;">🛺</div>
+        <div class="drift-vehicle text-2xl" style="top: 55%; animation-duration: 42s; animation-delay: -18s;">🛺</div>
+        <div class="drift-vehicle text-3xl" style="top: 78%; animation-duration: 38s; animation-delay: -9s;">🛺</div>
+    </div>
+
+    <header class="relative z-10 border-b border-slate-800 px-6 py-4 flex justify-between items-center max-w-7xl mx-auto w-full">
+        <a href="/" class="text-2xl font-black text-white tracking-wider">Pragya<span class="text-emerald-400">Link 🛺</span></a>
+        <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-3 py-1 rounded-full">Ghana Operating System</span>
+    </header>
+
+    <main class="relative z-10 max-w-5xl mx-auto px-6 py-12 flex-1 flex flex-col justify-center items-center text-center space-y-10">
+        <div class="space-y-4 max-w-2xl">
+            <h1 class="text-4xl sm:text-6xl font-black text-white tracking-tight">
+                The Digital Infrastructure for <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-amber-400">Urban Mobility</span>
+            </h1>
+            <p class="text-slate-400 text-sm sm:text-base">
+                Connecting passengers, tricycle drivers, authorized mechanic workshops, and fleet owners on a unified 3D geospatial network.
+            </p>
+
+            <!-- Ambient rotating captions — cross-fades through real platform features -->
+            <div class="relative h-5 w-full mt-2" aria-hidden="true">
+                <div class="caption-line" style="animation-delay: 0s;">
+                    <span class="text-[11px] sm:text-xs font-mono text-emerald-400/70 tracking-wide">🛺 Live GPS across Kumasi &amp; Accra</span>
+                </div>
+                <div class="caption-line" style="animation-delay: -8s;">
+                    <span class="text-[11px] sm:text-xs font-mono text-amber-400/70 tracking-wide">🗣️ Pragya Voice speaks Twi &amp; English</span>
+                </div>
+                <div class="caption-line" style="animation-delay: -16s;">
+                    <span class="text-[11px] sm:text-xs font-mono text-sky-400/70 tracking-wide">🚏 Pool a ride, split the fare automatically</span>
+                </div>
+                <div class="caption-line" style="animation-delay: -24s;">
+                    <span class="text-[11px] sm:text-xs font-mono text-emerald-400/70 tracking-wide">🆘 One-tap SOS reaches your operator instantly</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full">
+            
+            <a href="/passenger" class="bg-slate-900 border border-slate-800 hover:border-emerald-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
+                <div class="text-4xl">🧳</div>
+                <div>
+                    <h3 class="text-lg font-black text-white group-hover:text-emerald-400 transition">Passenger View</h3>
+                    <p class="text-xs text-slate-400 mt-1">Request rides on live 3D map with accurate OSRM pricing.</p>
+                </div>
+                <span class="text-xs font-bold text-emerald-400 flex items-center gap-1">Open Portal &rarr;</span>
+            </a>
+
+            <a href="/rider" class="bg-slate-900 border border-slate-800 hover:border-emerald-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
+                <div class="text-4xl">🛺</div>
+                <div>
+                    <h3 class="text-lg font-black text-white group-hover:text-emerald-400 transition">Driver Console</h3>
+                    <p class="text-xs text-slate-400 mt-1">Accept trips, track Service Passport mileage & trigger SOS.</p>
+                </div>
+                <span class="text-xs font-bold text-emerald-400 flex items-center gap-1">Open Portal &rarr;</span>
+            </a>
+
+            <a href="/owner" class="bg-slate-900 border border-slate-800 hover:border-amber-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
+                <div class="text-4xl">📋</div>
+                <div>
+                    <h3 class="text-lg font-black text-white group-hover:text-amber-400 transition">Owner Portal</h3>
+                    <p class="text-xs text-slate-400 mt-1">Register vehicles, set lease targets & manage your fleet registry.</p>
+                </div>
+                <span class="text-xs font-bold text-amber-400 flex items-center gap-1">Open Portal &rarr;</span>
+            </a>
+
+            <a href="/fleet" class="bg-slate-900 border border-slate-800 hover:border-indigo-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
+                <div class="text-4xl">🗺️</div>
+                <div>
+                    <h3 class="text-lg font-black text-white group-hover:text-indigo-400 transition">Fleet Command</h3>
+                    <p class="text-xs text-slate-400 mt-1">Live map, searchable ledger & driver leaderboard, in real time.</p>
+                </div>
+                <span class="text-xs font-bold text-indigo-400 flex items-center gap-1">Open Portal &rarr;</span>
+            </a>
+
+            <a href="/mechanic" class="bg-slate-900 border border-slate-800 hover:border-sky-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
+                <div class="text-4xl">🛠️</div>
+                <div>
+                    <h3 class="text-lg font-black text-white group-hover:text-sky-400 transition">Workshops</h3>
+                    <p class="text-xs text-slate-400 mt-1">Receive Breakdown beacons & verify driver service passports.</p>
+                </div>
+                <span class="text-xs font-bold text-sky-400 flex items-center gap-1">Open Portal &rarr;</span>
+            </a>
+
+        </div>
+    </main>
+
+    <footer class="relative z-10 border-t border-slate-800 px-6 py-4 text-center text-xs text-slate-500">
+        PragyaLink Open Telematics Platform &copy; 2026
+    </footer>
+
+</body>
+</html>

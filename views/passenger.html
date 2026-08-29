@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Spatial Passenger Portal | PragyaLink Global</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #map { width: 100%; height: 100%; min-height: 400px; background-color: #020617; }
+        .glass-panel { background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
+        .vehicle-marker-3d {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            filter: drop-shadow(0px 10px 15px rgba(0,0,0,0.6));
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
+
+    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
+        <div class="flex items-center space-x-3">
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-sky-400">3D 🛺</span></a>
+            <span class="bg-sky-500/20 text-sky-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-sky-500/30 flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span> 3D Spatial Vector Mode
+            </span>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <button id="langToggleBtn" onclick="toggleLanguage()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition">
+                🌐 EN
+            </button>
+            <button onclick="toggle3DView()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition">
+                🏗️ Toggle 3D Tilt
+            </button>
+            <button onclick="toggleHistoryDrawer()" class="text-xs bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                📜 Receipts (<span id="receiptCount">0</span>)
+            </button>
+            <button onclick="triggerPanicSOS()" class="text-xs bg-red-500 hover:bg-red-400 text-white font-black px-3 py-1.5 rounded-lg transition shadow-lg animate-pulse">
+                🆘 SOS
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1 relative flex flex-col md:flex-row min-h-0 w-full">
+        <div class="flex-1 relative h-full w-full">
+            <div id="map"></div>
+        </div>
+
+        <aside class="w-full md:w-80 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
+            
+            <div class="space-y-1.5">
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">🌐 Global Tricycle Markets</label>
+                <select id="marketSelector" onchange="jumpToGlobalMarket(this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500 font-mono">
+                    <option value="kumasi">🇬🇭 Kumasi, Ghana (Pragya)</option>
+                    <option value="tamale">🇬🇭 Tamale, Ghana (Mahindra/Bajaj)</option>
+                    <option value="lagos">🇳🇬 Lagos, Nigeria (Keke Napep)</option>
+                    <option value="delhi">🇮🇳 New Delhi, India (Auto Rickshaw)</option>
+                    <option value="bangkok">🇹🇭 Bangkok, Thailand (Tuk-Tuk)</option>
+                </select>
+            </div>
+
+            <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                <label class="block text-xs font-bold text-slate-300">Your Phone Number (MoMo Enabled) *</label>
+                <input type="tel" id="passengerPhoneInput" onchange="savePassengerPhone()" placeholder="e.g. 0244123456" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-sky-500">
+                <p class="text-[10px] text-slate-400">Used for dispatch confirmation & digital receipts.</p>
+            </div>
+
+            <div id="referralSection" class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-300">🎁 Invite & Earn</span>
+                    <span id="walletCreditBadge" class="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">GH₵ 0.00</span>
+                </div>
+                <div id="referralCodeDisplay" class="hidden space-y-1.5">
+                    <p class="text-[10px] text-slate-400">Your code — share it, you both earn credit once they take their first ride:</p>
+                    <div class="flex gap-2">
+                        <span id="myReferralCode" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-sm text-amber-400 font-mono font-bold text-center"></span>
+                        <button onclick="shareReferralCode()" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-black px-3 rounded-xl text-xs">Share</button>
+                    </div>
+                </div>
+                <div id="referralEntryRow" class="flex gap-2">
+                    <input type="text" id="referralCodeInput" placeholder="Have a code? Enter it" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-sky-500">
+                    <button onclick="submitReferralCode()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 rounded-xl text-xs border border-slate-700">Apply</button>
+                </div>
+                <p id="referralMsg" class="text-[10px] hidden"></p>
+            </div>
+
+            <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                <label class="block text-xs font-bold text-slate-300 mb-1">Ride Mode</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="modePrivateBtn" onclick="setRideMode('PRIVATE')" class="p-2 bg-sky-500/10 border-2 border-sky-500 rounded-xl text-center text-xs font-bold text-sky-300">🛺 Private</button>
+                    <button id="modePoolBtn" onclick="setRideMode('POOL')" class="p-2 bg-slate-950 border-2 border-slate-800 rounded-xl text-center text-xs font-bold text-slate-400">🚏 Pragya Pool</button>
+                </div>
+                <p id="poolHint" class="text-[10px] text-slate-400 hidden">Pool rides split the fare with others heading the same way. Tap the map to set your drop-off point.</p>
+                <div id="poolDropoffStatus" class="hidden text-[10px] text-amber-400 font-bold"></div>
+            </div>
+
+            <div id="twiCaption" class="text-amber-300 font-bold text-xs px-1"></div>
+
+            <div id="rideStatusCard" class="bg-slate-900/90 p-4 rounded-2xl border border-sky-500/40 space-y-3">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span class="text-xs font-black text-sky-400">📍 Spatial Dispatch</span>
+                    <span id="statusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Idle / Searching</span>
+                </div>
+                <div id="gpsStatusRow" class="flex items-center justify-between text-[9px] font-mono">
+                    <span id="gpsQualityBadge" class="text-slate-500">📡 Acquiring your location...</span>
+                    <span id="walkingSpeedBadge" class="text-sky-400 hidden">🚶 0 km/h</span>
+                </div>
+                <div class="flex items-center justify-between text-[9px] font-mono">
+                    <button onclick="startPickupCorrectionMode()" class="text-sky-400 font-bold hover:underline">📍 Not right? Tap map to fix</button>
+                    <button id="compassToggleBtn" onclick="toggleCompassMode()" class="text-slate-400 bg-slate-800/50 border border-slate-700 px-2 py-0.5 rounded hover:border-sky-500 transition">
+                        🧭 Compass Off
+                    </button>
+                </div>
+                <div id="passengerActionArea" class="space-y-2 text-xs">
+                    <p class="text-slate-400 italic text-[11px]">Select any active 🛺 vehicle model on the 3D map to initiate dispatch.</p>
+                </div>
+            </div>
+
+            <div id="historySection" class="space-y-2 pt-2 border-t border-slate-800">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xs font-bold text-sky-400 uppercase tracking-wider">📜 Ride Receipts</h3>
+                    <button onclick="clearReceiptsHistory()" class="text-[9px] text-red-400 hover:underline">Clear History</button>
+                </div>
+                <div id="historyList" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    <p class="text-[11px] text-slate-500 italic text-center py-2">No completed trips logged yet.</p>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        const socket = io();
+        let activeRidersOnMap = {};
+        let passengerPos = { lat: 6.6885, lng: -1.6244 };
+        let selectedTargetRider = null;
+        let is3DTilted = true;
+
+        // Every field below (driver names, plates, phone numbers) is free text someone else
+        // typed — never trust it into innerHTML unescaped.
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // For user text embedded as a quoted JS argument inside onclick="fn('...')" —
+        // HTML-entity escaping alone does NOT protect this context.
+        function escapeJsAttr(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        // ---- Pragya Voice: bilingual captions for passengers ----
+        let currentLang = localStorage.getItem('pragya_lang') || 'EN';
+        const PHRASES = {
+            driverAssigned: { EN: "A driver has been assigned to you.", TWI: "Driver no aba." },
+            driverArrived: { EN: "Your driver has arrived at your location.", TWI: "Driver no aba wo nkyɛn." },
+            driverDeclined: { EN: "This driver is unavailable. Please pick another vehicle.", TWI: "Driver yi nni hɔ. Paw kaa foforo." },
+            tripComplete: { EN: "Your trip is complete. Thank you for riding with PragyaLink.", TWI: "Wo Akwantuo Awie." },
+            paymentSuccess: { EN: "Payment confirmed. Thank you.", TWI: "Yɛagye wo sika. Meda wo ase." },
+            paymentFailed: { EN: "Payment was not successful. Please try again or pay cash.", TWI: "Sika no ankɔ yie. San yɛ bio anaa tua no cash." },
+            sosSent: { EN: "Emergency alert sent to dispatch monitors.", TWI: "Yɛde wo ho asɛm akɔ mmoa hɔ." }
+        };
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'EN' ? 'TWI' : 'EN';
+            localStorage.setItem('pragya_lang', currentLang);
+            document.getElementById('langToggleBtn').innerText = currentLang === 'EN' ? '🌐 EN' : '🌐 TWI';
+        }
+
+        function speakPragyaPhrase(key) {
+            const entry = PHRASES[key];
+            if (!entry) return;
+            document.getElementById('twiCaption').innerText = `🇬🇭 ${entry.TWI}`;
+            if (!('speechSynthesis' in window)) return;
+
+            const voices = window.speechSynthesis.getVoices();
+            const hasTwiVoice = voices.some(v => v.lang && v.lang.toLowerCase().startsWith('tw'));
+            const speakTwi = currentLang === 'TWI' && hasTwiVoice;
+
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(speakTwi ? entry.TWI : entry.EN);
+            utterance.lang = speakTwi ? 'tw-GH' : 'en-US';
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // ---- Ride mode: Private vs Pragya Pool ----
+        let rideMode = 'PRIVATE';
+        let poolDropoff = null;
+        let poolDropoffMarker = null;
+
+        function setRideMode(mode) {
+            rideMode = mode;
+            const privateBtn = document.getElementById('modePrivateBtn');
+            const poolBtn = document.getElementById('modePoolBtn');
+            const hint = document.getElementById('poolHint');
+
+            if (mode === 'PRIVATE') {
+                privateBtn.className = "p-2 bg-sky-500/10 border-2 border-sky-500 rounded-xl text-center text-xs font-bold text-sky-300";
+                poolBtn.className = "p-2 bg-slate-950 border-2 border-slate-800 rounded-xl text-center text-xs font-bold text-slate-400";
+                hint.classList.add('hidden');
+            } else {
+                poolBtn.className = "p-2 bg-amber-500/10 border-2 border-amber-500 rounded-xl text-center text-xs font-bold text-amber-300";
+                privateBtn.className = "p-2 bg-slate-950 border-2 border-slate-800 rounded-xl text-center text-xs font-bold text-slate-400";
+                hint.classList.remove('hidden');
+            }
+        }
+
+        // ---- Panic button ----
+        function triggerPanicSOS() {
+            if (!confirm("🆘 Send an emergency alert with your live location to PragyaLink safety monitors?")) return;
+
+            const phone = document.getElementById('passengerPhoneInput').value.trim();
+            const send = (lat, lng, accuracy) => {
+                socket.emit('passenger-sos-alert', {
+                    passengerPhone: phone || 'Unknown',
+                    plateNumber: selectedTargetRider ? selectedTargetRider.plateNumber : null,
+                    driverName: selectedTargetRider ? selectedTargetRider.fullName : null,
+                    lat, lng, accuracyM: accuracy || null
+                });
+                speakPragyaPhrase('sosSent');
+                alert("🆘 Alert sent. Nearby fleet operators and workshops have been notified with your location.");
+            };
+
+            // Emergency alerts must never wait long for a "perfect" reading — request high
+            // accuracy but fall back fast (and to the last known pickup position) rather
+            // than delaying or blocking the alert.
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => send(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+                    () => send(passengerPos.lat, passengerPos.lng, null),
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
+                );
+            } else {
+                send(passengerPos.lat, passengerPos.lng);
+            }
+        }
+
+        // Global Market Coordinates
+        const markets = {
+            kumasi: { lng: -1.6244, lat: 6.6885, zoom: 16.5, pitch: 60, bearing: -17.6 },
+            tamale: { lng: -0.8393, lat: 9.4007, zoom: 16, pitch: 55, bearing: 10 },
+            lagos: { lng: 3.3792, lat: 6.5244, zoom: 16, pitch: 60, bearing: 25 },
+            delhi: { lng: 77.2090, lat: 28.6139, zoom: 16.5, pitch: 60, bearing: -10 },
+            bangkok: { lng: 100.5018, lat: 13.7563, zoom: 16.5, pitch: 60, bearing: 45 }
+        };
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: '__PRAGYA_MAP_STYLE_URL__',
+            center: [passengerPos.lng, passengerPos.lat],
+            zoom: markets.kumasi.zoom,
+            pitch: markets.kumasi.pitch,
+            bearing: markets.kumasi.bearing,
+            antialias: true
+        });
+
+        map.addControl(new maplibregl.NavigationControl());
+
+        let pickupCorrectionMode = false;
+        function startPickupCorrectionMode() {
+            pickupCorrectionMode = true;
+            document.getElementById('gpsQualityBadge').innerText = '📍 Tap anywhere on the map to set your pickup point...';
+        }
+
+        // Pool mode: tap the map to set your drop-off point. Pickup correction mode: tap
+        // the map to manually override a GPS reading that looks wrong.
+        map.on('click', (e) => {
+            if (pickupCorrectionMode) {
+                pickupCorrectionMode = false;
+                useLiveGpsTracking = false; // manual correction is a deliberate override — don't let the next GPS tick undo it
+                lastGoodPickupFix = { lat: e.lngLat.lat, lng: e.lngLat.lng, accuracy: 0, timestamp: Date.now() };
+                setPassengerPickupMarker(e.lngLat.lat, e.lngLat.lng, 0);
+                updateGpsQualityBadge(0, 'good', true);
+                return;
+            }
+            if (rideMode !== 'POOL') return;
+            poolDropoff = { lat: e.lngLat.lat, lng: e.lngLat.lng };
+
+            if (poolDropoffMarker) poolDropoffMarker.remove();
+            poolDropoffMarker = new maplibregl.Marker({ color: '#f59e0b' })
+                .setLngLat([poolDropoff.lng, poolDropoff.lat])
+                .setPopup(new maplibregl.Popup().setHTML('<b>🏁 Your Drop-off Point</b>'))
+                .addTo(map);
+
+            const statusEl = document.getElementById('poolDropoffStatus');
+            statusEl.classList.remove('hidden');
+            statusEl.innerText = '✅ Drop-off point set. Tap "Request Pool Ride" below.';
+            renderPoolRequestButton();
+        });
+
+        function renderPoolRequestButton() {
+            if (rideMode !== 'POOL' || !poolDropoff) return;
+            document.getElementById('passengerActionArea').innerHTML = `
+                <button onclick="sendPoolRideRequest()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl transition shadow-lg text-xs">
+                    🚏 Request Pool Ride
+                </button>
+            `;
+        }
+
+        function sendPoolRideRequest() {
+            const phone = document.getElementById('passengerPhoneInput').value.trim();
+            if (!phone) { alert("⚠️ Please enter your phone number first!"); return; }
+            if (!poolDropoff) { alert("⚠️ Tap the map to set your drop-off point first!"); return; }
+            savePassengerPhone();
+
+            socket.emit('request-pool-ride', {
+                passengerPhone: phone,
+                pickupLat: passengerPos.lat, pickupLng: passengerPos.lng,
+                dropoffLat: poolDropoff.lat, dropoffLng: poolDropoff.lng
+            });
+
+            document.getElementById('statusTag').innerText = "Finding Pool Match...";
+            document.getElementById('passengerActionArea').innerHTML = `<p class="text-amber-400 font-bold text-xs">Looking for a driver heading your way...</p>`;
+        }
+
+        // Add 3D Building Extrusions Layer
+        map.on('style.load', () => {
+            const layers = map.getStyle().layers;
+            let labelLayerId;
+            for (let i = 0; i < layers.length; i++) {
+                if (layers[i].type === 'symbol' && layers[i].layout['text-field']) {
+                    labelLayerId = layers[i].id;
+                    break;
+                }
+            }
+
+            map.addLayer({
+                'id': '3d-buildings',
+                'source': 'openmaptiles',
+                'source-layer': 'building',
+                'type': 'fill-extrusion',
+                'minzoom': 13,
+                'paint': {
+                    'fill-extrusion-color': '#1e293b',
+                    'fill-extrusion-height': [
+                        'interpolate', ['linear'], ['zoom'],
+                        13, 0,
+                        15.05, ['coalesce', ['get', 'render_height'], 10]
+                    ],
+                    'fill-extrusion-base': [
+                        'interpolate', ['linear'], ['zoom'],
+                        13, 0,
+                        15.05, ['coalesce', ['get', 'render_min_height'], 0]
+                    ],
+                    'fill-extrusion-opacity': 0.85
+                }
+            }, labelLayerId);
+        });
+
+        function toggle3DView() {
+            is3DTilted = !is3DTilted;
+            map.easeTo({
+                pitch: is3DTilted ? 60 : 0,
+                bearing: is3DTilted ? -17.6 : 0,
+                duration: 1000
+            });
+        }
+
+        function jumpToGlobalMarket(marketKey) {
+            const m = markets[marketKey];
+            if (m) {
+                map.flyTo({
+                    center: [m.lng, m.lat],
+                    zoom: m.zoom,
+                    pitch: m.pitch,
+                    bearing: m.bearing,
+                    duration: 2500,
+                    essential: true
+                });
+            }
+        }
+
+        // ---- GPS reliability layer ----
+        // Browser geolocation can silently fall back to cell-tower or IP-based positioning
+        // when satellite lock is weak — those fallbacks can be off by kilometers, sometimes
+        // placing a device in a different town entirely. Reject implausibly poor readings
+        // outright rather than trusting whatever the browser hands back.
+        const GPS_REJECT_ACCURACY_M = 1500;
+        const GPS_WARN_ACCURACY_M = 100;
+        let lastGoodPickupFix = null;
+        let pickupMarker = null;
+
+        function updateGpsQualityBadge(accuracy, status, isManual) {
+            const badge = document.getElementById('gpsQualityBadge');
+            if (isManual) {
+                badge.innerText = '📍 Pickup set manually';
+                badge.className = 'text-sky-400';
+                return;
+            }
+            if (status === 'weak') {
+                badge.innerText = accuracy ? `🔴 Weak GPS (±${Math.round(accuracy)}m) — location may be inaccurate` : '🔴 Location unavailable';
+                badge.className = 'text-red-400';
+            } else if (status === 'fair') {
+                badge.innerText = `🟡 GPS ±${Math.round(accuracy)}m`;
+                badge.className = 'text-amber-400';
+            } else {
+                badge.innerText = `🟢 GPS ±${Math.round(accuracy)}m`;
+                badge.className = 'text-emerald-400';
+            }
+        }
+
+        function createGeoJSONCircle(centerLat, centerLng, radiusMeters, points = 48) {
+            const coords = [];
+            const km = radiusMeters / 1000;
+            const distanceX = km / (111.320 * Math.cos(centerLat * Math.PI / 180));
+            const distanceY = km / 110.574;
+            for (let i = 0; i < points; i++) {
+                const theta = (i / points) * (2 * Math.PI);
+                coords.push([centerLng + distanceX * Math.cos(theta), centerLat + distanceY * Math.sin(theta)]);
+            }
+            coords.push(coords[0]);
+            return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] } };
+        }
+
+        function updateAccuracyCircle(lat, lng, accuracyMeters) {
+            if (!accuracyMeters) { if (map.getSource('pickup-accuracy-circle')) map.getSource('pickup-accuracy-circle').setData({ type: 'FeatureCollection', features: [] }); return; }
+            const feature = createGeoJSONCircle(lat, lng, accuracyMeters);
+            if (map.getSource('pickup-accuracy-circle')) {
+                map.getSource('pickup-accuracy-circle').setData(feature);
+            } else {
+                map.addSource('pickup-accuracy-circle', { type: 'geojson', data: feature });
+                map.addLayer({ id: 'pickup-accuracy-fill', type: 'fill', source: 'pickup-accuracy-circle', paint: { 'fill-color': '#38bdf8', 'fill-opacity': 0.12 } });
+                map.addLayer({ id: 'pickup-accuracy-line', type: 'line', source: 'pickup-accuracy-circle', paint: { 'line-color': '#38bdf8', 'line-width': 1, 'line-opacity': 0.4 } });
+            }
+        }
+
+        function setPassengerPickupMarker(lat, lng, accuracyMeters) {
+            passengerPos.lat = lat;
+            passengerPos.lng = lng;
+            map.flyTo({ center: [lng, lat], zoom: 16.5, pitch: 60 });
+
+            if (pickupMarker) pickupMarker.remove();
+            pickupMarker = new maplibregl.Marker({ color: '#38bdf8' })
+                .setLngLat([lng, lat])
+                .setPopup(new maplibregl.Popup().setHTML('<b>📍 Pickup Point</b>'))
+                .addTo(map);
+
+            updateAccuracyCircle(lat, lng, accuracyMeters);
+        }
+
+        // GPS Location Handling — continuous tracking, not a single snapshot. A one-shot
+        // reading meant the pickup pin never moved again after the first fix, which looks
+        // exactly like "can't track my actual position" if you're walking around with the
+        // page open. Switched to watchPosition, reusing the same reliability layer above.
+        let useLiveGpsTracking = true;
+        let prevPassengerPos = null;
+        let currentPassengerBearingDeg = null;
+
+        function calculateBearingDeg(lat1, lon1, lat2, lon2) {
+            const toRad = d => d * Math.PI / 180;
+            const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
+            const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+                      Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
+            return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+        }
+
+        // ---- Device compass heading ----
+        // For a walking passenger this matters even more than for a driver — turning your
+        // whole body to face a direction doesn't necessarily displace you far enough for
+        // GPS-course (direction between two points) to update, so that alone can feel
+        // laggy or unresponsive while on foot. A compass rotates the map instantly as you
+        // turn, without needing to actually walk anywhere first.
+        let compassModeEnabled = false;
+        let compassSmoothedHeading = null;
+        let compassListenerAttached = false;
+        let compassNoSignalTimer = null;
+
+        function shortestAngleDelta(from, to) {
+            return (to - from + 540) % 360 - 180;
+        }
+
+        function handleDeviceOrientation(event) {
+            let heading = (typeof event.webkitCompassHeading === 'number') ? event.webkitCompassHeading : null;
+            if (heading == null && event.alpha != null) {
+                heading = (360 - event.alpha) % 360;
+            }
+            if (heading == null) return;
+
+            clearTimeout(compassNoSignalTimer);
+            compassNoSignalTimer = setTimeout(() => {
+                document.getElementById('compassToggleBtn').innerText = '🧭 No signal';
+            }, 4000);
+
+            if (compassSmoothedHeading == null) {
+                compassSmoothedHeading = heading;
+            } else {
+                compassSmoothedHeading = (compassSmoothedHeading + shortestAngleDelta(compassSmoothedHeading, heading) * 0.25 + 360) % 360;
+            }
+
+            if (compassModeEnabled) {
+                document.getElementById('compassToggleBtn').innerText = `🧭 ${Math.round(compassSmoothedHeading)}°`;
+                map.easeTo({ bearing: compassSmoothedHeading, duration: 150 });
+            }
+        }
+
+        function toggleCompassMode() {
+            if (compassModeEnabled) {
+                compassModeEnabled = false;
+                document.getElementById('compassToggleBtn').innerText = '🧭 Compass Off';
+                document.getElementById('compassToggleBtn').className = 'text-slate-400 bg-slate-800/50 border border-slate-700 px-2 py-0.5 rounded hover:border-sky-500 transition';
+                return;
+            }
+
+            if (!window.isSecureContext) {
+                alert('🧭 Compass needs a secure connection (HTTPS) to work — same requirement as GPS.');
+                return;
+            }
+            if (typeof DeviceOrientationEvent === 'undefined') {
+                alert('🧭 This device/browser doesn\'t support compass heading.');
+                return;
+            }
+
+            const startListening = () => {
+                if (!compassListenerAttached) {
+                    const eventName = ('ondeviceorientationabsolute' in window) ? 'deviceorientationabsolute' : 'deviceorientation';
+                    window.addEventListener(eventName, handleDeviceOrientation);
+                    compassListenerAttached = true;
+                }
+                compassModeEnabled = true;
+                document.getElementById('compassToggleBtn').className = 'text-sky-400 bg-sky-500/10 border border-sky-500/40 px-2 py-0.5 rounded transition';
+            };
+
+            // iOS requires this be requested from directly inside a user tap — cannot be
+            // requested automatically, and asking anywhere else silently fails.
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().then(result => {
+                    if (result === 'granted') {
+                        startListening();
+                    } else {
+                        alert('🧭 Compass permission was declined. You can re-enable it from your browser/site settings.');
+                    }
+                }).catch(() => alert('🧭 Could not request compass permission on this device.'));
+            } else {
+                startListening();
+            }
+        }
+
+        function handlePassengerGpsReading(pos) {
+            if (!useLiveGpsTracking) return; // passenger manually corrected their pin — respect that
+
+            const accuracy = pos.coords.accuracy || 9999;
+            if (accuracy > GPS_REJECT_ACCURACY_M) {
+                updateGpsQualityBadge(accuracy, 'weak');
+                return; // hold at last known good position rather than jumping to a bad one
+            }
+
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const now = Date.now();
+
+            if (prevPassengerPos) {
+                const deltaMeters = calculateHaversineDistance(prevPassengerPos.lat, prevPassengerPos.lng, lat, lng);
+                const dtSec = Math.max(0.1, (now - prevPassengerPos.timestamp) / 1000);
+                // Scales the "was that real movement?" threshold to this reading's own
+                // accuracy — a flat 1m floor meant ordinary GPS jitter while standing
+                // still could show a fake walking speed, since noise divided by a short
+                // time interval easily looks like a couple of km/h.
+                const noiseFloorMeters = Math.max(8, accuracy);
+
+                if (deltaMeters > noiseFloorMeters) {
+                    const speedMps = (pos.coords.speed != null && pos.coords.speed >= 0) ? pos.coords.speed : deltaMeters / dtSec;
+                    const badge = document.getElementById('walkingSpeedBadge');
+                    if (badge) {
+                        badge.classList.remove('hidden');
+                        badge.innerText = speedMps < 0.3 ? '🧍 Stationary' : `🚶 ${(speedMps * 3.6).toFixed(1)} km/h`;
+                    }
+
+                    // Rotate the map to face the direction of travel — same technique as
+                    // the driver console, gated the same way so jitter can't spin it.
+                    // Deferred to compass mode when that's active, same reasoning as the
+                    // driver console: compass updates instantly on a turn, GPS course only
+                    // once you've actually displaced between two points.
+                    currentPassengerBearingDeg = calculateBearingDeg(prevPassengerPos.lat, prevPassengerPos.lng, lat, lng);
+                    if (!compassModeEnabled) {
+                        map.easeTo({ bearing: currentPassengerBearingDeg, duration: 600 });
+                    }
+                }
+            }
+            prevPassengerPos = { lat, lng, timestamp: now };
+
+            lastGoodPickupFix = { lat, lng, accuracy };
+            setPassengerPickupMarker(lat, lng, accuracy);
+            updateGpsQualityBadge(accuracy, accuracy > GPS_WARN_ACCURACY_M ? 'fair' : 'good');
+        }
+
+        function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+        }
+
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(handlePassengerGpsReading, () => {
+                updateGpsQualityBadge(null, 'weak');
+                startPickupCorrectionMode();
+            }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 });
+        } else {
+            updateGpsQualityBadge(null, 'weak');
+            startPickupCorrectionMode();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedPhone = localStorage.getItem('pragya_passenger_phone');
+            if (savedPhone) {
+                document.getElementById('passengerPhoneInput').value = savedPhone;
+                refreshReferralInfo();
+            }
+            renderLocalRideHistory();
+        });
+
+        function savePassengerPhone() {
+            const phone = document.getElementById('passengerPhoneInput').value.trim();
+            if (phone) {
+                localStorage.setItem('pragya_passenger_phone', phone);
+                refreshReferralInfo();
+            }
+        }
+
+        // ---- Referral program ----
+        function refreshReferralInfo() {
+            const phone = localStorage.getItem('pragya_passenger_phone');
+            if (phone) socket.emit('request-referral-info', phone);
+        }
+
+        socket.on('referral-info-update', (info) => {
+            document.getElementById('walletCreditBadge').innerText = `GH₵ ${info.walletCredit.toFixed(2)}`;
+            document.getElementById('myReferralCode').innerText = info.code;
+            document.getElementById('referralCodeDisplay').classList.remove('hidden');
+        });
+
+        function shareReferralCode() {
+            const code = document.getElementById('myReferralCode').innerText;
+            const text = `Ride PragyaLink tricycles in Kumasi & Accra — use my code ${code} and we both get GH₵ credit! 🛺`;
+            if (navigator.share) {
+                navigator.share({ text }).catch(() => {});
+            } else {
+                navigator.clipboard.writeText(text).then(() => alert('Copied — paste it to a friend!'));
+            }
+        }
+
+        function submitReferralCode() {
+            const code = document.getElementById('referralCodeInput').value.trim();
+            const phone = localStorage.getItem('pragya_passenger_phone');
+            const msgEl = document.getElementById('referralMsg');
+            if (!code || !phone) {
+                msgEl.innerText = '⚠️ Enter your phone number above first.';
+                msgEl.className = 'text-[10px] text-amber-400';
+                msgEl.classList.remove('hidden');
+                return;
+            }
+            socket.emit('submit-referral-code', { code, refereeId: phone, type: 'passenger' });
+        }
+
+        socket.on('referral-submit-result', (result) => {
+            const msgEl = document.getElementById('referralMsg');
+            if (result.success) {
+                msgEl.innerText = '✅ Code applied — GH₵ credit added to your wallet!';
+                msgEl.className = 'text-[10px] text-emerald-400';
+                document.getElementById('referralEntryRow').classList.add('hidden');
+                refreshReferralInfo();
+            } else {
+                msgEl.innerText = '⚠️ That code is invalid or already used.';
+                msgEl.className = 'text-[10px] text-red-400';
+            }
+            msgEl.classList.remove('hidden');
+        });
+
+        function toggleHistoryDrawer() {
+            document.getElementById('historySection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function renderLocalRideHistory() {
+            const listEl = document.getElementById('historyList');
+            const receipts = JSON.parse(localStorage.getItem('pragya_passenger_receipts') || '[]');
+            document.getElementById('receiptCount').innerText = receipts.length;
+
+            if (receipts.length === 0) {
+                listEl.innerHTML = `<p class="text-[11px] text-slate-500 italic text-center py-2">No completed trips logged yet.</p>`;
+                return;
+            }
+
+            listEl.innerHTML = '';
+            receipts.forEach(ride => {
+                const item = document.createElement('div');
+                item.className = 'bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-1 text-xs';
+                item.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-white">🛺 ${escapeHtml(ride.riderName) || 'Pragya Driver'}</span>
+                        <span class="text-emerald-400 font-mono font-black text-sm">GH₵ ${parseFloat(ride.fareGhs).toFixed(2)}</span>
+                    </div>
+                    <div class="text-[10px] text-slate-400 flex justify-between font-mono">
+                        <span>Plate: <strong class="text-amber-400">${escapeHtml(ride.plateNumber) || 'N/A'}</strong></span>
+                        <span>${new Date(ride.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                    </div>
+                `;
+                listEl.appendChild(item);
+            });
+        }
+
+        function clearReceiptsHistory() {
+            if (confirm("Clear all locally saved ride receipts?")) {
+                localStorage.removeItem('pragya_passenger_receipts');
+                renderLocalRideHistory();
+            }
+        }
+
+        // WebSockets Telemetry
+        socket.on('current-riders', (riders) => {
+            const activeList = Array.isArray(riders) ? riders : (riders.activeDrivers || []);
+            activeList.forEach(updateRiderMarker);
+        });
+
+        // Ask the server for a full snapshot of who's already online (fixes the "cold start"
+        // gap where drivers who went online before this page loaded wouldn't show up until
+        // their next GPS tick)
+        socket.on('connect', () => {
+            socket.emit('request-online-drivers');
+        });
+
+        socket.on('rider-location-updated', (rider) => {
+            updateRiderMarker(rider);
+        });
+
+        let assignedDriverPlate = null;
+        let hasAnnouncedArrival = false;
+
+        function updateRiderMarker(rider) {
+            if (!rider.lat || !rider.lng) return;
+
+            if (activeRidersOnMap[rider.socketId]) {
+                activeRidersOnMap[rider.socketId].setLngLat([rider.lng, rider.lat]);
+            } else {
+                const el = document.createElement('div');
+                el.className = 'vehicle-marker-3d text-4xl cursor-pointer hover:scale-125 transition transform';
+                el.innerText = '🛺';
+                el.onclick = () => selectDriverForBooking(rider);
+
+                activeRidersOnMap[rider.socketId] = new maplibregl.Marker({ element: el })
+                    .setLngLat([rider.lng, rider.lat])
+                    .setPopup(new maplibregl.Popup().setHTML(`
+                        <b style="color:#10b981;">🛺 ${escapeHtml(rider.fullName)}</b><br>
+                        <span style="font-family:monospace;">Plate: ${escapeHtml(rider.plateNumber)}</span><br>
+                        <a href="tel:${escapeHtml(rider.contact)}" style="color:#38bdf8; font-weight:bold;">📞 Call: ${escapeHtml(rider.contact)}</a>
+                    `))
+                    .addTo(map);
+            }
+
+            // Announce (once) when the assigned driver gets within ~50m of the passenger
+            if (assignedDriverPlate && rider.plateNumber === assignedDriverPlate && !hasAnnouncedArrival) {
+                const R = 6371000;
+                const dLat = (rider.lat - passengerPos.lat) * Math.PI / 180;
+                const dLon = (rider.lng - passengerPos.lng) * Math.PI / 180;
+                const a = Math.sin(dLat / 2) ** 2 + Math.cos(passengerPos.lat * Math.PI / 180) * Math.cos(rider.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+                const distMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                if (distMeters < 50) {
+                    hasAnnouncedArrival = true;
+                    speakPragyaPhrase('driverArrived');
+                }
+            }
+        }
+
+        function selectDriverForBooking(rider) {
+            selectedTargetRider = rider;
+            document.getElementById('statusTag').innerText = "Driver Selected";
+            document.getElementById('statusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30";
+
+            document.getElementById('passengerActionArea').innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center font-bold text-white">
+                        <span>${escapeHtml(rider.fullName)}</span>
+                        <span class="text-amber-400 font-mono text-[11px]">${escapeHtml(rider.plateNumber)}</span>
+                    </div>
+                    <a href="tel:${escapeHtml(rider.contact)}" class="w-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl py-1.5 text-xs font-bold flex items-center justify-center gap-1 transition">
+                        📞 Call Driver: ${escapeHtml(rider.contact)}
+                    </a>
+                    <button onclick="sendRideDispatch()" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-black py-2.5 rounded-xl transition shadow-lg text-xs">
+                        🚀 Request Dispatch
+                    </button>
+                </div>
+            `;
+        }
+
+        function sendRideDispatch() {
+            const phone = document.getElementById('passengerPhoneInput').value.trim();
+            if (!phone) {
+                alert("⚠️ Please enter your phone number first!");
+                return;
+            }
+            savePassengerPhone();
+
+            socket.emit('request-ride', {
+                targetRiderUsername: selectedTargetRider.username,
+                passengerPhone: phone,
+                pickupLat: passengerPos.lat,
+                pickupLng: passengerPos.lng
+            });
+
+            document.getElementById('statusTag').innerText = "Dispatch Sent";
+            document.getElementById('passengerActionArea').innerHTML = `
+                <div class="space-y-1">
+                    <p class="text-amber-400 font-bold">Waiting for ${escapeHtml(selectedTargetRider.fullName)} to accept...</p>
+                    <p class="text-[10px] text-slate-400 font-mono">Contact: ${escapeHtml(selectedTargetRider.contact)}</p>
+                </div>
+            `;
+        }
+
+        socket.on('ride-request-response', (res) => {
+            if (res.status === 'accepted') {
+                document.getElementById('statusTag').innerText = "Driver En Route";
+                document.getElementById('statusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+
+                document.getElementById('passengerActionArea').innerHTML = `
+                    <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
+                        <p class="text-emerald-400 font-bold">🎉 Driver Accepted!</p>
+                        <p class="text-xs text-white">Driver: <strong>${escapeHtml(res.riderName)}</strong> (${escapeHtml(res.plateNumber)})</p>
+                        <a href="tel:${escapeHtml(res.riderContact)}" class="text-sky-400 underline font-mono text-xs font-bold">📞 Call: ${escapeHtml(res.riderContact)}</a>
+                    </div>
+                `;
+                speakPragyaPhrase('driverAssigned');
+            } else if (res.status === 'declined') {
+                document.getElementById('statusTag').innerText = "Declined";
+                document.getElementById('statusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30";
+
+                document.getElementById('passengerActionArea').innerHTML = `
+                    <div class="space-y-2 bg-red-500/10 p-3 rounded-xl border border-red-500/30">
+                        <p class="text-red-400 font-bold">❌ Driver Unavailable</p>
+                        <p class="text-xs text-slate-300">This driver declined the dispatch. Please pick another tricycle on the map.</p>
+                    </div>
+                `;
+                selectedTargetRider = null;
+                speakPragyaPhrase('driverDeclined');
+            }
+        });
+
+        socket.on('passenger-trip-ended', (summary) => {
+            document.getElementById('statusTag').innerText = "Trip Completed";
+            document.getElementById('statusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+            speakPragyaPhrase('tripComplete');
+
+            const newReceipt = {
+                tripId: summary.tripRecord ? summary.tripRecord.tripId : 'TRIP-' + Date.now(),
+                riderName: summary.tripRecord ? summary.tripRecord.riderName : (selectedTargetRider ? selectedTargetRider.fullName : 'Pragya Driver'),
+                plateNumber: summary.tripRecord ? summary.tripRecord.plateNumber : (selectedTargetRider ? selectedTargetRider.plateNumber : 'N/A'),
+                fareGhs: summary.fareGhs || 15.00,
+                timestamp: new Date().toISOString()
+            };
+
+            let localHistory = JSON.parse(localStorage.getItem('pragya_passenger_receipts') || '[]');
+            localHistory.unshift(newReceipt);
+            localStorage.setItem('pragya_passenger_receipts', JSON.stringify(localHistory));
+
+            renderPaymentStep(newReceipt);
+            renderLocalRideHistory();
+        });
+
+        // ---- Payment step: Cash or MoMo, then rating ----
+        let pendingPaymentContext = null;
+
+        function renderPaymentStep(receipt) {
+            pendingPaymentContext = { tripId: receipt.tripId, plateNumber: receipt.plateNumber, fareGhs: receipt.fareGhs };
+            document.getElementById('passengerActionArea').innerHTML = `
+                <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
+                    <p class="text-emerald-400 font-bold">🏁 Trip Arrived & Completed!</p>
+                    <p class="text-xs text-slate-200">Total Fare: <strong class="text-emerald-400 font-mono text-sm">GH₵ ${parseFloat(receipt.fareGhs).toFixed(2)}</strong></p>
+                    <div class="pt-2 border-t border-slate-800/60 space-y-2">
+                        <p class="text-[10px] text-slate-400">How would you like to pay?</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="payWithCash()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs border border-slate-700 transition">💵 Cash</button>
+                            <button onclick="openMomoPayment()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2 rounded-xl text-xs transition">📱 MoMo</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function payWithCash() {
+            if (!pendingPaymentContext) return;
+            const { tripId, plateNumber, fareGhs } = pendingPaymentContext;
+            const phone = localStorage.getItem('pragya_passenger_phone');
+            socket.emit('mark-paid-cash', { tripId, payerId: phone, payerPhone: phone, amountGhs: fareGhs, plateNumber });
+            renderRatingStep(plateNumber, fareGhs, 'Cash', 0);
+        }
+
+        function openMomoPayment() {
+            if (!pendingPaymentContext) return;
+            const walletCredit = parseFloat((document.getElementById('walletCreditBadge').innerText.match(/[\d.]+/) || ['0'])[0]);
+            const estimatedDue = Math.max(0, pendingPaymentContext.fareGhs - walletCredit);
+            const creditNote = walletCredit > 0
+                ? `<p class="text-[10px] text-sky-400">🎁 Up to GH₵ ${Math.min(walletCredit, pendingPaymentContext.fareGhs).toFixed(2)} wallet credit will be applied automatically</p>`
+                : '';
+
+            document.getElementById('passengerActionArea').innerHTML = `
+                <div class="space-y-2 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30">
+                    <p class="text-amber-400 font-bold text-xs">📱 Pay with Mobile Money</p>
+                    ${creditNote}
+                    <select id="momoNetworkSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                        <option value="MTN">MTN Mobile Money</option>
+                        <option value="VODAFONE">Vodafone Cash</option>
+                        <option value="AIRTELTIGO">AirtelTigo Money</option>
+                    </select>
+                    <button onclick="confirmMomoPayment()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs transition">
+                        Pay GH₵ ${estimatedDue.toFixed(2)}
+                    </button>
+                    <button onclick="renderPaymentStep(pendingPaymentContext)" class="w-full text-slate-500 text-[10px] font-bold">← Back</button>
+                </div>
+            `;
+        }
+
+        function confirmMomoPayment() {
+            if (!pendingPaymentContext) return;
+            const network = document.getElementById('momoNetworkSelect').value;
+            const phone = localStorage.getItem('pragya_passenger_phone');
+            const { tripId, plateNumber, fareGhs } = pendingPaymentContext;
+
+            renderPendingMomoUI(network, fareGhs);
+            socket.emit('initiate-payment', { tripId, payerId: phone, payerPhone: phone, network, amountGhs: parseFloat(fareGhs), plateNumber });
+        }
+
+        // Real MoMo approval happens on the payer's phone and can take anywhere from a
+        // few seconds to about a minute — this isn't an instant round-trip, so the UI
+        // needs a real escape hatch instead of an indefinite spinner.
+        function renderPendingMomoUI(network, fareGhs) {
+            document.getElementById('passengerActionArea').innerHTML = `
+                <div class="space-y-2 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30 text-center">
+                    <div class="animate-pulse text-amber-400 font-bold text-xs">📲 Check your phone to approve payment...</div>
+                    <p class="text-[10px] text-slate-400">GH₵ ${parseFloat(fareGhs).toFixed(2)} via ${escapeHtml(network)}</p>
+                    <p class="text-[10px] text-slate-500">This can take up to a minute.</p>
+                    <button onclick="payWithCash()" class="text-slate-400 text-[10px] font-bold underline">Taking too long? Pay with cash instead</button>
+                </div>
+            `;
+        }
+
+        socket.on('payment-status-update', (data) => {
+            if (!pendingPaymentContext || data.tripId !== pendingPaymentContext.tripId) return;
+            if (data.status === 'PENDING') return; // "check your phone" UI is already showing
+
+            const { plateNumber, fareGhs } = pendingPaymentContext;
+            if (data.status === 'SUCCESS') {
+                speakPragyaPhrase('paymentSuccess');
+                renderRatingStep(plateNumber, fareGhs, 'MoMo', data.creditApplied || 0);
+            } else {
+                speakPragyaPhrase('paymentFailed');
+                document.getElementById('passengerActionArea').innerHTML = `
+                    <div class="space-y-2 bg-red-500/10 p-3 rounded-xl border border-red-500/30 text-center">
+                        <p class="text-red-400 font-bold text-xs">❌ Payment failed or was declined.</p>
+                        <button onclick="openMomoPayment()" class="text-amber-400 text-[11px] font-bold underline block mx-auto mt-1">Try again</button>
+                        <button onclick="payWithCash()" class="text-slate-400 text-[11px] font-bold underline block mx-auto mt-1">Pay with cash instead</button>
+                    </div>
+                `;
+            }
+        });
+
+        function renderRatingStep(plateNumber, fareGhs, method, creditApplied) {
+            document.getElementById('passengerActionArea').innerHTML = `
+                <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
+                    <p class="text-emerald-400 font-bold text-xs">✅ Paid via ${escapeHtml(method)} — GH₵ ${parseFloat(fareGhs).toFixed(2)}</p>
+                    ${creditApplied > 0 ? `<p class="text-[10px] text-sky-400">🎁 GH₵ ${creditApplied.toFixed(2)} wallet credit applied</p>` : ''}
+                    <div class="pt-2 border-t border-slate-800/60 space-y-1.5">
+                        <p class="text-[10px] text-slate-400">Rate your driver:</p>
+                        <div id="ratingStars" class="flex gap-1 text-2xl">
+                            ${[1, 2, 3, 4, 5].map(n => `<span onclick="submitDriverRating('${escapeJsAttr(plateNumber)}', ${n})" class="cursor-pointer hover:scale-125 transition">⭐</span>`).join('')}
+                        </div>
+                        <p id="ratingThanksMsg" class="text-[10px] text-emerald-400 font-bold hidden">Thanks for your feedback!</p>
+                    </div>
+                </div>
+            `;
+            pendingPaymentContext = null;
+            refreshReferralInfo();
+        }
+
+        function submitDriverRating(plateNumber, stars) {
+            if (!plateNumber || plateNumber === 'N/A') return;
+            socket.emit('submit-driver-rating', { plateNumber, rating: stars });
+            document.getElementById('ratingStars').innerHTML = [1, 2, 3, 4, 5].map(n => n <= stars ? '⭐' : '☆').join(' ');
+            document.getElementById('ratingThanksMsg').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
