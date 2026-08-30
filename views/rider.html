@@ -75,13 +75,13 @@
                 </div>
                 <div class="flex items-center justify-between border-t border-slate-800 pt-2">
                     <span class="text-[10px] font-mono text-emerald-400" id="driverWalletBadge">🎁 GH₵ 0.00 wallet</span>
-                    <button onclick="shareDriverReferralCode()" class="text-[10px] font-bold text-sky-400 hover:underline">Invite drivers →</button>
+                    <button onclick="shareDriverReferralCode()" class="text-[10px] font-bold text-sky-400 hover:underline">Bring a friend, earn money →</button>
                 </div>
             </div>
 
             <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-3">
                 <div class="flex justify-between items-center">
-                    <span class="text-xs font-bold text-slate-300">Driver Console Status</span>
+                    <span class="text-xs font-bold text-slate-300">My Details</span>
                     <div class="flex items-center gap-2">
                         <button onclick="forceGpsRefresh()" class="text-[9px] font-bold text-sky-400 hover:underline">🔄 GPS</button>
                         <span id="ownershipTag" class="text-[9px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
@@ -129,7 +129,7 @@
 
                 <div class="space-y-1 text-[11px] font-mono text-slate-300">
                     <div class="flex justify-between">
-                        <span>Odometer:</span>
+                        <span>Total Km Driven:</span>
                         <strong id="dispOdometerKm" class="text-white">0.0 km</strong>
                     </div>
                     <div class="flex justify-between">
@@ -143,13 +143,13 @@
                 </div>
 
                 <button onclick="openMaintenanceModal()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold py-1.5 rounded-lg border border-slate-700 transition">
-                    🔧 Maintenance & Reset Counter
+                    🔧 Engine Care
                 </button>
             </div>
 
             <div id="tripStatusCard" class="bg-slate-900/90 p-4 rounded-2xl border border-amber-500/40 space-y-3">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span class="text-xs font-black text-amber-400">🎙️ Active Dispatch Panel</span>
+                    <span class="text-xs font-black text-amber-400">🎙️ Ride Requests</span>
                     <span id="tripStatusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Idle</span>
                 </div>
                 <div id="tripActionArea" class="space-y-2 text-xs">
@@ -178,58 +178,58 @@
             </div>
 
             <p class="text-xs text-slate-400">
-                How are you operating this tricycle today? Select your operational model below:
+                Is this your own tricycle, or do you drive for an owner?
             </p>
 
             <div class="grid grid-cols-2 gap-3">
                 <button id="optOwnerBtn" onclick="selectOperatingModel('OWNER')" class="p-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-left hover:border-amber-500 transition space-y-1">
-                    <div class="text-xs font-black text-amber-400">👑 I Own Vehicle</div>
-                    <div class="text-[10px] text-slate-400">Independent operator. Direct payouts.</div>
+                    <div class="text-xs font-black text-amber-400">👑 It's My Tricycle</div>
+                    <div class="text-[10px] text-slate-400">All the money comes straight to you.</div>
                 </button>
                 <button id="optFleetBtn" onclick="selectOperatingModel('FLEET')" class="p-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-left hover:border-sky-500 transition space-y-1">
-                    <div class="text-xs font-black text-sky-400">🏢 Fleet Driver</div>
-                    <div class="text-[10px] text-slate-400">Work & Pay / Driving for Manager.</div>
+                    <div class="text-xs font-black text-sky-400">🏢 I Drive for an Owner</div>
+                    <div class="text-[10px] text-slate-400">Work & Pay — give the owner their share, keep the rest.</div>
                 </button>
             </div>
 
             <div class="space-y-3 text-xs pt-2">
                 <div>
-                    <label class="block font-bold text-slate-300 mb-1">Driver Full Name *</label>
+                    <label class="block font-bold text-slate-300 mb-1">Your Full Name *</label>
                     <input type="text" id="modalDriverName" placeholder="e.g. Kofi Mensah" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
                 </div>
                 <div>
-                    <label class="block font-bold text-slate-300 mb-1">Phone Number *</label>
+                    <label class="block font-bold text-slate-300 mb-1">Your Phone Number *</label>
                     <input type="tel" id="modalDriverPhone" placeholder="e.g. 0244123456" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
                 </div>
                 <div>
-                    <label class="block font-bold text-slate-300 mb-1">Tricycle Plate Number *</label>
+                    <label class="block font-bold text-slate-300 mb-1">Tricycle Number Plate *</label>
                     <input type="text" id="modalDriverPlate" placeholder="e.g. M-24-AS" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-amber-400 font-mono focus:outline-none focus:border-amber-500">
                 </div>
 
                 <div id="fleetCodeContainer" class="hidden">
-                    <label class="block font-bold text-sky-400 mb-1">Fleet Owner Code / Manager ID *</label>
-                    <input type="text" id="modalFleetCode" placeholder="e.g. KUMASI_FLEET_01" class="w-full bg-slate-950 border border-sky-500/50 rounded-xl px-3 py-2 text-sky-300 font-mono focus:outline-none focus:border-sky-400">
+                    <label class="block font-bold text-sky-400 mb-1">Owner's Code *</label>
+                    <input type="text" id="modalFleetCode" placeholder="Ask the tricycle owner for this code" class="w-full bg-slate-950 border border-sky-500/50 rounded-xl px-3 py-2 text-sky-300 font-mono focus:outline-none focus:border-sky-400">
                 </div>
 
                 <div class="pt-2 border-t border-slate-800/60 space-y-2">
-                    <label class="block font-bold text-emerald-400 mb-1">📱 Mobile Money Payout</label>
+                    <label class="block font-bold text-emerald-400 mb-1">📱 Where Your Money Goes (MoMo)</label>
                     <select id="modalMomoNetwork" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500">
                         <option value="MTN">MTN Mobile Money</option>
                         <option value="VODAFONE">Vodafone Cash</option>
                         <option value="AIRTELTIGO">AirtelTigo Money</option>
                     </select>
-                    <input type="tel" id="modalMomoNumber" placeholder="MoMo number for trip payouts" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500">
+                    <input type="tel" id="modalMomoNumber" placeholder="Your MoMo number" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500">
                 </div>
 
                 <div id="modalReferralRow" class="pt-2 border-t border-slate-800/60">
-                    <label class="block font-bold text-slate-300 mb-1">Referral Code (optional)</label>
-                    <input type="text" id="modalReferralCode" placeholder="Have a code from another driver?" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
+                    <label class="block font-bold text-slate-300 mb-1">Invite Code (if someone gave you one)</label>
+                    <input type="text" id="modalReferralCode" placeholder="Did a friend give you a code?" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500">
                 </div>
             </div>
 
             <div class="pt-2">
                 <button onclick="saveOwnershipSettings()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
-                    💾 Save Profile & Continue
+                    💾 Save & Continue
                 </button>
             </div>
         </div>
@@ -242,13 +242,13 @@
             </div>
 
             <div>
-                <h3 class="text-lg font-black text-white">Engine Service Log</h3>
+                <h3 class="text-lg font-black text-white">Engine Care</h3>
                 <p class="text-xs text-slate-400 mt-1">Recommended interval: Oil change every 1,500 km.</p>
             </div>
 
             <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs font-mono text-left space-y-1">
                 <div>Total Distance: <strong id="maintOdometerVal" class="text-white">0.0 km</strong></div>
-                <div>Distance Since Service: <strong id="maintDistSinceVal" class="text-sky-400">0.0 km</strong></div>
+                <div>Km Since Last Oil Change: <strong id="maintDistSinceVal" class="text-sky-400">0.0 km</strong></div>
                 <div>Status: <strong id="maintStatusText" class="text-emerald-400">Good Condition</strong></div>
             </div>
 
@@ -270,7 +270,7 @@
             </div>
             
             <div>
-                <h3 id="dispatchModalTitle" class="text-lg font-black text-white">New Dispatch Request!</h3>
+                <h3 id="dispatchModalTitle" class="text-lg font-black text-white">New Passenger Request!</h3>
                 <p class="text-xs text-slate-400 mt-1">Passenger waiting at pickup location.</p>
             </div>
 
@@ -1195,7 +1195,7 @@
                 return;
             }
             if (selectedOperatingMode === 'FLEET' && !fleet) {
-                alert("⚠️ Please enter your Fleet Owner Code / Manager ID!");
+                alert("⚠️ Please enter the Owner's Code!");
                 return;
             }
 
@@ -1237,7 +1237,7 @@
             document.getElementById('dispDriverName').innerText = name;
             document.getElementById('dispDriverPhone').innerText = phone;
             document.getElementById('dispDriverPlate').innerText = plate;
-            document.getElementById('dispOperatingMode').innerText = mode === 'OWNER' ? 'Owner Operator' : 'Fleet Driver';
+            document.getElementById('dispOperatingMode').innerText = mode === 'OWNER' ? 'My Own Tricycle' : 'Work & Pay Driver';
 
             document.getElementById('ownershipTag').innerText = mode === 'OWNER' ? 'Independent' : 'Fleet Linked';
             document.getElementById('ownershipTag').className = mode === 'OWNER' ?
@@ -1407,7 +1407,7 @@
 
             const distMeters = calculateHaversineDistance(driverPos.lat, driverPos.lng, req.pickupLat, req.pickupLng);
 
-            document.getElementById('dispatchModalTitle').innerText = req.isPool ? "🚏 New Pool Ride Request!" : "New Dispatch Request!";
+            document.getElementById('dispatchModalTitle').innerText = req.isPool ? "🚏 New Shared Ride Request!" : "New Passenger Request!";
             document.getElementById('modalPassengerPhone').innerText = req.passengerPhone;
             document.getElementById('modalPickupDist').innerText = `${Math.round(distMeters)} meters away`;
             document.getElementById('dispatchAlertModal').classList.remove('hidden');
@@ -1591,7 +1591,7 @@
 
             document.getElementById('tripStatusTag').innerText = "Idle / Waiting";
             document.getElementById('tripStatusTag').className = "text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400";
-            document.getElementById('tripActionArea').innerHTML = `<p class="text-slate-400 italic text-[11px]">Trip completed! Receipt sent to fleet ledger.</p>`;
+            document.getElementById('tripActionArea').innerHTML = `<p class="text-slate-400 italic text-[11px]">Trip done! Saved to your trip history.</p>`;
 
             if (map.getSource('route-line')) {
                 map.getSource('route-line').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: [] } });

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Spatial Passenger Portal | PragyaLink Global</title>
+    <title>Book a Tricycle | PragyaLink</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
@@ -67,7 +67,7 @@
             <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
                 <label class="block text-xs font-bold text-slate-300">Your Phone Number (MoMo Enabled) *</label>
                 <input type="tel" id="passengerPhoneInput" onchange="savePassengerPhone()" placeholder="e.g. 0244123456" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-sky-500">
-                <p class="text-[10px] text-slate-400">Used for dispatch confirmation & digital receipts.</p>
+                <p class="text-[10px] text-slate-400">So your driver can reach you, and for your receipt.</p>
             </div>
 
             <div id="referralSection" class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
@@ -90,7 +90,7 @@
             </div>
 
             <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
-                <label class="block text-xs font-bold text-slate-300 mb-1">Ride Mode</label>
+                <label class="block text-xs font-bold text-slate-300 mb-1">How do you want to ride?</label>
                 <div class="grid grid-cols-2 gap-2">
                     <button id="modePrivateBtn" onclick="setRideMode('PRIVATE')" class="p-2 bg-sky-500/10 border-2 border-sky-500 rounded-xl text-center text-xs font-bold text-sky-300">🛺 Private</button>
                     <button id="modePoolBtn" onclick="setRideMode('POOL')" class="p-2 bg-slate-950 border-2 border-slate-800 rounded-xl text-center text-xs font-bold text-slate-400">🚏 Pragya Pool</button>
@@ -103,8 +103,8 @@
 
             <div id="rideStatusCard" class="bg-slate-900/90 p-4 rounded-2xl border border-sky-500/40 space-y-3">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span class="text-xs font-black text-sky-400">📍 Spatial Dispatch</span>
-                    <span id="statusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Idle / Searching</span>
+                    <span class="text-xs font-black text-sky-400">📍 Book a Ride</span>
+                    <span id="statusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Waiting</span>
                 </div>
                 <div id="gpsStatusRow" class="flex items-center justify-between text-[9px] font-mono">
                     <span id="gpsQualityBadge" class="text-slate-500">📡 Acquiring your location...</span>
@@ -814,7 +814,7 @@
                 pickupLng: passengerPos.lng
             });
 
-            document.getElementById('statusTag').innerText = "Dispatch Sent";
+            document.getElementById('statusTag').innerText = "Request Sent";
             document.getElementById('passengerActionArea').innerHTML = `
                 <div class="space-y-1">
                     <p class="text-amber-400 font-bold">Waiting for ${escapeHtml(selectedTargetRider.fullName)} to accept...</p>
