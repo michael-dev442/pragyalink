@@ -56,21 +56,21 @@
         </div>
     </div>
 
-    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
-        <div class="flex items-center space-x-3">
+    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-y-2 gap-x-3 z-20 shadow-xl shrink-0">
+        <div class="flex flex-wrap items-center gap-2">
             <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-sky-400">Fleet 🏢</span></a>
             <span class="bg-sky-500/10 text-sky-400 text-[10px] sm:text-xs font-mono font-bold px-2.5 py-1 rounded-full border border-sky-500/20">
                 Code: <span id="dispFleetCode">Not Set</span>
             </span>
         </div>
-        <div class="flex items-center space-x-3 text-xs font-mono">
+        <div class="flex flex-wrap items-center gap-2 text-xs font-mono">
             <div class="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
                 Online: <strong id="cntOnlineVehicles" class="text-emerald-400">0</strong>
             </div>
             <div class="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
                 Overdue: <strong id="cntMaintenanceAlerts" class="text-red-400">0</strong>
             </div>
-            <div class="bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+            <div class="hidden sm:block bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
                 Today's Revenue: <strong id="cntTodayRevenue" class="text-amber-400">GH₵ 0.00</strong>
             </div>
         </div>

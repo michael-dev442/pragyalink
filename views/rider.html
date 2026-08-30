@@ -19,8 +19,8 @@
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
 
-    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
-        <div class="flex items-center space-x-3">
+    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-y-2 gap-x-3 z-20 shadow-xl shrink-0">
+        <div class="flex flex-wrap items-center gap-2">
             <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-amber-400">Rider 🛺</span></a>
             <span id="shiftBadge" class="bg-slate-800 text-slate-400 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-slate-700">
                 Offline
@@ -36,13 +36,13 @@
             </button>
         </div>
         
-        <div class="flex items-center space-x-2">
+        <div class="flex flex-wrap items-center gap-2">
             <button id="langToggleBtn" onclick="toggleLanguage()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition">
                 🌐 EN
             </button>
             <button id="voiceToggleBtn" onclick="toggleVoiceAssistantPermission()" class="text-xs bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition">
                 <span id="voiceIndicatorDot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
-                <span id="voiceBtnText">Activate Voice AI</span>
+                <span id="voiceBtnText" class="hidden sm:inline">Activate Voice AI</span>
             </button>
             
             <button onclick="openOwnershipModal()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">

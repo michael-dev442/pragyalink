@@ -63,15 +63,15 @@
         </div>
     </div>
 
-    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex justify-between items-center z-20 shadow-xl shrink-0">
-        <div class="flex items-center space-x-2 sm:space-x-3">
+    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-y-2 gap-x-3 z-20 shadow-xl shrink-0">
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
             <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-red-500">SOS 🛠️</span></a>
-            <span class="bg-red-500/20 text-red-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-red-500/30 flex items-center gap-1.5">
+            <span class="hidden sm:flex bg-red-500/20 text-red-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-red-500/30 items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span> Live Workshop Dispatch
             </span>
         </div>
         
-        <div class="flex items-center space-x-2">
+        <div class="flex flex-wrap items-center gap-2">
             <button id="toggleWorkshopBtn" onclick="toggleWorkshopStatus()" class="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3 py-1.5 rounded-lg transition shadow-md">
                 🟢 Workshop Active
             </button>
