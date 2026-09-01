@@ -73,6 +73,7 @@
         @keyframes splashFadeOut { to { opacity: 0; } }
 
         #splashCanvas { position: absolute; inset: 0; display: block; }
+        #splashSpeedLines { position: absolute; inset: 0; display: block; pointer-events: none; }
 
         @keyframes splashLogoIn {
             0%   { opacity: 0; transform: translateY(-8px); }
@@ -112,6 +113,7 @@
          and whenever WebGL isn't available — see the script below. -->
     <div id="splashIntro" aria-hidden="true">
         <canvas id="splashCanvas"></canvas>
+        <canvas id="splashSpeedLines"></canvas>
         <div id="splashLogo" class="text-xl font-black text-white tracking-wider">
             Pragya<span class="text-emerald-400">Link 🛺</span>
         </div>
@@ -119,6 +121,7 @@
     </div>
 
     <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script>
         (function () {
             const splash = document.getElementById('splashIntro');
@@ -127,7 +130,7 @@
 
             // WebGL support varies on lower-end/older Android devices in particular —
             // skip straight to the homepage rather than showing a blank or broken canvas
-            // if it isn't available, or if the Three.js CDN failed to load.
+            // if it isn't available, or if a CDN (Three.js or GSAP) failed to load.
             function webglAvailable() {
                 try {
                     const canvas = document.createElement('canvas');
@@ -136,13 +139,13 @@
                 } catch (e) { return false; }
             }
 
-            if (reducedMotion || alreadySeen || typeof THREE === 'undefined' || !webglAvailable()) {
+            if (reducedMotion || alreadySeen || typeof THREE === 'undefined' || typeof gsap === 'undefined' || !webglAvailable()) {
                 splash.classList.add('splash-hidden');
                 return;
             }
             sessionStorage.setItem('pragya_splash_seen', '1');
 
-            // ---- Scene ----
+            // ---- 3D scene (Three.js) ----
             const canvas = document.getElementById('splashCanvas');
             const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
             renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); // cap render cost on high-DPI phones
@@ -235,7 +238,8 @@
             headlight.position.set(0.82, 0.6, 0);
             tricycle.add(headlight);
 
-            tricycle.position.set(-7, 0, 1.1);
+            const TRICYCLE_START_X = -7, TRICYCLE_END_X = 2.1;
+            tricycle.position.set(TRICYCLE_START_X, 0, 1.1);
             tricycle.scale.setScalar(0.01); // pops in from zero scale
             scene.add(tricycle);
 
@@ -286,61 +290,161 @@
             passenger.scale.setScalar(0.01);
             scene.add(passenger);
 
-            // ---- Animation timeline ----
-            const easeOutBack = t => 1 + 2.7 * Math.pow(t - 1, 3) + 1.7 * Math.pow(t - 1, 2);
-            const easeInOutCubic = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-            const clamp01 = t => Math.max(0, Math.min(1, t));
+            // ---- Dust particles: kicked up behind the rear wheels while driving ----
+            // Simple, honest implementation for a ~4s splash — CPU-updated THREE.Points,
+            // no per-particle alpha fade (would need a custom shader for that), so "dead"
+            // particles are just parked out of view instead of visually faded. Reads as
+            // convincing at this particle count and this short a duration without the
+            // added complexity a longer-running effect would actually need.
+            const DUST_COUNT = 50;
+            const dustGeo = new THREE.BufferGeometry();
+            const dustPositions = new Float32Array(DUST_COUNT * 3).fill(-100);
+            dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+            const dustVel = Array.from({ length: DUST_COUNT }, () => ({ vx: 0, vy: 0, vz: 0, life: 999, maxLife: 0 }));
+            const dustPoints = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+                color: 0x94a3b8, size: 0.07, transparent: true, opacity: 0.55, depthWrite: false
+            }));
+            scene.add(dustPoints);
 
-            const startTime = performance.now();
-            let animFrameId = null;
-            let stopped = false;
-
-            function render(now) {
-                if (stopped) return;
-                const t = (now - startTime) / 1000; // seconds elapsed
-
-                // Passenger pops in: 0.5s - 0.9s
-                const passengerScale = clamp01((t - 0.5) / 0.4);
-                passenger.scale.setScalar(0.01 + 0.99 * easeOutBack(passengerScale));
-
-                // Arm raises: 1.0s - 1.35s
-                const armT = easeInOutCubic(clamp01((t - 1.0) / 0.35));
-                armPivot.rotation.z = armT * (Math.PI * 0.85); // swings up from hanging to raised
-
-                // Tricycle pops in: 1.0s - 1.3s, then drives across: 1.3s - 3.4s
-                const tricycleScale = clamp01((t - 1.0) / 0.3);
-                tricycle.scale.setScalar(0.01 + 0.99 * easeOutBack(tricycleScale));
-
-                const driveT = easeInOutCubic(clamp01((t - 1.3) / 2.1));
-                const startX = -7, endX = 2.1;
-                const traveled = (endX - startX) * driveT;
-                tricycle.position.x = startX + traveled;
-                tricycle.position.y = Math.abs(Math.sin(t * 9)) * 0.04; // subtle drive bounce
-                tricycle.rotation.z = Math.sin(t * 9) * 0.02; // subtle body roll
-
-                const wheelSpin = traveled * 3.2;
-                wheelFront.rotation.z = wheelRearL.rotation.z = wheelRearR.rotation.z = wheelSpin;
-
-                // Arrival beat: ~3.4s - 4.0s — both characters give a little bounce
-                if (t > 3.4 && t < 4.0) {
-                    const bounce = Math.sin((t - 3.4) / 0.6 * Math.PI);
-                    passenger.scale.setScalar(1 + bounce * 0.12);
-                    tricycle.scale.setScalar(1 + bounce * 0.08);
+            let dustSpawnIndex = 0;
+            function spawnDust(x, y, z) {
+                const i = dustSpawnIndex % DUST_COUNT;
+                dustSpawnIndex++;
+                dustGeo.attributes.position.setXYZ(i, x + (Math.random() - 0.5) * 0.2, y, z + (Math.random() - 0.5) * 0.3);
+                dustVel[i] = { vx: -(0.4 + Math.random() * 0.4), vy: 0.2 + Math.random() * 0.2, vz: (Math.random() - 0.5) * 0.2, life: 0, maxLife: 0.5 + Math.random() * 0.3 };
+            }
+            function updateDust(dt) {
+                const pos = dustGeo.attributes.position;
+                for (let i = 0; i < DUST_COUNT; i++) {
+                    const v = dustVel[i];
+                    if (v.life >= v.maxLife) continue;
+                    v.life += dt;
+                    if (v.life >= v.maxLife) { pos.setY(i, -100); continue; } // parked out of view once "dead"
+                    pos.setX(i, pos.getX(i) + v.vx * dt);
+                    pos.setY(i, pos.getY(i) + v.vy * dt - 0.4 * dt);
+                    pos.setZ(i, pos.getZ(i) + v.vz * dt);
                 }
+                pos.needsUpdate = true;
+            }
 
-                // Gentle cinematic camera drift throughout
-                camera.position.x = Math.sin(t * 0.15) * 0.6;
+            // ---- Arrival sparkle burst: one-shot, GSAP-driven fade ----
+            const SPARK_COUNT = 24;
+            const sparkGeo = new THREE.BufferGeometry();
+            sparkGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SPARK_COUNT * 3).fill(-100), 3));
+            const sparkVel = Array.from({ length: SPARK_COUNT }, () => ({ vx: 0, vy: 0, vz: 0 }));
+            const sparkMat = new THREE.PointsMaterial({ color: 0xfbbf24, size: 0.11, transparent: true, opacity: 0, depthWrite: false });
+            const sparkPoints = new THREE.Points(sparkGeo, sparkMat);
+            scene.add(sparkPoints);
+
+            let sparkleFadeTween = null;
+            function triggerSparkleBurst(x, y, z) {
+                const pos = sparkGeo.attributes.position;
+                for (let i = 0; i < SPARK_COUNT; i++) {
+                    pos.setXYZ(i, x, y, z);
+                    const angle = (i / SPARK_COUNT) * Math.PI * 2;
+                    const speed = 1.1 + Math.random() * 0.8;
+                    sparkVel[i] = { vx: Math.cos(angle) * speed, vy: 0.9 + Math.random() * 0.6, vz: Math.sin(angle) * speed * 0.6 };
+                }
+                pos.needsUpdate = true;
+                sparkMat.opacity = 1;
+                sparkleFadeTween = gsap.to(sparkMat, { opacity: 0, duration: 0.7, ease: 'power2.out' });
+            }
+            function updateSparks(dt) {
+                const pos = sparkGeo.attributes.position;
+                for (let i = 0; i < SPARK_COUNT; i++) {
+                    const v = sparkVel[i];
+                    pos.setX(i, pos.getX(i) + v.vx * dt);
+                    pos.setY(i, pos.getY(i) + v.vy * dt - 2.2 * dt);
+                    pos.setZ(i, pos.getZ(i) + v.vz * dt);
+                    v.vy -= 3 * dt; // gravity
+                }
+                pos.needsUpdate = true;
+            }
+
+            // ---- 2D canvas overlay: stylized speed-line streaks during the drive ----
+            // Deliberately flat/graphic rather than rendered in 3D — this is a classic
+            // motion-comic technique that's supposed to look like a 2D overlay, not part
+            // of the physical scene, so a plain Canvas 2D layer is the right tool here
+            // rather than a compromise.
+            const speedCanvas = document.getElementById('splashSpeedLines');
+            const sctx = speedCanvas.getContext('2d');
+            let isDriving = false;
+            let speedLineOffset = 0;
+
+            function resizeSpeedCanvas() {
+                speedCanvas.width = window.innerWidth;
+                speedCanvas.height = window.innerHeight;
+            }
+            resizeSpeedCanvas();
+
+            function drawSpeedLines(dt) {
+                sctx.clearRect(0, 0, speedCanvas.width, speedCanvas.height);
+                if (!isDriving) return;
+                speedLineOffset += dt * 420;
+                sctx.strokeStyle = 'rgba(255,255,255,0.10)';
+                sctx.lineWidth = 2;
+                const bandTop = speedCanvas.height * 0.32, bandBottom = speedCanvas.height * 0.72;
+                for (let y = bandTop; y < bandBottom; y += 16) {
+                    const len = 36 + (y % 47);
+                    const x = ((speedCanvas.width + 240) - ((speedLineOffset + y * 2.6) % (speedCanvas.width + 240))) - 240;
+                    sctx.beginPath();
+                    sctx.moveTo(x, y);
+                    sctx.lineTo(x + len, y);
+                    sctx.stroke();
+                }
+            }
+
+            // ---- GSAP timeline: sequencing/easing for every discrete pose change ----
+            // Continuous, reactive effects (wheel spin tied to actual distance travelled,
+            // dust spawning, speed lines, camera drift) stay in the per-frame ticker below
+            // rather than being GSAP tweens themselves — GSAP is the right tool for "animate
+            // property A to B over time with easing," not for continuous procedural motion.
+            const tl = gsap.timeline();
+
+            tl.to(passenger.scale, { x: 1, y: 1, z: 1, duration: 0.5, ease: 'back.out(2.4)' }, 0.5)
+              .to(armPivot.rotation, { z: Math.PI * 0.85, duration: 0.4, ease: 'power2.inOut' }, 1.0)
+              .to(tricycle.scale, { x: 1, y: 1, z: 1, duration: 0.35, ease: 'back.out(2.4)' }, 1.0)
+              .to(tricycle.position, {
+                  x: TRICYCLE_END_X, duration: 2.1, ease: 'power2.inOut',
+                  onStart: () => { isDriving = true; },
+                  onComplete: () => { isDriving = false; }
+              }, 1.3)
+              .to(passenger.scale, { x: 1.12, y: 1.12, z: 1.12, duration: 0.3, ease: 'power1.inOut', yoyo: true, repeat: 1 }, 3.4)
+              .to(tricycle.scale, { x: 1.08, y: 1.08, z: 1.08, duration: 0.3, ease: 'power1.inOut', yoyo: true, repeat: 1 }, 3.4)
+              .call(() => triggerSparkleBurst((tricycle.position.x + passenger.position.x) / 2, 1.2, 0), [], 3.5);
+
+            // ---- Per-frame ticker: continuous procedural effects + the actual render call ----
+            let lastFrameTime = performance.now();
+            function tick() {
+                const now = performance.now();
+                const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+                lastFrameTime = now;
+
+                if (isDriving) {
+                    const traveled = tricycle.position.x - TRICYCLE_START_X;
+                    wheelFront.rotation.z = wheelRearL.rotation.z = wheelRearR.rotation.z = traveled * 3.2;
+                    tricycle.position.y = Math.abs(Math.sin(now * 0.009)) * 0.04; // subtle drive bounce
+                    tricycle.rotation.z = Math.sin(now * 0.009) * 0.02; // subtle body roll
+                    if (Math.random() < 0.6) {
+                        spawnDust(tricycle.position.x - 0.65, 0.15, tricycle.position.z + (Math.random() - 0.5) * 1.0);
+                    }
+                }
+                updateDust(dt);
+                updateSparks(dt);
+                drawSpeedLines(dt);
+
+                camera.position.x = Math.sin(now * 0.00015) * 0.6; // gentle cinematic drift
                 camera.lookAt(0, 0.4, 0);
 
                 renderer.render(scene, camera);
-                animFrameId = requestAnimationFrame(render);
             }
-            animFrameId = requestAnimationFrame(render);
+            gsap.ticker.add(tick);
 
             function onResize() {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
+                resizeSpeedCanvas();
             }
             window.addEventListener('resize', onResize);
 
@@ -349,8 +453,9 @@
             // orphaned render loop or lingering context is a real battery/GPU cost, not
             // just a theoretical one.
             function teardown() {
-                stopped = true;
-                cancelAnimationFrame(animFrameId);
+                tl.kill();
+                if (sparkleFadeTween) sparkleFadeTween.kill();
+                gsap.ticker.remove(tick);
                 window.removeEventListener('resize', onResize);
                 scene.traverse(obj => {
                     if (obj.geometry) obj.geometry.dispose();
