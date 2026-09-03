@@ -76,12 +76,56 @@
         #splashSpeedLines { position: absolute; inset: 0; display: block; pointer-events: none; }
 
         @keyframes splashLogoIn {
-            0%   { opacity: 0; transform: translateY(-8px); }
-            100% { opacity: 1; transform: translateY(0); }
+            0%   { opacity: 0; transform: translateY(-8px) scale(0.92); }
+            60%  { opacity: 1; }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
         }
         #splashLogo {
             position: absolute; top: 8%; left: 50%; transform: translateX(-50%);
-            opacity: 0; animation: splashLogoIn 0.6s ease-out 0.1s forwards;
+            opacity: 0; animation: splashLogoIn 0.7s cubic-bezier(.2,1.4,.4,1) forwards;
+            animation-play-state: paused;
+            text-align: center;
+        }
+        #splashLogo.splash-logo-play { animation-play-state: running; }
+
+        /* Light-sweep: a bright diagonal band sweeps once across the logo text,
+           masked to the text itself via background-clip so it reads as a shine
+           rather than a generic overlay. */
+        #splashLogoText {
+            background: linear-gradient(100deg, #ffffff 0%, #ffffff 35%, #fef3c7 45%, #ffffff 55%, #ffffff 100%);
+            background-size: 260% 100%;
+            background-position: 120% 0;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        #splashLogo.splash-logo-play #splashLogoText {
+            animation: logoSweep 1.3s ease-out 0.5s forwards;
+        }
+        @keyframes logoSweep { to { background-position: -20% 0; } }
+
+        @keyframes splashTaglineIn {
+            0% { opacity: 0; transform: translateY(4px); letter-spacing: 0.15em; }
+            100% { opacity: 1; transform: translateY(0); letter-spacing: 0.2em; }
+        }
+        #splashTagline {
+            margin-top: 0.35rem; font-size: 0.62rem; font-weight: 700; color: #7dd3fc;
+            text-transform: uppercase; letter-spacing: 0.2em; opacity: 0;
+        }
+        #splashLogo.splash-logo-play #splashTagline {
+            animation: splashTaglineIn 0.6s ease-out 0.85s forwards;
+        }
+
+        /* Cinematic vignette + faint scanline texture over the whole splash, so it reads
+           as a graded shot rather than a raw render. Purely a CSS overlay — costs nothing
+           on the WebGL side. */
+        #splashVignette {
+            position: absolute; inset: 0; pointer-events: none;
+            background: radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,0.55) 100%);
+        }
+        #splashGrade {
+            position: absolute; inset: 0; pointer-events: none; mix-blend-mode: overlay; opacity: 0.5;
+            background: linear-gradient(180deg, rgba(56,189,248,0.06), rgba(2,6,23,0) 40%, rgba(2,6,23,0) 60%, rgba(251,191,36,0.05));
         }
 
         @keyframes splashFadeIn { to { opacity: 1; } }
@@ -114,8 +158,11 @@
     <div id="splashIntro" aria-hidden="true">
         <canvas id="splashCanvas"></canvas>
         <canvas id="splashSpeedLines"></canvas>
-        <div id="splashLogo" class="text-xl font-black text-white tracking-wider">
-            Pragya<span class="text-emerald-400">Link 🛺</span>
+        <div id="splashVignette"></div>
+        <div id="splashGrade"></div>
+        <div id="splashLogo">
+            <div class="text-xl font-black tracking-wider"><span id="splashLogoText">PragyaLink</span> <span class="text-white">🛺</span></div>
+            <div id="splashTagline">Kumasi's Smartest Ride</div>
         </div>
         <div id="splashSkipHint">Tap to skip</div>
     </div>
@@ -154,30 +201,65 @@
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
             const scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x020617);
-            scene.fog = new THREE.Fog(0x020617, 14, 26);
 
-            const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 3.6, 9);
-            camera.lookAt(0, 0.4, 0);
+            // ---- Dusk sky gradient (CanvasTexture — cheap, no custom shader needed) ----
+            const skyCanvas = document.createElement('canvas');
+            skyCanvas.width = 2; skyCanvas.height = 256;
+            const skyCtx = skyCanvas.getContext('2d');
+            const skyGrad = skyCtx.createLinearGradient(0, 0, 0, 256);
+            skyGrad.addColorStop(0, '#01030c');
+            skyGrad.addColorStop(0.45, '#0b1330');
+            skyGrad.addColorStop(0.72, '#2a2154');
+            skyGrad.addColorStop(0.88, '#7a3b5e');
+            skyGrad.addColorStop(1, '#f0954a');
+            skyCtx.fillStyle = skyGrad;
+            skyCtx.fillRect(0, 0, 2, 256);
+            const skyTexture = new THREE.CanvasTexture(skyCanvas);
+            scene.background = skyTexture;
+            scene.fog = new THREE.Fog(0x120e28, 16, 34);
+
+            const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 120);
+            // Cinematic state — GSAP tweens this plain object; the ticker applies it to the
+            // real camera every frame, layering in a bit of idle sway on top of each shot.
+            const cam = { x: -3, y: 10.5, z: 15, lx: 0, ly: 1, lz: -6 };
+            camera.position.set(cam.x, cam.y, cam.z);
 
             // Lighting: soft ambient fill + a key light for real shadows + a brand-colored
-            // rim light for a bit of visual flair rather than flat, generic lighting.
-            scene.add(new THREE.AmbientLight(0x8899aa, 0.6));
-            const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
+            // rim light, plus a warm low sun for the dusk skyline.
+            scene.add(new THREE.AmbientLight(0x8899cc, 0.55));
+            const keyLight = new THREE.DirectionalLight(0xffe8c2, 1.3);
             keyLight.position.set(4, 7, 5);
             keyLight.castShadow = true;
             keyLight.shadow.mapSize.set(1024, 1024);
             keyLight.shadow.camera.left = -8; keyLight.shadow.camera.right = 8;
             keyLight.shadow.camera.top = 8; keyLight.shadow.camera.bottom = -8;
             scene.add(keyLight);
-            const rimLight = new THREE.DirectionalLight(0x34d399, 0.5);
+            const rimLight = new THREE.DirectionalLight(0x34d399, 0.45);
             rimLight.position.set(-5, 3, -4);
             scene.add(rimLight);
+            const sunLight = new THREE.DirectionalLight(0xf59e0b, 0.5);
+            sunLight.position.set(-14, 2, -18);
+            scene.add(sunLight);
+
+            // ---- Starfield: a scattering of points in the upper sky, gently twinkling ----
+            const STAR_COUNT = 140;
+            const starPositions = new Float32Array(STAR_COUNT * 3);
+            for (let i = 0; i < STAR_COUNT; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 30 + Math.random() * 40;
+                starPositions[i * 3] = Math.cos(angle) * radius;
+                starPositions[i * 3 + 1] = 8 + Math.random() * 22;
+                starPositions[i * 3 + 2] = Math.sin(angle) * radius - 10;
+            }
+            const starGeo = new THREE.BufferGeometry();
+            starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+            const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.18, transparent: true, opacity: 0.7, depthWrite: false });
+            const stars = new THREE.Points(starGeo, starMat);
+            scene.add(stars);
 
             // Ground + road strip
             const ground = new THREE.Mesh(
-                new THREE.PlaneGeometry(40, 40),
+                new THREE.PlaneGeometry(80, 80),
                 new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.95 })
             );
             ground.rotation.x = -Math.PI / 2;
@@ -204,6 +286,84 @@
                 dash.position.set(x, 0.002, 0);
                 scene.add(dash);
             }
+
+            // ---- Skyline: rows of stylized low-poly buildings flanking the road, each
+            // with a handful of randomly-lit "windows" that flicker over time. Cheap
+            // (plain box geometry + a few emissive planes per building) but reads as a
+            // real skyline at this distance and gives the shot a sense of scale/place. ----
+            const buildingMatBase = { roughness: 0.85, metalness: 0.05 };
+            const flickerWindows = [];
+            function makeBuilding(x, z, w, h, d, hue) {
+                const mesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(w, h, d),
+                    new THREE.MeshStandardMaterial({ color: hue, ...buildingMatBase })
+                );
+                mesh.position.set(x, h / 2, z);
+                mesh.castShadow = false;
+                mesh.receiveShadow = true;
+                scene.add(mesh);
+
+                const windowCount = 3 + Math.floor(Math.random() * 4);
+                for (let i = 0; i < windowCount; i++) {
+                    const win = new THREE.Mesh(
+                        new THREE.PlaneGeometry(0.22, 0.32),
+                        new THREE.MeshStandardMaterial({ color: 0xfde68a, emissive: 0xfbbf24, emissiveIntensity: 0.9, transparent: true, opacity: 0.9 })
+                    );
+                    const face = Math.random() < 0.5 ? 1 : -1;
+                    win.position.set(
+                        x + face * (w / 2 + 0.01),
+                        (Math.random() * 0.7 + 0.15) * h,
+                        z + (Math.random() - 0.5) * d * 0.7
+                    );
+                    win.rotation.y = face > 0 ? Math.PI / 2 : -Math.PI / 2;
+                    scene.add(win);
+                    flickerWindows.push({ mesh: win, phase: Math.random() * Math.PI * 2, speed: 0.5 + Math.random() * 1.5 });
+                }
+                return mesh;
+            }
+            const buildingHues = [0x1e293b, 0x1a2138, 0x232a45, 0x171c30];
+            for (let i = 0; i < 9; i++) {
+                const z = -6 - i * 3.4 - Math.random() * 1.5;
+                const hL = 3 + Math.random() * 6, hR = 3 + Math.random() * 6;
+                makeBuilding(-6.5 - Math.random() * 3, z, 2 + Math.random() * 1.5, hL, 2 + Math.random() * 1.5, buildingHues[i % buildingHues.length]);
+                makeBuilding(6.5 + Math.random() * 3, z - 1.5, 2 + Math.random() * 1.5, hR, 2 + Math.random() * 1.5, buildingHues[(i + 2) % buildingHues.length]);
+            }
+
+            // ---- Streetlamps: pole + glowing bulb + soft additive sprite for a bloom-like
+            // glow, since a full post-processing pipeline is overkill for a 4-shot splash. ----
+            const glowCanvas = document.createElement('canvas');
+            glowCanvas.width = glowCanvas.height = 128;
+            const gctx = glowCanvas.getContext('2d');
+            const glowGrad = gctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            glowGrad.addColorStop(0, 'rgba(251,191,36,0.9)');
+            glowGrad.addColorStop(0.4, 'rgba(251,191,36,0.35)');
+            glowGrad.addColorStop(1, 'rgba(251,191,36,0)');
+            gctx.fillStyle = glowGrad;
+            gctx.fillRect(0, 0, 128, 128);
+            const glowTexture = new THREE.CanvasTexture(glowCanvas);
+
+            function makeStreetlamp(x, z) {
+                const pole = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.04, 0.04, 2.6, 6),
+                    new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 })
+                );
+                pole.position.set(x, 1.3, z);
+                scene.add(pole);
+
+                const bulb = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.09, 8, 8),
+                    new THREE.MeshStandardMaterial({ color: 0xfef3c7, emissive: 0xfbbf24, emissiveIntensity: 1 })
+                );
+                bulb.position.set(x, 2.6, z);
+                scene.add(bulb);
+
+                const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+                glow.scale.set(1.4, 1.4, 1);
+                glow.position.copy(bulb.position);
+                scene.add(glow);
+            }
+            [-6, -2, 4].forEach(x => makeStreetlamp(-2.6, x));
+            [-4, 0, 6].forEach(x => makeStreetlamp(2.6, x));
 
             // ---- Tricycle (stylized low-poly group) ----
             const tricycle = new THREE.Group();
@@ -237,6 +397,10 @@
             );
             headlight.position.set(0.82, 0.6, 0);
             tricycle.add(headlight);
+            const headlightGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+            headlightGlow.scale.set(0.9, 0.9, 1);
+            headlightGlow.position.set(0.82, 0.6, 0);
+            tricycle.add(headlightGlow);
 
             const TRICYCLE_START_X = -7, TRICYCLE_END_X = 2.1;
             tricycle.position.set(TRICYCLE_START_X, 0, 1.1);
@@ -291,7 +455,7 @@
             scene.add(passenger);
 
             // ---- Dust particles: kicked up behind the rear wheels while driving ----
-            // Simple, honest implementation for a ~4s splash — CPU-updated THREE.Points,
+            // Simple, honest implementation for a short splash — CPU-updated THREE.Points,
             // no per-particle alpha fade (would need a custom shader for that), so "dead"
             // particles are just parked out of view instead of visually faded. Reads as
             // convincing at this particle count and this short a duration without the
@@ -394,27 +558,43 @@
                 }
             }
 
-            // ---- GSAP timeline: sequencing/easing for every discrete pose change ----
+            // ---- GSAP timeline: cinematic 4-shot sequence ----
+            // Shot 1 (0.0–1.6s): high aerial establishing pass over the skyline.
+            // Shot 2 (1.6–2.5s): crane swoop down to street level, arriving at the passenger.
+            // Shot 3 (2.5–5.6s): pickup, then a tracking dolly following the tricycle's drive.
+            // Shot 4 (5.6–6.6s): camera settles on a hero angle as the logo reveals.
             // Continuous, reactive effects (wheel spin tied to actual distance travelled,
-            // dust spawning, speed lines, camera drift) stay in the per-frame ticker below
+            // dust spawning, speed lines, window flicker) stay in the per-frame ticker below
             // rather than being GSAP tweens themselves — GSAP is the right tool for "animate
             // property A to B over time with easing," not for continuous procedural motion.
             const tl = gsap.timeline();
+            const logoEl = document.getElementById('splashLogo');
 
-            tl.to(passenger.scale, { x: 1, y: 1, z: 1, duration: 0.5, ease: 'back.out(2.4)' }, 0.5)
-              .to(armPivot.rotation, { z: Math.PI * 0.85, duration: 0.4, ease: 'power2.inOut' }, 1.0)
-              .to(tricycle.scale, { x: 1, y: 1, z: 1, duration: 0.35, ease: 'back.out(2.4)' }, 1.0)
+            // Shot 1: slow aerial drift across the skyline
+            tl.to(cam, { x: 2.5, y: 8.5, z: 12, lx: -1, ly: 1.5, lz: -10, duration: 1.6, ease: 'sine.inOut' }, 0)
+              // Shot 2: swoop down to the street-level start position
+              .to(cam, { x: 0, y: 3.6, z: 9, lx: 0, ly: 0.4, lz: 0, duration: 0.9, ease: 'power3.inOut' }, 1.6)
+              // Passenger + tricycle pop in and the pickup wave plays
+              .to(passenger.scale, { x: 1, y: 1, z: 1, duration: 0.5, ease: 'back.out(2.4)' }, 2.0)
+              .to(armPivot.rotation, { z: Math.PI * 0.85, duration: 0.4, ease: 'power2.inOut' }, 2.5)
+              .to(tricycle.scale, { x: 1, y: 1, z: 1, duration: 0.35, ease: 'back.out(2.4)' }, 2.5)
+              // Shot 3: drive off, camera tracking alongside a little behind and above
               .to(tricycle.position, {
                   x: TRICYCLE_END_X, duration: 2.1, ease: 'power2.inOut',
                   onStart: () => { isDriving = true; },
                   onComplete: () => { isDriving = false; }
-              }, 1.3)
-              .to(passenger.scale, { x: 1.12, y: 1.12, z: 1.12, duration: 0.3, ease: 'power1.inOut', yoyo: true, repeat: 1 }, 3.4)
-              .to(tricycle.scale, { x: 1.08, y: 1.08, z: 1.08, duration: 0.3, ease: 'power1.inOut', yoyo: true, repeat: 1 }, 3.4)
-              .call(() => triggerSparkleBurst((tricycle.position.x + passenger.position.x) / 2, 1.2, 0), [], 3.5);
+              }, 2.8)
+              .to(cam, { x: -1.5, y: 3.2, z: 7.2, lx: -0.5, ly: 0.6, lz: 1.1, duration: 2.1, ease: 'power2.inOut' }, 2.8)
+              .to(passenger.scale, { x: 1.12, y: 1.12, z: 1.12, duration: 0.3, ease: 'power1.inOut', yoyo: true, repeat: 1 }, 4.9)
+              .to(tricycle.scale, { x: 1.08, y: 1.08, z: 1.08, duration: 0.3, ease: 'power1.inOut', yoyo: true, repeat: 1 }, 4.9)
+              .call(() => triggerSparkleBurst((tricycle.position.x + passenger.position.x) / 2, 1.2, 0), [], 5.0)
+              // Shot 4: settle on the hero angle and reveal the logo
+              .to(cam, { x: 1.4, y: 2.1, z: 5.6, lx: 0.6, ly: 0.8, lz: 1.1, duration: 1.1, ease: 'power2.out' }, 5.1)
+              .call(() => logoEl.classList.add('splash-logo-play'), [], 5.3);
 
             // ---- Per-frame ticker: continuous procedural effects + the actual render call ----
             let lastFrameTime = performance.now();
+            const lookAtVec = new THREE.Vector3();
             function tick() {
                 const now = performance.now();
                 const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
@@ -433,8 +613,21 @@
                 updateSparks(dt);
                 drawSpeedLines(dt);
 
-                camera.position.x = Math.sin(now * 0.00015) * 0.6; // gentle cinematic drift
-                camera.lookAt(0, 0.4, 0);
+                // Window flicker: each window's opacity drifts on its own sine phase so the
+                // skyline reads as alive rather than static, without any per-frame allocation.
+                for (let i = 0; i < flickerWindows.length; i++) {
+                    const f = flickerWindows[i];
+                    f.mesh.material.opacity = 0.55 + Math.sin(now * 0.001 * f.speed + f.phase) * 0.35;
+                }
+                stars.material.opacity = 0.55 + Math.sin(now * 0.0006) * 0.15;
+
+                // Idle handheld-style sway layered on top of whatever the timeline is doing,
+                // subtle enough to add life without fighting the choreographed camera moves.
+                const swayX = Math.sin(now * 0.00035) * 0.12;
+                const swayY = Math.sin(now * 0.00021) * 0.05;
+                camera.position.set(cam.x + swayX, cam.y + swayY, cam.z);
+                lookAtVec.set(cam.lx, cam.ly, cam.lz);
+                camera.lookAt(lookAtVec);
 
                 renderer.render(scene, camera);
             }
@@ -459,8 +652,13 @@
                 window.removeEventListener('resize', onResize);
                 scene.traverse(obj => {
                     if (obj.geometry) obj.geometry.dispose();
-                    if (obj.material) obj.material.dispose();
+                    if (obj.material) {
+                        if (obj.material.map) obj.material.map.dispose();
+                        obj.material.dispose();
+                    }
                 });
+                skyTexture.dispose();
+                glowTexture.dispose();
                 renderer.dispose();
             }
 
@@ -471,7 +669,7 @@
             };
 
             splash.addEventListener('click', dismiss);
-            setTimeout(dismiss, 4600);
+            setTimeout(dismiss, 7200);
         })();
     </script>
 
