@@ -19,6 +19,21 @@
         .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
         .maplibregl-popup-content { background: #0f172a !important; color: #f8fafc !important; border-radius: 16px; border: 1px solid rgba(239, 68, 68, 0.4); padding: 14px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); }
         .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: #0f172a !important; }
+    
+        /* ---- Icon system: Lucide icons replace emoji for a consistent, professional
+           look across devices (raw emoji render wildly differently by platform).
+           Attribute values here are deliberately unquoted so this markup is safe to
+           drop into JS string literals of any quote style without escaping. ---- */
+        .inline-icon { width: 1.05em; height: 1.05em; vertical-align: -0.2em; display: inline-block; flex-shrink: 0; }
+        .dot-green, .dot-gray, .dot-red, .dot-amber { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 9999px; vertical-align: 0.05em; }
+        .dot-green { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,0.65); }
+        .dot-gray  { background: #64748b; }
+        .dot-red   { background: #f43f5e; box-shadow: 0 0 6px rgba(244,63,94,0.55); }
+        .dot-amber { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.55); }
+        .badge-green, .badge-red { display: inline-flex; align-items: center; justify-content: center; width: 1.15em; height: 1.15em; border-radius: 9999px; vertical-align: -0.28em; }
+        .badge-green .inline-icon, .badge-red .inline-icon { width: 0.75em; height: 0.75em; vertical-align: 0; }
+        .badge-green { background: rgba(16,185,129,0.18); color: #34d399; }
+        .badge-red   { background: rgba(244,63,94,0.18); color: #fb7185; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
@@ -26,7 +41,7 @@
     <div id="signupModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
         <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-red-500/30 shadow-2xl space-y-4">
             <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
-                <span class="text-3xl">🛠️</span>
+                <span class="text-3xl"><i data-lucide=wrench class=inline-icon></i></span>
                 <div>
                     <h2 class="text-xl font-black text-white">Workshop Registration</h2>
                     <p class="text-xs text-slate-400">Register your shop to receive roadside SOS calls</p>
@@ -43,7 +58,7 @@
                     <input type="text" id="ownerName" required placeholder="e.g. Kwame Mensah" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold font-mono text-red-400 mb-1">🚨 Shop Emergency Contact (Mandatory) *</label>
+                    <label class="block text-xs font-bold font-mono text-red-400 mb-1"><i data-lucide=siren class=inline-icon></i> Shop Emergency Contact (Mandatory) *</label>
                     <input type="tel" id="shopContact" required placeholder="e.g. 0244123456" class="w-full bg-slate-900 border border-red-500/50 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500 font-mono font-bold">
                     <p class="text-[10px] text-slate-400 mt-1">Drivers will use this number to call your shop during breakdowns.</p>
                 </div>
@@ -57,7 +72,7 @@
                 </div>
 
                 <button type="submit" class="w-full bg-red-500 hover:bg-red-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg text-sm mt-2">
-                    ✅ Register & Go Active
+                    <span class=badge-green><i data-lucide=check class=inline-icon></i></span> Register & Go Active
                 </button>
             </form>
         </div>
@@ -65,7 +80,7 @@
 
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-y-2 gap-x-3 z-20 shadow-xl shrink-0">
         <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-red-500">SOS 🛠️</span></a>
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-red-500">SOS <i data-lucide=wrench class=inline-icon></i></span></a>
             <span class="hidden sm:flex bg-red-500/20 text-red-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-red-500/30 items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span> Live Workshop Dispatch
             </span>
@@ -73,7 +88,7 @@
         
         <div class="flex flex-wrap items-center gap-2">
             <button id="toggleWorkshopBtn" onclick="toggleWorkshopStatus()" class="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3 py-1.5 rounded-lg transition shadow-md">
-                🟢 Workshop Active
+                <span class=dot-green></span> Workshop Active
             </button>
             <a href="/passenger" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg transition border border-slate-700">
                 Passenger View
@@ -105,7 +120,7 @@
 
             <div id="passengerAlertPanel" class="hidden border-t border-slate-800 pt-3 mt-3 space-y-2 shrink-0">
                 <div class="flex justify-between items-center">
-                    <span class="text-xs font-black text-purple-400">🆘 Passenger Panic Alerts</span>
+                    <span class="text-xs font-black text-purple-400"><i data-lucide=siren class=inline-icon></i> Passenger Panic Alerts</span>
                     <span id="passengerAlertCount" class="text-[9px] font-mono bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded">0</span>
                 </div>
                 <div id="passengerAlertList" class="space-y-1.5 max-h-40 overflow-y-auto"></div>
@@ -214,13 +229,13 @@
 
             const wEl = document.createElement('div');
             wEl.className = 'text-3xl filter drop-shadow-lg animate-bounce';
-            wEl.innerHTML = '🛠️';
+            wEl.innerHTML = '<i data-lucide=wrench class=inline-icon></i>';
             
             const shopPopup = new maplibregl.Popup({ offset: 25 }).setHTML(`
                 <div class="text-xs space-y-1">
-                    <div class="font-extrabold text-red-400 text-sm">🛠️ ${escapeHtml(workshopData.shopName)}</div>
+                    <div class="font-extrabold text-red-400 text-sm"><i data-lucide=wrench class=inline-icon></i> ${escapeHtml(workshopData.shopName)}</div>
                     <div class="text-white">Owner: ${escapeHtml(workshopData.ownerName)}</div>
-                    <div class="text-emerald-400 font-bold">📞 SOS: <a href="tel:${escapeHtml(workshopData.emergencyContact)}" class="underline">${escapeHtml(workshopData.emergencyContact)}</a></div>
+                    <div class="text-emerald-400 font-bold"><i data-lucide=phone-call class=inline-icon></i> SOS: <a href="tel:${escapeHtml(workshopData.emergencyContact)}" class="underline">${escapeHtml(workshopData.emergencyContact)}</a></div>
                     <div class="text-slate-400">${escapeHtml(workshopData.specialty)}</div>
                 </div>
             `);
@@ -230,7 +245,7 @@
                 .setPopup(shopPopup)
                 .addTo(map);
 
-            alert(`✅ ${workshopData.shopName} is now registered & active on the network!`);
+            alert(`<span class=badge-green><i data-lucide=check class=inline-icon></i></span> ${workshopData.shopName} is now registered & active on the network!`);
         }
 
         function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -254,12 +269,12 @@
             document.getElementById('passengerAlertList').innerHTML = passengerAlerts.map(a => `
                 <div class="bg-slate-950 p-2 rounded-lg border border-purple-500/30 text-[10px] space-y-0.5">
                     <div class="flex justify-between">
-                        <span class="text-purple-400 font-bold">🆘 Passenger: ${escapeHtml(a.passengerPhone)}</span>
+                        <span class="text-purple-400 font-bold"><i data-lucide=siren class=inline-icon></i> Passenger: ${escapeHtml(a.passengerPhone)}</span>
                         <span class="text-slate-500 font-mono">${new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     <div class="text-slate-400">Vehicle: <span class="text-amber-400 font-mono">${escapeHtml(a.plateNumber) || 'Unknown'}</span> · Driver: ${escapeHtml(a.driverName) || 'Unknown'}</div>
-                    ${a.accuracyM ? `<div class="text-slate-500">📡 Location accuracy: ±${Math.round(a.accuracyM)}m${a.accuracyM > 500 ? ' <span class="text-amber-400 font-bold">(low confidence)</span>' : ''}</div>` : ''}
-                    <button onclick="flyToTarget(${Number(a.lng) || 0}, ${Number(a.lat) || 0})" class="text-sky-400 font-bold hover:underline">📍 3D Focus</button>
+                    ${a.accuracyM ? `<div class="text-slate-500"><i data-lucide=radio-tower class=inline-icon></i> Location accuracy: ±${Math.round(a.accuracyM)}m${a.accuracyM > 500 ? ' <span class="text-amber-400 font-bold">(low confidence)</span>' : ''}</div>` : ''}
+                    <button onclick="flyToTarget(${Number(a.lng) || 0}, ${Number(a.lat) || 0})" class="text-sky-400 font-bold hover:underline"><i data-lucide=map-pin class=inline-icon></i> 3D Focus</button>
                 </div>
             `).join('');
 
@@ -273,17 +288,17 @@
             const popupHTML = `
                 <div class="space-y-1.5 text-xs">
                     <div class="flex justify-between items-center gap-2">
-                        <span class="font-extrabold text-red-400 text-sm">🚨 FAULTY VEHICLE</span>
+                        <span class="font-extrabold text-red-400 text-sm"><i data-lucide=siren class=inline-icon></i> FAULTY VEHICLE</span>
                         <span class="bg-red-500/20 text-red-300 font-mono font-bold text-[10px] px-2 py-0.5 rounded border border-red-500/30">
                             ${distKm < 1 ? Math.round(distKm * 1000) + 'm away' : distKm.toFixed(1) + 'km away'}
                         </span>
                     </div>
                     <div class="text-white font-bold text-sm">${escapeHtml(fullName || username)}</div>
                     <div class="text-amber-300 font-bold">Issue: ${escapeHtml(issue) || 'General Breakdown'}</div>
-                    <div class="text-slate-300">📞 <a href="tel:${escapeHtml(contact)}" class="underline text-sky-300 font-bold">${escapeHtml(contact) || 'N/A'}</a></div>
+                    <div class="text-slate-300"><i data-lucide=phone-call class=inline-icon></i> <a href="tel:${escapeHtml(contact)}" class="underline text-sky-300 font-bold">${escapeHtml(contact) || 'N/A'}</a></div>
                     <div class="text-slate-400">Plate: <span class="text-amber-400 font-mono font-bold">${escapeHtml(plateNumber) || 'N/A'}</span></div>
                     <button onclick="streamLiveGuidance(${Number(lat) || 0}, ${Number(lng) || 0}, '${escapeJsAttr(username)}')" class="w-full mt-2 bg-red-500 hover:bg-red-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow-md">
-                        🗺️ Stream Live Guidance Route
+                        <i data-lucide=map class=inline-icon></i> Stream Live Guidance Route
                     </button>
                 </div>
             `;
@@ -295,7 +310,7 @@
             } else {
                 const el = document.createElement('div');
                 el.className = 'text-3xl cursor-pointer animate-ping filter drop-shadow-lg';
-                el.innerHTML = '🚨';
+                el.innerHTML = '<i data-lucide=siren class=inline-icon></i>';
 
                 const popup = new maplibregl.Popup({ offset: 25 }).setHTML(popupHTML);
                 const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).setPopup(popup).addTo(map);
@@ -337,16 +352,16 @@
                         </div>
 
                         <div class="text-xs space-y-1 text-slate-300">
-                            <div>📍 Location: <strong class="text-white">${formattedDist}</strong></div>
-                            <div>📞 Contact: <a href="tel:${escapeHtml(s.contact)}" class="text-sky-400 font-bold underline">${escapeHtml(s.contact) || 'N/A'}</a></div>
+                            <div><i data-lucide=map-pin class=inline-icon></i> Location: <strong class="text-white">${formattedDist}</strong></div>
+                            <div><i data-lucide=phone-call class=inline-icon></i> Contact: <a href="tel:${escapeHtml(s.contact)}" class="text-sky-400 font-bold underline">${escapeHtml(s.contact) || 'N/A'}</a></div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-2 pt-1">
                             <button onclick="flyToTarget(${Number(s.lng) || 0}, ${Number(s.lat) || 0})" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs border border-slate-700 transition">
-                                📍 3D Focus
+                                <i data-lucide=map-pin class=inline-icon></i> 3D Focus
                             </button>
                             <button onclick="streamLiveGuidance(${Number(s.lat) || 0}, ${Number(s.lng) || 0}, '${escapeJsAttr(s.username)}')" class="bg-red-500 hover:bg-red-400 text-slate-950 font-black py-2 rounded-xl text-xs transition shadow-md">
-                                🗺️ Live Stream Route
+                                <i data-lucide=map class=inline-icon></i> Live Stream Route
                             </button>
                         </div>
                     </div>
@@ -372,7 +387,7 @@
                         'properties': {},
                         'geometry': { 'type': 'LineString', 'coordinates': routeCoordinates }
                     });
-                    alert(`🗺️ LIVE RESCUE STREAM ACTIVE!\n\nDistance to Vehicle: ${(data.routes[0].distance / 1000).toFixed(1)} km\nEst. Arrival: ~${Math.round(data.routes[0].duration / 60)} mins`);
+                    alert(`<i data-lucide=map class=inline-icon></i> LIVE RESCUE STREAM ACTIVE!\n\nDistance to Vehicle: ${(data.routes[0].distance / 1000).toFixed(1)} km\nEst. Arrival: ~${Math.round(data.routes[0].duration / 60)} mins`);
                 }
             } catch (err) {
                 map.getSource('guidance-route').setData({
@@ -387,12 +402,32 @@
             isOnline = !isOnline;
             const btn = document.getElementById('toggleWorkshopBtn');
             btn.className = isOnline ? "text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3 py-1.5 rounded-lg transition shadow-md" : "text-xs bg-slate-700 text-slate-300 font-bold px-3 py-1.5 rounded-lg transition";
-            btn.innerText = isOnline ? "🟢 Workshop Active" : "🔴 Workshop Offline";
+            btn.innerHTML = isOnline ? "<span class=dot-green></span> Workshop Active" : "<span class=dot-red></span> Workshop Offline";
 
             if (workshopData) {
                 socket.emit('workshop-status-update', { isOnline });
             }
         }
+    </script>
+
+    <script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+    <script>
+        // Renders every <i data-lucide=...> as a crisp inline SVG icon. A MutationObserver
+        // re-runs this after any dynamic content update (socket events, re-rendered lists,
+        // modals, etc.) so icons in content injected after page load still render — without
+        // needing to hunt down and instrument every individual injection site by hand.
+        (function () {
+            function refreshIcons() { if (window.lucide) { try { lucide.createIcons(); } catch (e) {} } }
+            let queued = false;
+            function queueRefresh() {
+                if (queued) return;
+                queued = true;
+                requestAnimationFrame(() => { queued = false; refreshIcons(); });
+            }
+            document.addEventListener('DOMContentLoaded', refreshIcons);
+            refreshIcons();
+            new MutationObserver(queueRefresh).observe(document.documentElement, { childList: true, subtree: true });
+        })();
     </script>
 </body>
 </html>

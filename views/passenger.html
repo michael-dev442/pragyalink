@@ -18,13 +18,30 @@
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             filter: drop-shadow(0px 10px 15px rgba(0,0,0,0.6));
         }
+    
+        /* ---- Icon system: Lucide icons replace emoji for a consistent, professional
+           look across devices (raw emoji render wildly differently by platform).
+           Attribute values here are deliberately unquoted so this markup is safe to
+           drop into JS string literals of any quote style without escaping. ---- */
+        .inline-icon { width: 1.05em; height: 1.05em; vertical-align: -0.2em; display: inline-block; flex-shrink: 0; }
+        .dot-green, .dot-gray, .dot-red, .dot-amber { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 9999px; vertical-align: 0.05em; }
+        .dot-green { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,0.65); }
+        .dot-gray  { background: #64748b; }
+        .dot-red   { background: #f43f5e; box-shadow: 0 0 6px rgba(244,63,94,0.55); }
+        .dot-amber { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.55); }
+        .badge-green, .badge-red { display: inline-flex; align-items: center; justify-content: center; width: 1.15em; height: 1.15em; border-radius: 9999px; vertical-align: -0.28em; }
+        .badge-green .inline-icon, .badge-red .inline-icon { width: 0.75em; height: 0.75em; vertical-align: 0; }
+        .badge-green { background: rgba(16,185,129,0.18); color: #34d399; }
+        .badge-red   { background: rgba(244,63,94,0.18); color: #fb7185; }
+        .star-filled { color: #fbbf24; fill: #fbbf24; }
+        .star-empty  { color: #475569; fill: none; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
 
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-y-2 gap-x-3 z-20 shadow-xl shrink-0">
         <div class="flex flex-wrap items-center gap-2">
-            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-sky-400">3D 🛺</span></a>
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-sky-400">3D <i data-lucide=car-taxi-front class=inline-icon></i></span></a>
             <span class="hidden sm:flex bg-sky-500/20 text-sky-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-sky-500/30 items-center gap-1">
                 <span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span> 3D Spatial Vector Mode
             </span>
@@ -32,16 +49,16 @@
         
         <div class="flex flex-wrap items-center gap-2">
             <button id="langToggleBtn" onclick="toggleLanguage()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition">
-                🌐 EN
+                <i data-lucide=globe class=inline-icon></i> EN
             </button>
             <button onclick="toggle3DView()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition">
-                🏗️<span class="hidden sm:inline"> Toggle 3D Tilt</span>
+                <i data-lucide=construction class=inline-icon></i><span class="hidden sm:inline"> Toggle 3D Tilt</span>
             </button>
             <button onclick="toggleHistoryDrawer()" class="text-xs bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
-                📜<span class="hidden sm:inline"> Receipts</span> (<span id="receiptCount">0</span>)
+                <i data-lucide=file-text class=inline-icon></i><span class="hidden sm:inline"> Receipts</span> (<span id="receiptCount">0</span>)
             </button>
             <button onclick="triggerPanicSOS()" class="text-xs bg-red-500 hover:bg-red-400 text-white font-black px-3 py-1.5 rounded-lg transition shadow-lg animate-pulse">
-                🆘 SOS
+                <i data-lucide=siren class=inline-icon></i> SOS
             </button>
         </div>
     </header>
@@ -54,7 +71,7 @@
         <aside class="w-full md:w-80 glass-panel border-t md:border-t-0 md:border-l border-slate-800 p-4 flex flex-col z-10 shadow-2xl shrink-0 space-y-4 max-h-[50vh] md:max-h-full overflow-y-auto">
             
             <div class="space-y-1.5">
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">🌐 Global Tricycle Markets</label>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider"><i data-lucide=globe class=inline-icon></i> Global Tricycle Markets</label>
                 <select id="marketSelector" onchange="jumpToGlobalMarket(this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500 font-mono">
                     <option value="kumasi">🇬🇭 Kumasi, Ghana (Pragya)</option>
                     <option value="tamale">🇬🇭 Tamale, Ghana (Mahindra/Bajaj)</option>
@@ -72,7 +89,7 @@
 
             <div id="referralSection" class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
                 <div class="flex justify-between items-center">
-                    <span class="text-xs font-bold text-slate-300">🎁 Invite & Earn</span>
+                    <span class="text-xs font-bold text-slate-300"><i data-lucide=gift class=inline-icon></i> Invite & Earn</span>
                     <span id="walletCreditBadge" class="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">GH₵ 0.00</span>
                 </div>
                 <div id="referralCodeDisplay" class="hidden space-y-1.5">
@@ -90,7 +107,7 @@
             </div>
 
             <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
-                <label class="block text-xs font-bold text-slate-300">💵 Fare Estimator</label>
+                <label class="block text-xs font-bold text-slate-300"><i data-lucide=banknote class=inline-icon></i> Fare Estimator</label>
                 <p class="text-[10px] text-slate-400">Curious what a trip might cost? Search where you're headed — the final fare is still metered by actual distance travelled.</p>
                 <div class="flex gap-2">
                     <input type="text" id="fareEstimateDestInput" placeholder="e.g. Kejetia Market, Kumasi" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500">
@@ -102,8 +119,8 @@
             <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
                 <label class="block text-xs font-bold text-slate-300 mb-1">How do you want to ride?</label>
                 <div class="grid grid-cols-2 gap-2">
-                    <button id="modePrivateBtn" onclick="setRideMode('PRIVATE')" class="p-2 bg-sky-500/10 border-2 border-sky-500 rounded-xl text-center text-xs font-bold text-sky-300">🛺 Private</button>
-                    <button id="modePoolBtn" onclick="setRideMode('POOL')" class="p-2 bg-slate-950 border-2 border-slate-800 rounded-xl text-center text-xs font-bold text-slate-400">🚏 Pragya Pool</button>
+                    <button id="modePrivateBtn" onclick="setRideMode('PRIVATE')" class="p-2 bg-sky-500/10 border-2 border-sky-500 rounded-xl text-center text-xs font-bold text-sky-300"><i data-lucide=car-taxi-front class=inline-icon></i> Private</button>
+                    <button id="modePoolBtn" onclick="setRideMode('POOL')" class="p-2 bg-slate-950 border-2 border-slate-800 rounded-xl text-center text-xs font-bold text-slate-400"><i data-lucide=signpost class=inline-icon></i> Pragya Pool</button>
                 </div>
                 <p id="poolHint" class="text-[10px] text-slate-400 hidden">Pool rides split the fare with others heading the same way. Tap the map to set your drop-off point.</p>
                 <div id="poolDropoffStatus" class="hidden text-[10px] text-amber-400 font-bold"></div>
@@ -113,27 +130,27 @@
 
             <div id="rideStatusCard" class="bg-slate-900/90 p-4 rounded-2xl border border-sky-500/40 space-y-3">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span class="text-xs font-black text-sky-400">📍 Book a Ride</span>
+                    <span class="text-xs font-black text-sky-400"><i data-lucide=map-pin class=inline-icon></i> Book a Ride</span>
                     <span id="statusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Waiting</span>
                 </div>
                 <div id="gpsStatusRow" class="flex items-center justify-between text-[9px] font-mono">
-                    <span id="gpsQualityBadge" class="text-slate-500">📡 Acquiring your location...</span>
-                    <span id="walkingSpeedBadge" class="text-sky-400 hidden">🚶 0 km/h</span>
+                    <span id="gpsQualityBadge" class="text-slate-500"><i data-lucide=radio-tower class=inline-icon></i> Acquiring your location...</span>
+                    <span id="walkingSpeedBadge" class="text-sky-400 hidden"><i data-lucide=footprints class=inline-icon></i> 0 km/h</span>
                 </div>
                 <div class="flex items-center justify-between text-[9px] font-mono">
-                    <button onclick="startPickupCorrectionMode()" class="text-sky-400 font-bold hover:underline">📍 Not right? Tap map to fix</button>
+                    <button onclick="startPickupCorrectionMode()" class="text-sky-400 font-bold hover:underline"><i data-lucide=map-pin class=inline-icon></i> Not right? Tap map to fix</button>
                     <button id="compassToggleBtn" onclick="toggleCompassMode()" class="text-slate-400 bg-slate-800/50 border border-slate-700 px-2 py-0.5 rounded hover:border-sky-500 transition">
-                        🧭 Compass Off
+                        <i data-lucide=compass class=inline-icon></i> Compass Off
                     </button>
                 </div>
                 <div id="passengerActionArea" class="space-y-2 text-xs">
-                    <p class="text-slate-400 italic text-[11px]">Select any active 🛺 vehicle model on the 3D map to initiate dispatch.</p>
+                    <p class="text-slate-400 italic text-[11px]">Select any active <i data-lucide=car-taxi-front class=inline-icon></i> vehicle model on the 3D map to initiate dispatch.</p>
                 </div>
             </div>
 
             <div id="historySection" class="space-y-2 pt-2 border-t border-slate-800">
                 <div class="flex justify-between items-center">
-                    <h3 class="text-xs font-bold text-sky-400 uppercase tracking-wider">📜 Ride Receipts</h3>
+                    <h3 class="text-xs font-bold text-sky-400 uppercase tracking-wider"><i data-lucide=file-text class=inline-icon></i> Ride Receipts</h3>
                     <button onclick="clearReceiptsHistory()" class="text-[9px] text-red-400 hover:underline">Clear History</button>
                 </div>
                 <div id="historyList" class="space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -189,7 +206,7 @@
         function toggleLanguage() {
             currentLang = currentLang === 'EN' ? 'TWI' : 'EN';
             localStorage.setItem('pragya_lang', currentLang);
-            document.getElementById('langToggleBtn').innerText = currentLang === 'EN' ? '🌐 EN' : '🌐 TWI';
+            document.getElementById('langToggleBtn').innerHTML = currentLang === 'EN' ? '<i data-lucide=globe class=inline-icon></i> EN' : '<i data-lucide=globe class=inline-icon></i> TWI';
         }
 
         function speakPragyaPhrase(key) {
@@ -280,7 +297,7 @@
 
         // ---- Panic button ----
         function triggerPanicSOS() {
-            if (!confirm("🆘 Send an emergency alert with your live location to PragyaLink safety monitors?")) return;
+            if (!confirm("<i data-lucide=siren class=inline-icon></i> Send an emergency alert with your live location to PragyaLink safety monitors?")) return;
 
             const phone = document.getElementById('passengerPhoneInput').value.trim();
             const send = (lat, lng, accuracy) => {
@@ -291,7 +308,7 @@
                     lat, lng, accuracyM: accuracy || null
                 });
                 speakPragyaPhrase('sosSent');
-                alert("🆘 Alert sent. Nearby fleet operators and workshops have been notified with your location.");
+                alert("<i data-lucide=siren class=inline-icon></i> Alert sent. Nearby fleet operators and workshops have been notified with your location.");
             };
 
             // Emergency alerts must never wait long for a "perfect" reading — request high
@@ -332,7 +349,7 @@
         let pickupCorrectionMode = false;
         function startPickupCorrectionMode() {
             pickupCorrectionMode = true;
-            document.getElementById('gpsQualityBadge').innerText = '📍 Tap anywhere on the map to set your pickup point...';
+            document.getElementById('gpsQualityBadge').innerHTML = '<i data-lucide=map-pin class=inline-icon></i> Tap anywhere on the map to set your pickup point...';
         }
 
         // Pool mode: tap the map to set your drop-off point. Pickup correction mode: tap
@@ -352,12 +369,12 @@
             if (poolDropoffMarker) poolDropoffMarker.remove();
             poolDropoffMarker = new maplibregl.Marker({ color: '#f59e0b' })
                 .setLngLat([poolDropoff.lng, poolDropoff.lat])
-                .setPopup(new maplibregl.Popup().setHTML('<b>🏁 Your Drop-off Point</b>'))
+                .setPopup(new maplibregl.Popup().setHTML('<b><i data-lucide=flag class=inline-icon></i> Your Drop-off Point</b>'))
                 .addTo(map);
 
             const statusEl = document.getElementById('poolDropoffStatus');
             statusEl.classList.remove('hidden');
-            statusEl.innerText = '✅ Drop-off point set. Tap "Request Pool Ride" below.';
+            statusEl.innerHTML = '<span class=badge-green><i data-lucide=check class=inline-icon></i></span> Drop-off point set. Tap "Request Pool Ride" below.';
             renderPoolRequestButton();
         });
 
@@ -365,15 +382,15 @@
             if (rideMode !== 'POOL' || !poolDropoff) return;
             document.getElementById('passengerActionArea').innerHTML = `
                 <button onclick="sendPoolRideRequest()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl transition shadow-lg text-xs">
-                    🚏 Request Pool Ride
+                    <i data-lucide=signpost class=inline-icon></i> Request Pool Ride
                 </button>
             `;
         }
 
         function sendPoolRideRequest() {
             const phone = document.getElementById('passengerPhoneInput').value.trim();
-            if (!phone) { alert("⚠️ Please enter your phone number first!"); return; }
-            if (!poolDropoff) { alert("⚠️ Tap the map to set your drop-off point first!"); return; }
+            if (!phone) { alert("<i data-lucide=triangle-alert class=inline-icon></i> Please enter your phone number first!"); return; }
+            if (!poolDropoff) { alert("<i data-lucide=triangle-alert class=inline-icon></i> Tap the map to set your drop-off point first!"); return; }
             savePassengerPhone();
 
             socket.emit('request-pool-ride', {
@@ -456,18 +473,18 @@
         function updateGpsQualityBadge(accuracy, status, isManual) {
             const badge = document.getElementById('gpsQualityBadge');
             if (isManual) {
-                badge.innerText = '📍 Pickup set manually';
+                badge.innerHTML = '<i data-lucide=map-pin class=inline-icon></i> Pickup set manually';
                 badge.className = 'text-sky-400';
                 return;
             }
             if (status === 'weak') {
-                badge.innerText = accuracy ? `🔴 Weak GPS (±${Math.round(accuracy)}m) — location may be inaccurate` : '🔴 Location unavailable';
+                badge.innerHTML = accuracy ? `<span class=dot-red></span> Weak GPS (±${Math.round(accuracy)}m) — location may be inaccurate` : '<span class=dot-red></span> Location unavailable';
                 badge.className = 'text-red-400';
             } else if (status === 'fair') {
-                badge.innerText = `🟡 GPS ±${Math.round(accuracy)}m`;
+                badge.innerHTML = `<span class=dot-amber></span> GPS ±${Math.round(accuracy)}m`;
                 badge.className = 'text-amber-400';
             } else {
-                badge.innerText = `🟢 GPS ±${Math.round(accuracy)}m`;
+                badge.innerHTML = `<span class=dot-green></span> GPS ±${Math.round(accuracy)}m`;
                 badge.className = 'text-emerald-400';
             }
         }
@@ -505,7 +522,7 @@
             if (pickupMarker) pickupMarker.remove();
             pickupMarker = new maplibregl.Marker({ color: '#38bdf8' })
                 .setLngLat([lng, lat])
-                .setPopup(new maplibregl.Popup().setHTML('<b>📍 Pickup Point</b>'))
+                .setPopup(new maplibregl.Popup().setHTML('<b><i data-lucide=map-pin class=inline-icon></i> Pickup Point</b>'))
                 .addTo(map);
 
             updateAccuracyCircle(lat, lng, accuracyMeters);
@@ -551,7 +568,7 @@
 
             clearTimeout(compassNoSignalTimer);
             compassNoSignalTimer = setTimeout(() => {
-                document.getElementById('compassToggleBtn').innerText = '🧭 No signal';
+                document.getElementById('compassToggleBtn').innerHTML = '<i data-lucide=compass class=inline-icon></i> No signal';
             }, 4000);
 
             if (compassSmoothedHeading == null) {
@@ -561,7 +578,7 @@
             }
 
             if (compassModeEnabled) {
-                document.getElementById('compassToggleBtn').innerText = `🧭 ${Math.round(compassSmoothedHeading)}°`;
+                document.getElementById('compassToggleBtn').innerHTML = `<i data-lucide=compass class=inline-icon></i> ${Math.round(compassSmoothedHeading)}°`;
                 map.easeTo({ bearing: compassSmoothedHeading, duration: 150 });
             }
         }
@@ -569,17 +586,17 @@
         function toggleCompassMode() {
             if (compassModeEnabled) {
                 compassModeEnabled = false;
-                document.getElementById('compassToggleBtn').innerText = '🧭 Compass Off';
+                document.getElementById('compassToggleBtn').innerHTML = '<i data-lucide=compass class=inline-icon></i> Compass Off';
                 document.getElementById('compassToggleBtn').className = 'text-slate-400 bg-slate-800/50 border border-slate-700 px-2 py-0.5 rounded hover:border-sky-500 transition';
                 return;
             }
 
             if (!window.isSecureContext) {
-                alert('🧭 Compass needs a secure connection (HTTPS) to work — same requirement as GPS.');
+                alert('<i data-lucide=compass class=inline-icon></i> Compass needs a secure connection (HTTPS) to work — same requirement as GPS.');
                 return;
             }
             if (typeof DeviceOrientationEvent === 'undefined') {
-                alert('🧭 This device/browser doesn\'t support compass heading.');
+                alert('<i data-lucide=compass class=inline-icon></i> This device/browser doesn\'t support compass heading.');
                 return;
             }
 
@@ -600,9 +617,9 @@
                     if (result === 'granted') {
                         startListening();
                     } else {
-                        alert('🧭 Compass permission was declined. You can re-enable it from your browser/site settings.');
+                        alert('<i data-lucide=compass class=inline-icon></i> Compass permission was declined. You can re-enable it from your browser/site settings.');
                     }
-                }).catch(() => alert('🧭 Could not request compass permission on this device.'));
+                }).catch(() => alert('<i data-lucide=compass class=inline-icon></i> Could not request compass permission on this device.'));
             } else {
                 startListening();
             }
@@ -635,7 +652,7 @@
                     const badge = document.getElementById('walkingSpeedBadge');
                     if (badge) {
                         badge.classList.remove('hidden');
-                        badge.innerText = speedMps < 0.3 ? '🧍 Stationary' : `🚶 ${(speedMps * 3.6).toFixed(1)} km/h`;
+                        badge.innerHTML = speedMps < 0.3 ? '<i data-lucide=user class=inline-icon></i> Stationary' : `<i data-lucide=footprints class=inline-icon></i> ${(speedMps * 3.6).toFixed(1)} km/h`;
                     }
 
                     // Rotate the map to face the direction of travel — same technique as
@@ -707,7 +724,7 @@
 
         function shareReferralCode() {
             const code = document.getElementById('myReferralCode').innerText;
-            const text = `Ride PragyaLink tricycles in Kumasi & Accra — use my code ${code} and we both get GH₵ credit! 🛺`;
+            const text = `Ride PragyaLink tricycles in Kumasi & Accra — use my code ${code} and we both get GH₵ credit! <i data-lucide=car-taxi-front class=inline-icon></i>`;
             if (navigator.share) {
                 navigator.share({ text }).catch(() => {});
             } else {
@@ -720,7 +737,7 @@
             const phone = localStorage.getItem('pragya_passenger_phone');
             const msgEl = document.getElementById('referralMsg');
             if (!code || !phone) {
-                msgEl.innerText = '⚠️ Enter your phone number above first.';
+                msgEl.innerHTML = '<i data-lucide=triangle-alert class=inline-icon></i> Enter your phone number above first.';
                 msgEl.className = 'text-[10px] text-amber-400';
                 msgEl.classList.remove('hidden');
                 return;
@@ -731,12 +748,12 @@
         socket.on('referral-submit-result', (result) => {
             const msgEl = document.getElementById('referralMsg');
             if (result.success) {
-                msgEl.innerText = '✅ Code applied — GH₵ credit added to your wallet!';
+                msgEl.innerHTML = '<span class=badge-green><i data-lucide=check class=inline-icon></i></span> Code applied — GH₵ credit added to your wallet!';
                 msgEl.className = 'text-[10px] text-emerald-400';
                 document.getElementById('referralEntryRow').classList.add('hidden');
                 refreshReferralInfo();
             } else {
-                msgEl.innerText = '⚠️ That code is invalid or already used.';
+                msgEl.innerHTML = '<i data-lucide=triangle-alert class=inline-icon></i> That code is invalid or already used.';
                 msgEl.className = 'text-[10px] text-red-400';
             }
             msgEl.classList.remove('hidden');
@@ -762,7 +779,7 @@
                 item.className = 'bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-1 text-xs';
                 item.innerHTML = `
                     <div class="flex justify-between items-center">
-                        <span class="font-bold text-white">🛺 ${escapeHtml(ride.riderName) || 'Pragya Driver'}</span>
+                        <span class="font-bold text-white"><i data-lucide=car-taxi-front class=inline-icon></i> ${escapeHtml(ride.riderName) || 'Pragya Driver'}</span>
                         <span class="text-emerald-400 font-mono font-black text-sm">GH₵ ${parseFloat(ride.fareGhs).toFixed(2)}</span>
                     </div>
                     <div class="text-[10px] text-slate-400 flex justify-between font-mono">
@@ -809,15 +826,15 @@
             } else {
                 const el = document.createElement('div');
                 el.className = 'vehicle-marker-3d text-4xl cursor-pointer hover:scale-125 transition transform';
-                el.innerText = '🛺';
+                el.innerHTML = '<i data-lucide=car-taxi-front class=inline-icon></i>';
                 el.onclick = () => selectDriverForBooking(rider);
 
                 activeRidersOnMap[rider.socketId] = new maplibregl.Marker({ element: el })
                     .setLngLat([rider.lng, rider.lat])
                     .setPopup(new maplibregl.Popup().setHTML(`
-                        <b style="color:#10b981;">🛺 ${escapeHtml(rider.fullName)}</b><br>
+                        <b style="color:#10b981;"><i data-lucide=car-taxi-front class=inline-icon></i> ${escapeHtml(rider.fullName)}</b><br>
                         <span style="font-family:monospace;">Plate: ${escapeHtml(rider.plateNumber)}</span><br>
-                        <a href="tel:${escapeHtml(rider.contact)}" style="color:#38bdf8; font-weight:bold;">📞 Call: ${escapeHtml(rider.contact)}</a>
+                        <a href="tel:${escapeHtml(rider.contact)}" style="color:#38bdf8; font-weight:bold;"><i data-lucide=phone-call class=inline-icon></i> Call: ${escapeHtml(rider.contact)}</a>
                     `))
                     .addTo(map);
             }
@@ -848,10 +865,10 @@
                         <span class="text-amber-400 font-mono text-[11px]">${escapeHtml(rider.plateNumber)}</span>
                     </div>
                     <a href="tel:${escapeHtml(rider.contact)}" class="w-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl py-1.5 text-xs font-bold flex items-center justify-center gap-1 transition">
-                        📞 Call Driver: ${escapeHtml(rider.contact)}
+                        <i data-lucide=phone-call class=inline-icon></i> Call Driver: ${escapeHtml(rider.contact)}
                     </a>
                     <button onclick="sendRideDispatch()" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-black py-2.5 rounded-xl transition shadow-lg text-xs">
-                        🚀 Request Dispatch
+                        <i data-lucide=rocket class=inline-icon></i> Request Dispatch
                     </button>
                 </div>
             `;
@@ -860,7 +877,7 @@
         function sendRideDispatch() {
             const phone = document.getElementById('passengerPhoneInput').value.trim();
             if (!phone) {
-                alert("⚠️ Please enter your phone number first!");
+                alert("<i data-lucide=triangle-alert class=inline-icon></i> Please enter your phone number first!");
                 return;
             }
             savePassengerPhone();
@@ -888,9 +905,9 @@
 
                 document.getElementById('passengerActionArea').innerHTML = `
                     <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
-                        <p class="text-emerald-400 font-bold">🎉 Driver Accepted!</p>
+                        <p class="text-emerald-400 font-bold"><i data-lucide=party-popper class=inline-icon></i> Driver Accepted!</p>
                         <p class="text-xs text-white">Driver: <strong>${escapeHtml(res.riderName)}</strong> (${escapeHtml(res.plateNumber)})</p>
-                        <a href="tel:${escapeHtml(res.riderContact)}" class="text-sky-400 underline font-mono text-xs font-bold">📞 Call: ${escapeHtml(res.riderContact)}</a>
+                        <a href="tel:${escapeHtml(res.riderContact)}" class="text-sky-400 underline font-mono text-xs font-bold"><i data-lucide=phone-call class=inline-icon></i> Call: ${escapeHtml(res.riderContact)}</a>
                     </div>
                 `;
                 speakPragyaPhrase('driverAssigned');
@@ -900,7 +917,7 @@
 
                 document.getElementById('passengerActionArea').innerHTML = `
                     <div class="space-y-2 bg-red-500/10 p-3 rounded-xl border border-red-500/30">
-                        <p class="text-red-400 font-bold">❌ Driver Unavailable</p>
+                        <p class="text-red-400 font-bold"><span class=badge-red><i data-lucide=x class=inline-icon></i></span> Driver Unavailable</p>
                         <p class="text-xs text-slate-300">This driver declined the dispatch. Please pick another tricycle on the map.</p>
                     </div>
                 `;
@@ -937,13 +954,13 @@
             pendingPaymentContext = { tripId: receipt.tripId, plateNumber: receipt.plateNumber, fareGhs: receipt.fareGhs };
             document.getElementById('passengerActionArea').innerHTML = `
                 <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
-                    <p class="text-emerald-400 font-bold">🏁 Trip Arrived & Completed!</p>
+                    <p class="text-emerald-400 font-bold"><i data-lucide=flag class=inline-icon></i> Trip Arrived & Completed!</p>
                     <p class="text-xs text-slate-200">Total Fare: <strong class="text-emerald-400 font-mono text-sm">GH₵ ${parseFloat(receipt.fareGhs).toFixed(2)}</strong></p>
                     <div class="pt-2 border-t border-slate-800/60 space-y-2">
                         <p class="text-[10px] text-slate-400">How would you like to pay?</p>
                         <div class="grid grid-cols-2 gap-2">
-                            <button onclick="payWithCash()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs border border-slate-700 transition">💵 Cash</button>
-                            <button onclick="openMomoPayment()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2 rounded-xl text-xs transition">📱 MoMo</button>
+                            <button onclick="payWithCash()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-xl text-xs border border-slate-700 transition"><i data-lucide=banknote class=inline-icon></i> Cash</button>
+                            <button onclick="openMomoPayment()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2 rounded-xl text-xs transition"><i data-lucide=smartphone class=inline-icon></i> MoMo</button>
                         </div>
                     </div>
                 </div>
@@ -963,12 +980,12 @@
             const walletCredit = parseFloat((document.getElementById('walletCreditBadge').innerText.match(/[\d.]+/) || ['0'])[0]);
             const estimatedDue = Math.max(0, pendingPaymentContext.fareGhs - walletCredit);
             const creditNote = walletCredit > 0
-                ? `<p class="text-[10px] text-sky-400">🎁 Up to GH₵ ${Math.min(walletCredit, pendingPaymentContext.fareGhs).toFixed(2)} wallet credit will be applied automatically</p>`
+                ? `<p class="text-[10px] text-sky-400"><i data-lucide=gift class=inline-icon></i> Up to GH₵ ${Math.min(walletCredit, pendingPaymentContext.fareGhs).toFixed(2)} wallet credit will be applied automatically</p>`
                 : '';
 
             document.getElementById('passengerActionArea').innerHTML = `
                 <div class="space-y-2 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30">
-                    <p class="text-amber-400 font-bold text-xs">📱 Pay with Mobile Money</p>
+                    <p class="text-amber-400 font-bold text-xs"><i data-lucide=smartphone class=inline-icon></i> Pay with Mobile Money</p>
                     ${creditNote}
                     <select id="momoNetworkSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
                         <option value="MTN">MTN Mobile Money</option>
@@ -978,7 +995,7 @@
                     <button onclick="confirmMomoPayment()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs transition">
                         Pay GH₵ ${estimatedDue.toFixed(2)}
                     </button>
-                    <button onclick="renderPaymentStep(pendingPaymentContext)" class="w-full text-slate-500 text-[10px] font-bold">← Back</button>
+                    <button onclick="renderPaymentStep(pendingPaymentContext)" class="w-full text-slate-500 text-[10px] font-bold"><i data-lucide=arrow-left class=inline-icon></i> Back</button>
                 </div>
             `;
         }
@@ -999,7 +1016,7 @@
         function renderPendingMomoUI(network, fareGhs) {
             document.getElementById('passengerActionArea').innerHTML = `
                 <div class="space-y-2 bg-amber-500/10 p-3 rounded-xl border border-amber-500/30 text-center">
-                    <div class="animate-pulse text-amber-400 font-bold text-xs">📲 Check your phone to approve payment...</div>
+                    <div class="animate-pulse text-amber-400 font-bold text-xs"><i data-lucide=smartphone class=inline-icon></i> Check your phone to approve payment...</div>
                     <p class="text-[10px] text-slate-400">GH₵ ${parseFloat(fareGhs).toFixed(2)} via ${escapeHtml(network)}</p>
                     <p class="text-[10px] text-slate-500">This can take up to a minute.</p>
                     <button onclick="payWithCash()" class="text-slate-400 text-[10px] font-bold underline">Taking too long? Pay with cash instead</button>
@@ -1019,7 +1036,7 @@
                 speakPragyaPhrase('paymentFailed');
                 document.getElementById('passengerActionArea').innerHTML = `
                     <div class="space-y-2 bg-red-500/10 p-3 rounded-xl border border-red-500/30 text-center">
-                        <p class="text-red-400 font-bold text-xs">❌ Payment failed or was declined.</p>
+                        <p class="text-red-400 font-bold text-xs"><span class=badge-red><i data-lucide=x class=inline-icon></i></span> Payment failed or was declined.</p>
                         <button onclick="openMomoPayment()" class="text-amber-400 text-[11px] font-bold underline block mx-auto mt-1">Try again</button>
                         <button onclick="payWithCash()" class="text-slate-400 text-[11px] font-bold underline block mx-auto mt-1">Pay with cash instead</button>
                     </div>
@@ -1030,12 +1047,12 @@
         function renderRatingStep(plateNumber, fareGhs, method, creditApplied) {
             document.getElementById('passengerActionArea').innerHTML = `
                 <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30">
-                    <p class="text-emerald-400 font-bold text-xs">✅ Paid via ${escapeHtml(method)} — GH₵ ${parseFloat(fareGhs).toFixed(2)}</p>
-                    ${creditApplied > 0 ? `<p class="text-[10px] text-sky-400">🎁 GH₵ ${creditApplied.toFixed(2)} wallet credit applied</p>` : ''}
+                    <p class="text-emerald-400 font-bold text-xs"><span class=badge-green><i data-lucide=check class=inline-icon></i></span> Paid via ${escapeHtml(method)} — GH₵ ${parseFloat(fareGhs).toFixed(2)}</p>
+                    ${creditApplied > 0 ? `<p class="text-[10px] text-sky-400"><i data-lucide=gift class=inline-icon></i> GH₵ ${creditApplied.toFixed(2)} wallet credit applied</p>` : ''}
                     <div class="pt-2 border-t border-slate-800/60 space-y-1.5">
                         <p class="text-[10px] text-slate-400">Rate your driver:</p>
                         <div id="ratingStars" class="flex gap-1 text-2xl">
-                            ${[1, 2, 3, 4, 5].map(n => `<span onclick="submitDriverRating('${escapeJsAttr(plateNumber)}', ${n})" class="cursor-pointer hover:scale-125 transition">⭐</span>`).join('')}
+                            ${[1, 2, 3, 4, 5].map(n => `<span onclick="submitDriverRating('${escapeJsAttr(plateNumber)}', ${n})" class="cursor-pointer hover:scale-125 transition"><i data-lucide=star class=inline-icon></i></span>`).join('')}
                         </div>
                         <p id="ratingThanksMsg" class="text-[10px] text-emerald-400 font-bold hidden">Thanks for your feedback!</p>
                     </div>
@@ -1048,9 +1065,29 @@
         function submitDriverRating(plateNumber, stars) {
             if (!plateNumber || plateNumber === 'N/A') return;
             socket.emit('submit-driver-rating', { plateNumber, rating: stars });
-            document.getElementById('ratingStars').innerHTML = [1, 2, 3, 4, 5].map(n => n <= stars ? '⭐' : '☆').join(' ');
+            document.getElementById('ratingStars').innerHTML = [1, 2, 3, 4, 5].map(n => n <= stars ? '<i data-lucide=star class="inline-icon star-filled"></i>' : '<i data-lucide=star class="inline-icon star-empty"></i>').join(' ');
             document.getElementById('ratingThanksMsg').classList.remove('hidden');
         }
+    </script>
+
+    <script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+    <script>
+        // Renders every <i data-lucide=...> as a crisp inline SVG icon. A MutationObserver
+        // re-runs this after any dynamic content update (socket events, re-rendered lists,
+        // modals, etc.) so icons in content injected after page load still render — without
+        // needing to hunt down and instrument every individual injection site by hand.
+        (function () {
+            function refreshIcons() { if (window.lucide) { try { lucide.createIcons(); } catch (e) {} } }
+            let queued = false;
+            function queueRefresh() {
+                if (queued) return;
+                queued = true;
+                requestAnimationFrame(() => { queued = false; refreshIcons(); });
+            }
+            document.addEventListener('DOMContentLoaded', refreshIcons);
+            refreshIcons();
+            new MutationObserver(queueRefresh).observe(document.documentElement, { childList: true, subtree: true });
+        })();
     </script>
 </body>
 </html>

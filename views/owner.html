@@ -15,6 +15,21 @@
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
         #map { width: 100%; height: 100%; min-height: 400px; background-color: #0f172a; }
         .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
+    
+        /* ---- Icon system: Lucide icons replace emoji for a consistent, professional
+           look across devices (raw emoji render wildly differently by platform).
+           Attribute values here are deliberately unquoted so this markup is safe to
+           drop into JS string literals of any quote style without escaping. ---- */
+        .inline-icon { width: 1.05em; height: 1.05em; vertical-align: -0.2em; display: inline-block; flex-shrink: 0; }
+        .dot-green, .dot-gray, .dot-red, .dot-amber { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 9999px; vertical-align: 0.05em; }
+        .dot-green { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,0.65); }
+        .dot-gray  { background: #64748b; }
+        .dot-red   { background: #f43f5e; box-shadow: 0 0 6px rgba(244,63,94,0.55); }
+        .dot-amber { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.55); }
+        .badge-green, .badge-red { display: inline-flex; align-items: center; justify-content: center; width: 1.15em; height: 1.15em; border-radius: 9999px; vertical-align: -0.28em; }
+        .badge-green .inline-icon, .badge-red .inline-icon { width: 0.75em; height: 0.75em; vertical-align: 0; }
+        .badge-green { background: rgba(16,185,129,0.18); color: #34d399; }
+        .badge-red   { background: rgba(244,63,94,0.18); color: #fb7185; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
@@ -22,7 +37,7 @@
     <div id="ownerAuthModal" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4">
         <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-amber-500/30 shadow-2xl space-y-4">
             <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
-                <span class="text-3xl">🔑</span>
+                <span class="text-3xl"><i data-lucide=key-round class=inline-icon></i></span>
                 <div>
                     <h2 class="text-xl font-black text-white">Fleet Access Key</h2>
                     <p class="text-xs text-slate-400">Enter your Fleet Phone / Code to access saved assets</p>
@@ -36,7 +51,7 @@
                 </div>
 
                 <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl transition shadow-lg text-sm mt-2">
-                    🔓 Access My Fleet Portal
+                    <i data-lucide=unlock class=inline-icon></i> Access My Fleet Portal
                 </button>
             </form>
         </div>
@@ -45,7 +60,7 @@
     <div id="vehicleModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
         <div class="glass-panel max-w-md w-full p-6 rounded-3xl border border-amber-500/30 shadow-2xl space-y-4">
             <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
-                <span class="text-3xl">📝</span>
+                <span class="text-3xl"><i data-lucide=pencil class=inline-icon></i></span>
                 <div>
                     <h2 id="modalTitle" class="text-xl font-black text-white">Manage Fleet Vehicle</h2>
                     <p class="text-xs text-slate-400">Add or edit asset information in DB</p>
@@ -90,7 +105,7 @@
                         Cancel
                     </button>
                     <button type="submit" class="w-1/2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs transition shadow-lg">
-                        💾 Save Asset
+                        <i data-lucide=save class=inline-icon></i> Save Asset
                     </button>
                 </div>
             </form>
@@ -100,7 +115,7 @@
     <div id="expenseModal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
         <div class="glass-panel max-w-sm w-full p-6 rounded-3xl border border-amber-500/30 shadow-2xl space-y-4">
             <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
-                <span class="text-3xl">⛽</span>
+                <span class="text-3xl"><i data-lucide=fuel class=inline-icon></i></span>
                 <div>
                     <h2 class="text-lg font-black text-white">Log Expense</h2>
                     <p class="text-xs text-slate-400">Vehicle: <strong id="expenseModalPlate" class="text-amber-400 font-mono"></strong></p>
@@ -110,9 +125,9 @@
                 <div>
                     <label class="block text-xs font-bold text-slate-300 mb-1">Category</label>
                     <select id="expenseCategory" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
-                        <option value="fuel">⛽ Fuel</option>
-                        <option value="maintenance">🔧 Maintenance / Repair</option>
-                        <option value="other">📋 Other</option>
+                        <option value="fuel"><i data-lucide=fuel class=inline-icon></i> Fuel</option>
+                        <option value="maintenance"><i data-lucide=wrench class=inline-icon></i> Maintenance / Repair</option>
+                        <option value="other"><i data-lucide=clipboard-list class=inline-icon></i> Other</option>
                     </select>
                 </div>
                 <div>
@@ -133,7 +148,7 @@
 
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-y-2 gap-x-3 z-20 shadow-xl shrink-0">
         <div class="flex flex-wrap items-center gap-2">
-            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-amber-400">Fleet 📊</span></a>
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-amber-400">Fleet <i data-lucide=bar-chart-3 class=inline-icon></i></span></a>
             <span id="activeKeyBadge" class="bg-amber-500/20 text-amber-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-amber-500/30">
                 Key: Not Set
             </span>
@@ -141,13 +156,13 @@
         
         <div class="flex flex-wrap items-center gap-2">
             <button onclick="openAnalyticsPanel()" class="text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
-                📊<span class="hidden sm:inline"> Analytics</span>
+                <i data-lucide=bar-chart-3 class=inline-icon></i><span class="hidden sm:inline"> Analytics</span>
             </button>
             <button onclick="openVehicleModal()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
-                ➕<span class="hidden sm:inline"> Add Vehicle</span>
+                <i data-lucide=plus class=inline-icon></i><span class="hidden sm:inline"> Add Vehicle</span>
             </button>
             <label class="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1 cursor-pointer">
-                📥<span class="hidden sm:inline"> Bulk CSV Import</span>
+                <i data-lucide=inbox class=inline-icon></i><span class="hidden sm:inline"> Bulk CSV Import</span>
                 <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="handleBulkCsvUpload(event)">
             </label>
         </div>
@@ -177,7 +192,7 @@
 
             <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2">
                 <div class="flex justify-between items-center">
-                    <span class="text-xs font-bold text-slate-300">🤝 Work &amp; Pay Settlement Account</span>
+                    <span class="text-xs font-bold text-slate-300"><i data-lucide=handshake class=inline-icon></i> Work &amp; Pay Settlement Account</span>
                     <span id="ownerPayoutSavedBadge" class="hidden text-[9px] font-mono bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">Saved</span>
                 </div>
                 <p class="text-[10px] text-slate-400">Where your daily share from each vehicle's fares gets paid out automatically (MoMo fares only — cash still needs manual settlement with your driver).</p>
@@ -202,13 +217,13 @@
             </div>
 
             <div id="unregisteredSection" class="space-y-3 hidden">
-                <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">⚠️ Driving Under Your Code, Not Yet Registered</h3>
+                <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider"><i data-lucide=triangle-alert class=inline-icon></i> Driving Under Your Code, Not Yet Registered</h3>
                 <div id="unregisteredList" class="space-y-2"></div>
             </div>
 
             <div id="shortfallAlertPanel" class="hidden bg-amber-500/10 border border-amber-500/40 rounded-2xl p-3 space-y-2">
                 <div class="flex justify-between items-center">
-                    <span class="text-xs font-black text-amber-400">📉 Work & Pay Shortfall Alerts</span>
+                    <span class="text-xs font-black text-amber-400"><i data-lucide=trending-down class=inline-icon></i> Work & Pay Shortfall Alerts</span>
                     <span id="shortfallAlertCount" class="text-[9px] font-mono bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">0</span>
                 </div>
                 <div id="shortfallAlertList" class="space-y-1.5 max-h-40 overflow-y-auto"></div>
@@ -216,18 +231,10 @@
 
             <div id="safetyAlertPanel" class="hidden bg-red-500/10 border border-red-500/40 rounded-2xl p-3 space-y-2">
                 <div class="flex justify-between items-center">
-                    <span class="text-xs font-black text-red-400">🆘 Passenger Safety Alerts</span>
+                    <span class="text-xs font-black text-red-400"><i data-lucide=siren class=inline-icon></i> Passenger Safety Alerts</span>
                     <span id="safetyAlertCount" class="text-[9px] font-mono bg-red-500/20 text-red-300 px-2 py-0.5 rounded">0</span>
                 </div>
                 <div id="safetyAlertList" class="space-y-1.5 max-h-40 overflow-y-auto"></div>
-            </div>
-
-            <div id="shortfallAlertPanel" class="hidden bg-amber-500/10 border border-amber-500/40 rounded-2xl p-3 space-y-2">
-                <div class="flex justify-between items-center">
-                    <span class="text-xs font-black text-amber-400">⚠️ Target Shortfalls Today</span>
-                    <span id="shortfallAlertCount" class="text-[9px] font-mono bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">0</span>
-                </div>
-                <div id="shortfallAlertList" class="space-y-1.5 max-h-40 overflow-y-auto"></div>
             </div>
         </aside>
     </div>
@@ -235,8 +242,8 @@
     <div id="analyticsPanel" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md hidden overflow-y-auto">
         <div class="max-w-6xl mx-auto p-4 sm:p-6 space-y-5">
             <div class="flex justify-between items-center sticky top-0 bg-slate-950/95 backdrop-blur-md py-2 z-10">
-                <h2 class="text-xl sm:text-2xl font-black text-white">📊 Fleet Analytics <span class="text-indigo-400">· Last 14 days</span></h2>
-                <button onclick="closeAnalyticsPanel()" class="text-slate-400 hover:text-white text-2xl leading-none px-2">✕</button>
+                <h2 class="text-xl sm:text-2xl font-black text-white"><i data-lucide=bar-chart-3 class=inline-icon></i> Fleet Analytics <span class="text-indigo-400">· Last 14 days</span></h2>
+                <button onclick="closeAnalyticsPanel()" class="text-slate-400 hover:text-white text-2xl leading-none px-2"><i data-lucide=x class=inline-icon></i></button>
             </div>
 
             <div id="analyticsEmptyState" class="text-center text-slate-500 text-sm py-16 italic">Loading analytics…</div>
@@ -274,7 +281,7 @@
 
                 <div class="grid md:grid-cols-2 gap-4">
                     <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-800">
-                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">🏆 Top Drivers by Earnings</h3>
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2"><i data-lucide=trophy class=inline-icon></i> Top Drivers by Earnings</h3>
                         <canvas id="driverEarningsChart" height="180"></canvas>
                     </div>
                     <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-800">
@@ -479,7 +486,7 @@
                         count++;
                     }
                 }
-                alert(`🎉 Registered ${count} assets to Fleet Key: ${currentOwnerKey}`);
+                alert(`<i data-lucide=party-popper class=inline-icon></i> Registered ${count} assets to Fleet Key: ${currentOwnerKey}`);
             };
             reader.readAsText(file);
         }
@@ -501,12 +508,12 @@
             document.getElementById('safetyAlertList').innerHTML = safetyAlerts.map(a => `
                 <div class="bg-slate-950 p-2 rounded-lg border border-red-500/30 text-[10px] space-y-0.5">
                     <div class="flex justify-between">
-                        <span class="text-red-400 font-bold">🆘 Passenger: ${escapeHtml(a.passengerPhone)}</span>
+                        <span class="text-red-400 font-bold"><i data-lucide=siren class=inline-icon></i> Passenger: ${escapeHtml(a.passengerPhone)}</span>
                         <span class="text-slate-500 font-mono">${new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     <div class="text-slate-400">Vehicle: <span class="text-amber-400 font-mono">${escapeHtml(a.plateNumber) || 'Unknown'}</span> · Driver: ${escapeHtml(a.driverName) || 'Unknown'}</div>
-                    ${a.accuracyM ? `<div class="text-slate-500">📡 Location accuracy: ±${Math.round(a.accuracyM)}m${a.accuracyM > 500 ? ' <span class="text-amber-400 font-bold">(low confidence)</span>' : ''}</div>` : ''}
-                    <button onclick="map.flyTo({center:[${Number(a.lng) || 0},${Number(a.lat) || 0}], zoom:17, pitch:55, duration:1200})" class="text-sky-400 font-bold hover:underline">📍 Locate on map</button>
+                    ${a.accuracyM ? `<div class="text-slate-500"><i data-lucide=radio-tower class=inline-icon></i> Location accuracy: ±${Math.round(a.accuracyM)}m${a.accuracyM > 500 ? ' <span class="text-amber-400 font-bold">(low confidence)</span>' : ''}</div>` : ''}
+                    <button onclick="map.flyTo({center:[${Number(a.lng) || 0},${Number(a.lat) || 0}], zoom:17, pitch:55, duration:1200})" class="text-sky-400 font-bold hover:underline"><i data-lucide=map-pin class=inline-icon></i> Locate on map</button>
                 </div>
             `).join('');
 
@@ -525,7 +532,7 @@
             document.getElementById('shortfallAlertList').innerHTML = shortfallAlerts.map(a => `
                 <div class="bg-slate-950 p-2 rounded-lg border border-amber-500/30 text-[10px] space-y-0.5">
                     <div class="flex justify-between">
-                        <span class="text-amber-400 font-bold">📉 ${escapeHtml(a.plateNumber)}</span>
+                        <span class="text-amber-400 font-bold"><i data-lucide=trending-down class=inline-icon></i> ${escapeHtml(a.plateNumber)}</span>
                         <span class="text-slate-500 font-mono">${new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     <div class="text-slate-400">Driver: <strong class="text-slate-200">${escapeHtml(a.driverName)}</strong></div>
@@ -558,12 +565,12 @@
                 const activeDriver = activeDrivers.find(d => d.plateNumber === v.plateNumber);
                 const passport = v.passport || {};
 
-                let statusBadge = `<span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px]">⚪ Offline</span>`;
+                let statusBadge = `<span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px]"><span class=dot-gray></span> Offline</span>`;
                 let statusLine = '';
                 let earningsLine = '';
                 if (activeDriver) {
                     const label = STATUS_LABEL[activeDriver.status] || 'Online';
-                    statusBadge = `<span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px]">🟢 ${escapeHtml(label)}</span>`;
+                    statusBadge = `<span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px]"><span class=dot-green></span> ${escapeHtml(label)}</span>`;
                     statusLine = `<div class="text-[10px] text-slate-400">Driver now: <strong class="text-slate-200">${escapeHtml(activeDriver.fullName || activeDriver.username)}</strong> · last seen ${timeAgo(activeDriver.lastSeen)}</div>`;
                     earningsLine = `<div class="text-[10px] text-slate-400">Shift earnings: <strong class="text-emerald-400 font-mono">GH₵ ${(activeDriver.shiftEarnings || 0).toFixed(2)}</strong></div>`;
                 }
@@ -572,7 +579,7 @@
                 if (passport && typeof passport.currentServiceKm === 'number') {
                     const overdue = passport.currentServiceKm >= 1500;
                     serviceLine = `<div class="text-[10px] ${overdue ? 'text-red-400 font-bold' : 'text-slate-400'}">
-                        ${overdue ? '⚠️ Service Overdue' : 'Service OK'} — ${passport.currentServiceKm.toFixed(0)} km since last oil change
+                        ${overdue ? '<i data-lucide=triangle-alert class=inline-icon></i> Service Overdue' : 'Service OK'} — ${passport.currentServiceKm.toFixed(0)} km since last oil change
                     </div>`;
                 }
 
@@ -585,7 +592,7 @@
                     quotaBar = `
                         <div class="space-y-1 border-t border-slate-800/80 pt-1.5">
                             <div class="flex justify-between text-[9px]">
-                                <span class="text-slate-400 font-bold">💼 Today's Target</span>
+                                <span class="text-slate-400 font-bold"><i data-lucide=briefcase class=inline-icon></i> Today's Target</span>
                                 <span class="font-mono ${met ? 'text-emerald-400' : 'text-slate-400'}">GH₵ ${collected.toFixed(2)} / ${target.toFixed(2)}</span>
                             </div>
                             <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
@@ -602,7 +609,7 @@
                         <span class="font-extrabold text-amber-400 font-mono">${escapeHtml(v.plateNumber)}</span>
                         <div class="flex items-center space-x-1">
                             ${statusBadge}
-                            <button onclick='openVehicleModal(${JSON.stringify(v).replace(/'/g, "&#39;")})' class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-0.5 rounded text-[10px] font-bold">✏️ Edit</button>
+                            <button onclick='openVehicleModal(${JSON.stringify(v).replace(/'/g, "&#39;")})' class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-0.5 rounded text-[10px] font-bold"><i data-lucide=pencil class=inline-icon></i> Edit</button>
                         </div>
                     </div>
                     <div class="text-[11px] text-slate-400 grid grid-cols-2 gap-1 font-mono">
@@ -617,7 +624,7 @@
                     ${serviceLine}
                     ${quotaBar}
                     <button onclick="openExpenseModal('${escapeJsAttr(v.plateNumber)}')" class="w-full text-[10px] text-slate-400 hover:text-amber-400 font-bold border border-slate-800 rounded-lg py-1.5 mt-1">
-                        ⛽ Log Fuel / Maintenance Expense
+                        <i data-lucide=fuel class=inline-icon></i> Log Fuel / Maintenance Expense
                     </button>
                 `;
                 fleetListEl.appendChild(card);
@@ -647,7 +654,7 @@
                     <div class="flex justify-between items-center">
                         <span class="font-extrabold text-amber-300 font-mono">${escapeHtml(d.plateNumber)}</span>
                         <button onclick="openVehicleModalForPlate('${escapeJsAttr(d.plateNumber)}', '${escapeJsAttr(d.contact || '')}')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-2 py-0.5 rounded text-[10px] font-bold">
-                            ➕ Register
+                            <i data-lucide=plus class=inline-icon></i> Register
                         </button>
                     </div>
                     <div class="text-[10px] text-slate-400">Driver: <strong class="text-slate-200">${escapeHtml(d.fullName || d.username)}</strong> · ${escapeHtml(d.contact) || 'No phone on file'}</div>
@@ -693,7 +700,7 @@
         }
 
         // =========================================================
-        // 📊 Fleet Analytics Panel
+        // <i data-lucide=bar-chart-3 class=inline-icon></i> Fleet Analytics Panel
         // =========================================================
         let analyticsCharts = {};
 
@@ -792,6 +799,26 @@
                 options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: CHART_TEXT, boxWidth: 10 } } } }
             });
         });
+    </script>
+
+    <script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+    <script>
+        // Renders every <i data-lucide=...> as a crisp inline SVG icon. A MutationObserver
+        // re-runs this after any dynamic content update (socket events, re-rendered lists,
+        // modals, etc.) so icons in content injected after page load still render — without
+        // needing to hunt down and instrument every individual injection site by hand.
+        (function () {
+            function refreshIcons() { if (window.lucide) { try { lucide.createIcons(); } catch (e) {} } }
+            let queued = false;
+            function queueRefresh() {
+                if (queued) return;
+                queued = true;
+                requestAnimationFrame(() => { queued = false; refreshIcons(); });
+            }
+            document.addEventListener('DOMContentLoaded', refreshIcons);
+            refreshIcons();
+            new MutationObserver(queueRefresh).observe(document.documentElement, { childList: true, subtree: true });
+        })();
     </script>
 </body>
 </html>

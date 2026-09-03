@@ -16,30 +16,45 @@
         #map { width: 100%; height: 100%; min-height: 400px; background-color: #020617; }
         .glass-panel { background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.12); }
         .modal-overlay { background: rgba(2, 6, 23, 0.88); backdrop-filter: blur(10px); }
+    
+        /* ---- Icon system: Lucide icons replace emoji for a consistent, professional
+           look across devices (raw emoji render wildly differently by platform).
+           Attribute values here are deliberately unquoted so this markup is safe to
+           drop into JS string literals of any quote style without escaping. ---- */
+        .inline-icon { width: 1.05em; height: 1.05em; vertical-align: -0.2em; display: inline-block; flex-shrink: 0; }
+        .dot-green, .dot-gray, .dot-red, .dot-amber { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 9999px; vertical-align: 0.05em; }
+        .dot-green { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,0.65); }
+        .dot-gray  { background: #64748b; }
+        .dot-red   { background: #f43f5e; box-shadow: 0 0 6px rgba(244,63,94,0.55); }
+        .dot-amber { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.55); }
+        .badge-green, .badge-red { display: inline-flex; align-items: center; justify-content: center; width: 1.15em; height: 1.15em; border-radius: 9999px; vertical-align: -0.28em; }
+        .badge-green .inline-icon, .badge-red .inline-icon { width: 0.75em; height: 0.75em; vertical-align: 0; }
+        .badge-green { background: rgba(16,185,129,0.18); color: #34d399; }
+        .badge-red   { background: rgba(244,63,94,0.18); color: #fb7185; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col">
 
     <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-y-2 gap-x-3 z-20 shadow-xl shrink-0">
         <div class="flex flex-wrap items-center gap-2">
-            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-amber-400">Rider 🛺</span></a>
+            <a href="/" class="text-xl sm:text-2xl font-black text-white tracking-wider">Pragya<span class="text-amber-400">Rider <i data-lucide=car-taxi-front class=inline-icon></i></span></a>
             <span id="shiftBadge" class="bg-slate-800 text-slate-400 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-slate-700">
                 Offline
             </span>
             <span id="gpsQualityBadge" class="text-[9px] font-mono text-slate-500 bg-slate-800/50 border border-slate-700 px-2 py-0.5 rounded hidden sm:inline-block">
-                📡 Acquiring GPS...
+                <i data-lucide=radio-tower class=inline-icon></i> Acquiring GPS...
             </span>
             <span id="speedBadge" class="text-[9px] font-mono text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded hidden sm:inline-block">
-                🚀 0 km/h
+                <i data-lucide=rocket class=inline-icon></i> 0 km/h
             </span>
             <button id="compassToggleBtn" onclick="toggleCompassMode()" class="text-[9px] font-mono text-slate-400 bg-slate-800/50 border border-slate-700 px-2 py-0.5 rounded hover:border-sky-500 transition">
-                🧭 Compass Off
+                <i data-lucide=compass class=inline-icon></i> Compass Off
             </button>
         </div>
         
         <div class="flex flex-wrap items-center gap-2">
             <button id="langToggleBtn" onclick="toggleLanguage()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition">
-                🌐 EN
+                <i data-lucide=globe class=inline-icon></i> EN
             </button>
             <button id="voiceToggleBtn" onclick="toggleVoiceAssistantPermission()" class="text-xs bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition">
                 <span id="voiceIndicatorDot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
@@ -47,16 +62,16 @@
             </button>
             
             <button onclick="openEarningsPanel()" class="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
-                💰<span class="hidden sm:inline"> Earnings</span>
+                <i data-lucide=wallet class=inline-icon></i><span class="hidden sm:inline"> Earnings</span>
             </button>
             <button onclick="openOwnershipModal()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
-                ⚙️ Profile / Ownership
+                <i data-lucide=settings class=inline-icon></i> Profile / Ownership
             </button>
         </div>
     </header>
 
     <div id="offlineBanner" class="hidden bg-red-500/90 text-white text-[11px] font-bold text-center py-1.5 z-30">
-        📡 No connection — actions will be queued and sent automatically once you're back online.
+        <i data-lucide=radio-tower class=inline-icon></i> No connection — actions will be queued and sent automatically once you're back online.
     </div>
 
     <div class="flex-1 relative flex flex-col md:flex-row min-h-0 w-full">
@@ -73,13 +88,13 @@
                         <div id="dispDriverBadge" class="text-sm font-black text-slate-300">New Driver</div>
                     </div>
                     <div class="text-right text-[10px] font-mono text-slate-400">
-                        <div>⭐ <strong id="dispAvgRating" class="text-amber-400">–</strong></div>
+                        <div><i data-lucide=star class=inline-icon></i> <strong id="dispAvgRating" class="text-amber-400">–</strong></div>
                         <div><strong id="dispTotalTrips" class="text-slate-200">0</strong> trips</div>
                     </div>
                 </div>
                 <div class="flex items-center justify-between border-t border-slate-800 pt-2">
-                    <span class="text-[10px] font-mono text-emerald-400" id="driverWalletBadge">🎁 GH₵ 0.00 wallet</span>
-                    <button onclick="shareDriverReferralCode()" class="text-[10px] font-bold text-sky-400 hover:underline">Bring a friend, earn money →</button>
+                    <span class="text-[10px] font-mono text-emerald-400" id="driverWalletBadge"><i data-lucide=gift class=inline-icon></i> GH₵ 0.00 wallet</span>
+                    <button onclick="shareDriverReferralCode()" class="text-[10px] font-bold text-sky-400 hover:underline">Bring a friend, earn money <i data-lucide=arrow-right class=inline-icon></i></button>
                 </div>
             </div>
 
@@ -87,7 +102,7 @@
                 <div class="flex justify-between items-center">
                     <span class="text-xs font-bold text-slate-300">My Details</span>
                     <div class="flex items-center gap-2">
-                        <button onclick="forceGpsRefresh()" class="text-[9px] font-bold text-sky-400 hover:underline">🔄 GPS</button>
+                        <button onclick="forceGpsRefresh()" class="text-[9px] font-bold text-sky-400 hover:underline"><i data-lucide=refresh-cw class=inline-icon></i> GPS</button>
                         <span id="ownershipTag" class="text-[9px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
                             Not Configured
                         </span>
@@ -104,7 +119,7 @@
 
                 <div id="workAndPayCard" class="hidden bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
                     <div class="flex justify-between items-center text-[10px]">
-                        <span class="font-bold text-slate-300">💼 Today's Work & Pay Target</span>
+                        <span class="font-bold text-slate-300"><i data-lucide=briefcase class=inline-icon></i> Today's Work & Pay Target</span>
                         <span id="workAndPayLabel" class="font-mono text-slate-400">GH₵ 0 / 0</span>
                     </div>
                     <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
@@ -114,17 +129,17 @@
                 </div>
 
                 <button id="shiftToggleBtn" onclick="toggleShiftStatus()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
-                    🟢 Go Online & Start Shift
+                    <span class=dot-green></span> Go Online & Start Shift
                 </button>
                 <button onclick="reportBreakdownSOS()" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold py-2 rounded-xl border border-red-500/30 transition text-[11px]">
-                    🆘 Report Breakdown / Call Nearest Workshop
+                    <i data-lucide=siren class=inline-icon></i> Report Breakdown / Call Nearest Workshop
                 </button>
             </div>
 
             <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
                 <div class="flex justify-between items-center">
                     <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                        🛠️ Engine Health Tracker
+                        <i data-lucide=wrench class=inline-icon></i> Engine Health Tracker
                     </span>
                     <span id="engineStatusBadge" class="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                         Good
@@ -147,13 +162,13 @@
                 </div>
 
                 <button onclick="openMaintenanceModal()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold py-1.5 rounded-lg border border-slate-700 transition">
-                    🔧 Engine Care
+                    <i data-lucide=wrench class=inline-icon></i> Engine Care
                 </button>
             </div>
 
             <div id="tripStatusCard" class="bg-slate-900/90 p-4 rounded-2xl border border-amber-500/40 space-y-3">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span class="text-xs font-black text-amber-400">🎙️ Ride Requests</span>
+                    <span class="text-xs font-black text-amber-400"><i data-lucide=mic class=inline-icon></i> Ride Requests</span>
                     <span id="tripStatusTag" class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">Idle</span>
                 </div>
                 <div id="tripActionArea" class="space-y-2 text-xs">
@@ -175,8 +190,8 @@
     <div id="earningsPanel" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md hidden overflow-y-auto">
         <div class="max-w-2xl mx-auto p-4 sm:p-6 space-y-5">
             <div class="flex justify-between items-center sticky top-0 bg-slate-950/95 backdrop-blur-md py-2 z-10">
-                <h2 class="text-xl sm:text-2xl font-black text-white">💰 My Earnings <span class="text-emerald-400">· Last 14 days</span></h2>
-                <button onclick="closeEarningsPanel()" class="text-slate-400 hover:text-white text-2xl leading-none px-2">✕</button>
+                <h2 class="text-xl sm:text-2xl font-black text-white"><i data-lucide=wallet class=inline-icon></i> My Earnings <span class="text-emerald-400">· Last 14 days</span></h2>
+                <button onclick="closeEarningsPanel()" class="text-slate-400 hover:text-white text-2xl leading-none px-2"><i data-lucide=x class=inline-icon></i></button>
             </div>
 
             <div id="earningsEmptyState" class="text-center text-slate-500 text-sm py-16 italic">Loading your earnings…</div>
@@ -208,7 +223,7 @@
         <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                 <h3 class="text-lg font-black text-white flex items-center gap-2">
-                    🛺 Vehicle Ownership Setup
+                    <i data-lucide=car-taxi-front class=inline-icon></i> Vehicle Ownership Setup
                 </h3>
                 <button onclick="closeOwnershipModal()" class="text-slate-400 hover:text-white text-xl font-bold">&times;</button>
             </div>
@@ -219,11 +234,11 @@
 
             <div class="grid grid-cols-2 gap-3">
                 <button id="optOwnerBtn" onclick="selectOperatingModel('OWNER')" class="p-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-left hover:border-amber-500 transition space-y-1">
-                    <div class="text-xs font-black text-amber-400">👑 It's My Tricycle</div>
+                    <div class="text-xs font-black text-amber-400"><i data-lucide=crown class=inline-icon></i> It's My Tricycle</div>
                     <div class="text-[10px] text-slate-400">All the money comes straight to you.</div>
                 </button>
                 <button id="optFleetBtn" onclick="selectOperatingModel('FLEET')" class="p-3 bg-slate-950 border-2 border-slate-800 rounded-xl text-left hover:border-sky-500 transition space-y-1">
-                    <div class="text-xs font-black text-sky-400">🏢 I Drive for an Owner</div>
+                    <div class="text-xs font-black text-sky-400"><i data-lucide=building-2 class=inline-icon></i> I Drive for an Owner</div>
                     <div class="text-[10px] text-slate-400">Work & Pay — give the owner their share, keep the rest.</div>
                 </button>
             </div>
@@ -248,7 +263,7 @@
                 </div>
 
                 <div class="pt-2 border-t border-slate-800/60 space-y-2">
-                    <label class="block font-bold text-emerald-400 mb-1">📱 Where Your Money Goes (MoMo)</label>
+                    <label class="block font-bold text-emerald-400 mb-1"><i data-lucide=smartphone class=inline-icon></i> Where Your Money Goes (MoMo)</label>
                     <select id="modalMomoNetwork" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500">
                         <option value="MTN">MTN Mobile Money</option>
                         <option value="VODAFONE">Vodafone Cash</option>
@@ -265,7 +280,7 @@
 
             <div class="pt-2">
                 <button onclick="saveOwnershipSettings()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
-                    💾 Save & Continue
+                    <i data-lucide=save class=inline-icon></i> Save & Continue
                 </button>
             </div>
         </div>
@@ -274,7 +289,7 @@
     <div id="maintenanceModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center">
             <div class="w-14 h-14 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-2xl mx-auto border border-amber-500/40">
-                🔧
+                <i data-lucide=wrench class=inline-icon></i>
             </div>
 
             <div>
@@ -290,7 +305,7 @@
 
             <div class="space-y-2 pt-2">
                 <button onclick="resetOilServiceCounter()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
-                    🔄 Confirm Oil Change & Reset Counter
+                    <i data-lucide=refresh-cw class=inline-icon></i> Confirm Oil Change & Reset Counter
                 </button>
                 <button onclick="closeMaintenanceModal()" class="w-full bg-slate-800 text-slate-400 font-bold py-2 rounded-xl transition text-xs">
                     Close
@@ -302,7 +317,7 @@
     <div id="dispatchAlertModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
         <div class="bg-slate-900 border-2 border-amber-500/80 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl text-center">
             <div class="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-3xl mx-auto border border-amber-500/40">
-                🛺
+                <i data-lucide=car-taxi-front class=inline-icon></i>
             </div>
             
             <div>
@@ -317,10 +332,10 @@
 
             <div class="grid grid-cols-2 gap-2 pt-2">
                 <button onclick="acceptRideFromModal()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg">
-                    ✅ Accept Ride
+                    <span class=badge-green><i data-lucide=check class=inline-icon></i></span> Accept Ride
                 </button>
                 <button onclick="declineRideFromModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl transition text-xs border border-slate-700">
-                    ❌ Decline
+                    <span class=badge-red><i data-lucide=x class=inline-icon></i></span> Decline
                 </button>
             </div>
         </div>
@@ -328,7 +343,7 @@
 
     <script>
         // =========================================================
-        // 🧠 CORE STATE
+        // <i data-lucide=brain class=inline-icon></i> CORE STATE
         // =========================================================
         const socket = io();
         let isOnline = false;
@@ -397,7 +412,7 @@
         function toggleLanguage() {
             currentLang = currentLang === 'EN' ? 'TWI' : 'EN';
             localStorage.setItem('pragya_lang', currentLang);
-            document.getElementById('langToggleBtn').innerText = currentLang === 'EN' ? '🌐 EN' : '🌐 TWI';
+            document.getElementById('langToggleBtn').innerHTML = currentLang === 'EN' ? '<i data-lucide=globe class=inline-icon></i> EN' : '<i data-lucide=globe class=inline-icon></i> TWI';
 
             // Voice commands need to switch listening language too, not just what the
             // assistant speaks back — restart recognition so it takes effect immediately
@@ -490,7 +505,7 @@
         }
 
         // =========================================================
-        // 🗺️ MAP SETUP
+        // <i data-lucide=map class=inline-icon></i> MAP SETUP
         // =========================================================
         const map = new maplibregl.Map({
             container: 'map',
@@ -504,7 +519,7 @@
 
         const driverMarker = new maplibregl.Marker({ color: '#f59e0b' })
             .setLngLat([driverPos.lng, driverPos.lat])
-            .setPopup(new maplibregl.Popup().setHTML('<b>🛺 Your Tricycle Console</b>'))
+            .setPopup(new maplibregl.Popup().setHTML('<b><i data-lucide=car-taxi-front class=inline-icon></i> Your Tricycle Console</b>'))
             .addTo(map);
 
         // Visualizes GPS uncertainty directly on the map — a translucent circle sized to
@@ -541,7 +556,7 @@
         }
 
         // =========================================================
-        // 📍 GEOLOCATION, ODOMETER & TELEMETRY BROADCAST
+        // <i data-lucide=map-pin class=inline-icon></i> GEOLOCATION, ODOMETER & TELEMETRY BROADCAST
         // =========================================================
         function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
             const R = 6371000;
@@ -573,13 +588,13 @@
             if (!badge) return;
             badge.classList.remove('hidden');
             if (status === 'weak') {
-                badge.innerText = accuracy ? `🔴 Weak GPS (±${Math.round(accuracy)}m)` : '🔴 No GPS signal';
+                badge.innerHTML = accuracy ? `<span class=dot-red></span> Weak GPS (±${Math.round(accuracy)}m)` : '<span class=dot-red></span> No GPS signal';
                 badge.className = 'text-[9px] font-mono text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded hidden sm:inline-block';
             } else if (status === 'fair') {
-                badge.innerText = `🟡 GPS ±${Math.round(accuracy)}m`;
+                badge.innerHTML = `<span class=dot-amber></span> GPS ±${Math.round(accuracy)}m`;
                 badge.className = 'text-[9px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded hidden sm:inline-block';
             } else {
-                badge.innerText = `🟢 GPS ±${Math.round(accuracy)}m`;
+                badge.innerHTML = `<span class=dot-green></span> GPS ±${Math.round(accuracy)}m`;
                 badge.className = 'text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded hidden sm:inline-block';
             }
         }
@@ -633,7 +648,7 @@
         function forceGpsRefresh() {
             pendingJumpCandidate = null; // clear any stuck jump-confirmation state
             updateGpsQualityBadge(null, 'weak');
-            document.getElementById('gpsQualityBadge').innerText = '📡 Refreshing...';
+            document.getElementById('gpsQualityBadge').innerHTML = '<i data-lucide=radio-tower class=inline-icon></i> Refreshing...';
             if (!navigator.geolocation) return;
             navigator.geolocation.getCurrentPosition(
                 (pos) => handleGpsReading(pos),
@@ -709,7 +724,7 @@
 
             clearTimeout(compassNoSignalTimer);
             compassNoSignalTimer = setTimeout(() => {
-                document.getElementById('compassToggleBtn').innerText = '🧭 No signal';
+                document.getElementById('compassToggleBtn').innerHTML = '<i data-lucide=compass class=inline-icon></i> No signal';
             }, 4000);
 
             // Raw magnetometer readings are naturally jittery — smooth with an
@@ -722,7 +737,7 @@
             }
 
             if (compassModeEnabled) {
-                document.getElementById('compassToggleBtn').innerText = `🧭 ${Math.round(compassSmoothedHeading)}°`;
+                document.getElementById('compassToggleBtn').innerHTML = `<i data-lucide=compass class=inline-icon></i> ${Math.round(compassSmoothedHeading)}°`;
                 map.easeTo({ bearing: compassSmoothedHeading, duration: 150 });
             }
         }
@@ -730,17 +745,17 @@
         function toggleCompassMode() {
             if (compassModeEnabled) {
                 compassModeEnabled = false;
-                document.getElementById('compassToggleBtn').innerText = '🧭 Compass Off';
+                document.getElementById('compassToggleBtn').innerHTML = '<i data-lucide=compass class=inline-icon></i> Compass Off';
                 document.getElementById('compassToggleBtn').className = 'text-[9px] font-mono text-slate-400 bg-slate-800/50 border border-slate-700 px-2 py-0.5 rounded hover:border-sky-500 transition';
                 return;
             }
 
             if (!window.isSecureContext) {
-                alert('🧭 Compass needs a secure connection (HTTPS) to work — same requirement as GPS.');
+                alert('<i data-lucide=compass class=inline-icon></i> Compass needs a secure connection (HTTPS) to work — same requirement as GPS.');
                 return;
             }
             if (typeof DeviceOrientationEvent === 'undefined') {
-                alert('🧭 This device/browser doesn\'t support compass heading.');
+                alert('<i data-lucide=compass class=inline-icon></i> This device/browser doesn\'t support compass heading.');
                 return;
             }
 
@@ -762,9 +777,9 @@
                     if (result === 'granted') {
                         startListening();
                     } else {
-                        alert('🧭 Compass permission was declined. You can re-enable it from your browser/site settings.');
+                        alert('<i data-lucide=compass class=inline-icon></i> Compass permission was declined. You can re-enable it from your browser/site settings.');
                     }
-                }).catch(() => alert('🧭 Could not request compass permission on this device.'));
+                }).catch(() => alert('<i data-lucide=compass class=inline-icon></i> Could not request compass permission on this device.'));
             } else {
                 startListening(); // Android and most other browsers don't need explicit permission
             }
@@ -774,7 +789,7 @@
             const badge = document.getElementById('speedBadge');
             if (!badge) return;
             badge.classList.remove('hidden');
-            badge.innerText = `🚀 ${Math.round(speedKmh)} km/h`;
+            badge.innerHTML = `<i data-lucide=rocket class=inline-icon></i> ${Math.round(speedKmh)} km/h`;
         }
 
         // Single canonical telemetry emitter — used by GPS updates AND the heartbeat
@@ -862,7 +877,7 @@
         }
 
         // =========================================================
-        // 🛠️ ENGINE HEALTH & MAINTENANCE
+        // <i data-lucide=wrench class=inline-icon></i> ENGINE HEALTH & MAINTENANCE
         // =========================================================
         function updateEngineHealthUI() {
             const distSinceService = totalOdometerKm - lastServiceOdometerKm;
@@ -878,7 +893,7 @@
 
             if (remainingKm <= 0) {
                 progressBar.className = "bg-red-500 h-full transition-all duration-500 animate-pulse";
-                statusBadge.innerText = "Service Overdue ⚠️";
+                statusBadge.innerHTML = "Service Overdue <i data-lucide=triangle-alert class=inline-icon></i>";
                 statusBadge.className = "text-[9px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30";
 
                 if (!serviceAlertVoiceTriggered) {
@@ -903,7 +918,7 @@
 
             const statusText = document.getElementById('maintStatusText');
             if (distSinceService >= SERVICE_INTERVAL_KM) {
-                statusText.innerText = "Oil Change Overdue ⚠️";
+                statusText.innerHTML = "Oil Change Overdue <i data-lucide=triangle-alert class=inline-icon></i>";
                 statusText.className = "text-red-400 font-bold";
             } else {
                 statusText.innerText = "Engine Operating Normally";
@@ -972,7 +987,7 @@
         });
 
         // =========================================================
-        // 🆘 BREAKDOWN / ROADSIDE SOS
+        // <i data-lucide=siren class=inline-icon></i> BREAKDOWN / ROADSIDE SOS
         // =========================================================
         function reportBreakdownSOS() {
             const name = localStorage.getItem('pragya_driver_name');
@@ -992,11 +1007,11 @@
             });
 
             speakPragyaPhrase('sosSent');
-            alert("🆘 SOS sent to nearby registered workshops.");
+            alert("<i data-lucide=siren class=inline-icon></i> SOS sent to nearby registered workshops.");
         }
 
         // =========================================================
-        // 🎙️ VOICE ASSISTANT ENGINE
+        // <i data-lucide=mic class=inline-icon></i> VOICE ASSISTANT ENGINE
         // =========================================================
         function speakPragyaText(text) {
             lastSpokenText = text;
@@ -1070,7 +1085,7 @@
             recognition.onerror = (event) => {
                 console.warn("Speech recognition error:", event.error);
                 if (currentLang === 'TWI' && (event.error === 'language-not-supported' || event.error === 'no-speech')) {
-                    document.getElementById('voiceEngineState').innerText = `Twi recognition may not be supported on this device — try speaking English commands, or switch to 🌐 EN`;
+                    document.getElementById('voiceEngineState').innerHTML = `Twi recognition may not be supported on this device — try speaking English commands, or switch to <i data-lucide=globe class=inline-icon></i> EN`;
                 } else {
                     document.getElementById('voiceEngineState').innerText = `Error: ${event.error} — retrying...`;
                 }
@@ -1155,7 +1170,7 @@
         }
 
         // =========================================================
-        // ✂️ DISTANCE MILESTONES
+        // DISTANCE MILESTONES
         // =========================================================
         function checkDistanceMilestonesAndClipTrail() {
             if (!activePassenger) return;
@@ -1177,7 +1192,7 @@
         }
 
         // =========================================================
-        // 🎛️ OWNERSHIP SELECTION
+        // OWNERSHIP SELECTION
         // =========================================================
         function selectOperatingModel(mode) {
             selectedOperatingMode = mode;
@@ -1227,11 +1242,11 @@
             const referralCode = document.getElementById('modalReferralCode').value.trim();
 
             if (!name || !phone || !plate) {
-                alert("⚠️ Please enter your Name, Phone Number, and Plate Number!");
+                alert("<i data-lucide=triangle-alert class=inline-icon></i> Please enter your Name, Phone Number, and Plate Number!");
                 return;
             }
             if (selectedOperatingMode === 'FLEET' && !fleet) {
-                alert("⚠️ Please enter the Owner's Code!");
+                alert("<i data-lucide=triangle-alert class=inline-icon></i> Please enter the Owner's Code!");
                 return;
             }
 
@@ -1296,14 +1311,17 @@
         socket.on('driver-stats-update', (stats) => {
             if (!stats) return;
             const avgRating = stats.ratingCount > 0 ? (stats.ratingSum / stats.ratingCount) : 0;
-            const builderTag = stats.isCommunityBuilder ? ' 🤝' : '';
-            document.getElementById('dispDriverBadge').innerText = `${badgeEmoji(stats.badge)} ${stats.badge}${builderTag}`;
+            const builderTag = stats.isCommunityBuilder ? ' <i data-lucide=handshake class=inline-icon></i>' : '';
+            document.getElementById('dispDriverBadge').innerHTML = `${badgeEmoji(stats.badge)} ${stats.badge}${builderTag}`;
             document.getElementById('dispAvgRating').innerText = stats.ratingCount > 0 ? avgRating.toFixed(1) : '–';
             document.getElementById('dispTotalTrips').innerText = stats.totalTrips;
         });
 
         function badgeEmoji(badge) {
-            return { Gold: '🥇', Silver: '🥈', Bronze: '🥉' }[badge] || '🆕';
+            const colors = { Gold: '#fbbf24', Silver: '#cbd5e1', Bronze: '#d97706' };
+            const color = colors[badge] || '#38bdf8';
+            const iconName = badge in colors ? 'award' : 'sparkles';
+            return `<i data-lucide=${iconName} class=inline-icon style="color:${color}"></i>`;
         }
 
         // ---- Work & Pay: this vehicle's daily settlement target, if it's fleet-linked ----
@@ -1322,7 +1340,7 @@
             const msg = document.getElementById('workAndPayMsg');
             if (status.targetMet) {
                 bar.className = 'h-full bg-emerald-400 transition-all duration-500';
-                msg.innerText = '✅ Target met — you keep 100% of every fare for the rest of today.';
+                msg.innerHTML = '<span class=badge-green><i data-lucide=check class=inline-icon></i></span> Target met — you keep 100% of every fare for the rest of today.';
                 msg.className = 'text-[9px] text-emerald-400 font-bold';
             } else {
                 bar.className = 'h-full bg-amber-400 transition-all duration-500';
@@ -1339,12 +1357,12 @@
         let myDriverReferralCode = null;
         socket.on('referral-info-update', (info) => {
             myDriverReferralCode = info.code;
-            document.getElementById('driverWalletBadge').innerText = `🎁 GH₵ ${info.walletCredit.toFixed(2)} wallet`;
+            document.getElementById('driverWalletBadge').innerHTML = `<i data-lucide=gift class=inline-icon></i> GH₵ ${info.walletCredit.toFixed(2)} wallet`;
         });
 
         function shareDriverReferralCode() {
             if (!myDriverReferralCode) { alert('Save your profile first to get your invite code.'); return; }
-            const text = `Drive with PragyaLink in Kumasi & Accra — use my code ${myDriverReferralCode} when you sign up and we both earn GH₵ credit! 🛺`;
+            const text = `Drive with PragyaLink in Kumasi & Accra — use my code ${myDriverReferralCode} when you sign up and we both earn GH₵ credit! <i data-lucide=car-taxi-front class=inline-icon></i>`;
             if (navigator.share) {
                 navigator.share({ text }).catch(() => {});
             } else {
@@ -1363,7 +1381,7 @@
         });
 
         // =========================================================
-        // 🔌 SHIFT / ONLINE STATE (single canonical implementation)
+        // SHIFT / ONLINE STATE (single canonical implementation)
         // =========================================================
         function setOnlineState(goingOnline, opts = {}) {
             isOnline = goingOnline;
@@ -1372,7 +1390,7 @@
 
             if (goingOnline) {
                 localStorage.setItem('pragya_shift_status', 'ONLINE');
-                btn.innerText = "🔴 Go Offline / End Shift";
+                btn.innerHTML = "<span class=dot-red></span> Go Offline / End Shift";
                 btn.className = "w-full bg-red-500 hover:bg-red-400 text-white font-black py-2.5 rounded-xl transition text-xs shadow-lg";
                 badge.innerText = "Online";
                 badge.className = "bg-emerald-500/20 text-emerald-300 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-500/30";
@@ -1396,7 +1414,7 @@
                 if (!opts.silent) speakPragyaPhrase('welcomeOnline');
             } else {
                 localStorage.setItem('pragya_shift_status', 'OFFLINE');
-                btn.innerText = "🟢 Go Online & Start Shift";
+                btn.innerHTML = "<span class=dot-green></span> Go Online & Start Shift";
                 btn.className = "w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition text-xs shadow-lg";
                 badge.innerText = "Offline";
                 badge.className = "bg-slate-800 text-slate-400 text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full border border-slate-700";
@@ -1435,7 +1453,7 @@
         });
 
         // =========================================================
-        // 🚀 DISPATCH LIFECYCLE
+        // <i data-lucide=rocket class=inline-icon></i> DISPATCH LIFECYCLE
         // =========================================================
         socket.on('incoming-ride-request', (req) => {
             activePassenger = req;
@@ -1443,7 +1461,7 @@
 
             const distMeters = calculateHaversineDistance(driverPos.lat, driverPos.lng, req.pickupLat, req.pickupLng);
 
-            document.getElementById('dispatchModalTitle').innerText = req.isPool ? "🚏 New Shared Ride Request!" : "New Passenger Request!";
+            document.getElementById('dispatchModalTitle').innerHTML = req.isPool ? "<i data-lucide=signpost class=inline-icon></i> New Shared Ride Request!" : "New Passenger Request!";
             document.getElementById('modalPassengerPhone').innerText = req.passengerPhone;
             document.getElementById('modalPickupDist').innerText = `${Math.round(distMeters)} meters away`;
             document.getElementById('dispatchAlertModal').classList.remove('hidden');
@@ -1489,10 +1507,10 @@
 
             document.getElementById('tripActionArea').innerHTML = `
                 <div class="space-y-2 bg-slate-900 p-3 rounded-xl border border-slate-800 text-xs">
-                    <p class="text-sky-400 font-bold">🚏 Navigating to Passenger Pickup</p>
-                    <a href="tel:${escapeHtml(activePassenger.passengerPhone)}" class="text-slate-300 font-mono text-[11px] block">📞 Call Passenger</a>
+                    <p class="text-sky-400 font-bold"><i data-lucide=signpost class=inline-icon></i> Navigating to Passenger Pickup</p>
+                    <a href="tel:${escapeHtml(activePassenger.passengerPhone)}" class="text-slate-300 font-mono text-[11px] block"><i data-lucide=phone-call class=inline-icon></i> Call Passenger</a>
                     <button onclick="passengerBoardedStartMeter()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl transition shadow-lg">
-                        ▶️ Passenger Boarded (Start Trip Meter)
+                        ▶ Passenger Boarded (Start Trip Meter)
                     </button>
                 </div>
             `;
@@ -1519,7 +1537,7 @@
         }
 
         // =========================================================
-        // 🚏 PRAGYA POOL — driver-side manifest
+        // <i data-lucide=signpost class=inline-icon></i> PRAGYA POOL — driver-side manifest
         // =========================================================
         let activePoolTrip = null;
 
@@ -1539,11 +1557,11 @@
             const rows = activePoolTrip.stops.map((s, i) => {
                 let actionBtn = '';
                 if (s.status === 'WAITING_PICKUP') {
-                    actionBtn = `<button onclick="poolMarkPickedUp('${s.passengerSocketId}')" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-1.5 rounded-lg text-[10px]">▶️ Mark Picked Up</button>`;
+                    actionBtn = `<button onclick="poolMarkPickedUp('${s.passengerSocketId}')" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-1.5 rounded-lg text-[10px]">▶ Mark Picked Up</button>`;
                 } else if (s.status === 'ONBOARD') {
-                    actionBtn = `<button onclick="poolMarkDroppedOff('${s.passengerSocketId}')" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-1.5 rounded-lg text-[10px]">🏁 Mark Dropped Off</button>`;
+                    actionBtn = `<button onclick="poolMarkDroppedOff('${s.passengerSocketId}')" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-1.5 rounded-lg text-[10px]"><i data-lucide=flag class=inline-icon></i> Mark Dropped Off</button>`;
                 } else {
-                    actionBtn = `<span class="text-[10px] text-emerald-400 font-bold">✅ Dropped — GH₵ ${s.fareShareGhs?.toFixed(2) || '0.00'}</span>`;
+                    actionBtn = `<span class="text-[10px] text-emerald-400 font-bold"><span class=badge-green><i data-lucide=check class=inline-icon></i></span> Dropped — GH₵ ${s.fareShareGhs?.toFixed(2) || '0.00'}</span>`;
                 }
                 return `
                     <div class="bg-slate-950 p-2 rounded-lg border border-slate-800 space-y-1">
@@ -1558,7 +1576,7 @@
 
             document.getElementById('tripActionArea').innerHTML = `
                 <div class="space-y-2">
-                    <p class="text-sky-400 font-bold text-xs">🚏 Pool Trip — ${activePoolTrip.stops.length} passenger(s)</p>
+                    <p class="text-sky-400 font-bold text-xs"><i data-lucide=signpost class=inline-icon></i> Pool Trip — ${activePoolTrip.stops.length} passenger(s)</p>
                     ${rows}
                 </div>
             `;
@@ -1595,10 +1613,10 @@
 
             document.getElementById('tripActionArea').innerHTML = `
                 <div class="space-y-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/30 text-xs">
-                    <p class="text-emerald-400 font-bold">🚕 Driving to Destination...</p>
+                    <p class="text-emerald-400 font-bold"><i data-lucide=car-taxi-front class=inline-icon></i> Driving to Destination...</p>
                     <p class="text-[10px] text-slate-400">Fare will be calculated upon arrival at dropoff point.</p>
                     <button onclick="arriveAtDestinationAndCalculateFare()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl transition shadow-lg">
-                        🏁 Arrived at Destination & Collect Fare
+                        <i data-lucide=flag class=inline-icon></i> Arrived at Destination & Collect Fare
                     </button>
                 </div>
             `;
@@ -1642,7 +1660,7 @@
         }
 
         // =========================================================
-        // 🛣️ REAL ROAD ROUTING (OSRM)
+        // REAL ROAD ROUTING (OSRM)
         // =========================================================
         async function drawRoadRoute(startLng, startLat, endLng, endLat) {
             startLng = parseFloat(startLng); startLat = parseFloat(startLat);
@@ -1692,7 +1710,7 @@
         });
 
         // =========================================================
-        // 💰 Earnings Panel
+        // <i data-lucide=wallet class=inline-icon></i> Earnings Panel
         // =========================================================
         let earningsChartInstance = null;
 
@@ -1716,7 +1734,7 @@
 
             document.getElementById('earnLifetime').innerText = `GH₵ ${data.lifetimeEarningsGhs.toFixed(2)}`;
             document.getElementById('earnTrips').innerText = data.lifetimeTrips;
-            document.getElementById('earnRating').innerText = data.avgRating != null ? `⭐ ${data.avgRating}` : '–';
+            document.getElementById('earnRating').innerHTML = data.avgRating != null ? `<i data-lucide=star class=inline-icon></i> ${data.avgRating}` : '–';
 
             const labels = data.earningsByDay.map(d => d.date.slice(5));
             if (earningsChartInstance) earningsChartInstance.destroy();
@@ -1736,6 +1754,26 @@
                 }
             });
         });
+    </script>
+
+    <script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+    <script>
+        // Renders every <i data-lucide=...> as a crisp inline SVG icon. A MutationObserver
+        // re-runs this after any dynamic content update (socket events, re-rendered lists,
+        // modals, etc.) so icons in content injected after page load still render — without
+        // needing to hunt down and instrument every individual injection site by hand.
+        (function () {
+            function refreshIcons() { if (window.lucide) { try { lucide.createIcons(); } catch (e) {} } }
+            let queued = false;
+            function queueRefresh() {
+                if (queued) return;
+                queued = true;
+                requestAnimationFrame(() => { queued = false; refreshIcons(); });
+            }
+            document.addEventListener('DOMContentLoaded', refreshIcons);
+            refreshIcons();
+            new MutationObserver(queueRefresh).observe(document.documentElement, { childList: true, subtree: true });
+        })();
     </script>
 </body>
 </html>

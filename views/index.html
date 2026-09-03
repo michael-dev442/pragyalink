@@ -147,6 +147,21 @@
             .caption-line { animation: none !important; opacity: 0 !important; }
             .caption-line:first-child { opacity: 1 !important; }
         }
+    
+        /* ---- Icon system: Lucide icons replace emoji for a consistent, professional
+           look across devices (raw emoji render wildly differently by platform).
+           Attribute values here are deliberately unquoted so this markup is safe to
+           drop into JS string literals of any quote style without escaping. ---- */
+        .inline-icon { width: 1.05em; height: 1.05em; vertical-align: -0.2em; display: inline-block; flex-shrink: 0; }
+        .dot-green, .dot-gray, .dot-red, .dot-amber { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 9999px; vertical-align: 0.05em; }
+        .dot-green { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,0.65); }
+        .dot-gray  { background: #64748b; }
+        .dot-red   { background: #f43f5e; box-shadow: 0 0 6px rgba(244,63,94,0.55); }
+        .dot-amber { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.55); }
+        .badge-green, .badge-red { display: inline-flex; align-items: center; justify-content: center; width: 1.15em; height: 1.15em; border-radius: 9999px; vertical-align: -0.28em; }
+        .badge-green .inline-icon, .badge-red .inline-icon { width: 0.75em; height: 0.75em; vertical-align: 0; }
+        .badge-green { background: rgba(16,185,129,0.18); color: #34d399; }
+        .badge-red   { background: rgba(244,63,94,0.18); color: #fb7185; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col justify-between relative overflow-x-hidden">
@@ -161,7 +176,7 @@
         <div id="splashVignette"></div>
         <div id="splashGrade"></div>
         <div id="splashLogo">
-            <div class="text-xl font-black tracking-wider"><span id="splashLogoText">PragyaLink</span> <span class="text-white">🛺</span></div>
+            <div class="text-xl font-black tracking-wider"><span id="splashLogoText">PragyaLink</span> <span class="text-white"><i data-lucide=car-taxi-front class=inline-icon></i></span></div>
             <div id="splashTagline">Kumasi's Smartest Ride</div>
         </div>
         <div id="splashSkipHint">Tap to skip</div>
@@ -687,13 +702,13 @@
             <path class="route-path" d="M -50 650 Q 500 560, 900 680 T 1600 600" fill="none" stroke="#38bdf8" stroke-width="2" style="animation-delay: -12s;" />
         </svg>
 
-        <div class="drift-vehicle text-3xl" style="top: 15%; animation-duration: 34s; animation-delay: -2s;">🛺</div>
-        <div class="drift-vehicle text-2xl" style="top: 55%; animation-duration: 42s; animation-delay: -18s;">🛺</div>
-        <div class="drift-vehicle text-3xl" style="top: 78%; animation-duration: 38s; animation-delay: -9s;">🛺</div>
+        <div class="drift-vehicle text-3xl" style="top: 15%; animation-duration: 34s; animation-delay: -2s;"><i data-lucide=car-taxi-front class=inline-icon></i></div>
+        <div class="drift-vehicle text-2xl" style="top: 55%; animation-duration: 42s; animation-delay: -18s;"><i data-lucide=car-taxi-front class=inline-icon></i></div>
+        <div class="drift-vehicle text-3xl" style="top: 78%; animation-duration: 38s; animation-delay: -9s;"><i data-lucide=car-taxi-front class=inline-icon></i></div>
     </div>
 
     <header class="relative z-10 border-b border-slate-800 px-6 py-4 flex justify-between items-center max-w-7xl mx-auto w-full">
-        <a href="/" class="text-2xl font-black text-white tracking-wider">Pragya<span class="text-emerald-400">Link 🛺</span></a>
+        <a href="/" class="text-2xl font-black text-white tracking-wider">Pragya<span class="text-emerald-400">Link <i data-lucide=car-taxi-front class=inline-icon></i></span></a>
         <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-3 py-1 rounded-full">Ghana Operating System</span>
     </header>
 
@@ -709,16 +724,16 @@
             <!-- Ambient rotating captions — cross-fades through real platform features -->
             <div class="relative h-5 w-full mt-2" aria-hidden="true">
                 <div class="caption-line" style="animation-delay: 0s;">
-                    <span class="text-[11px] sm:text-xs font-mono text-emerald-400/70 tracking-wide">🛺 Live GPS across Kumasi &amp; Accra</span>
+                    <span class="text-[11px] sm:text-xs font-mono text-emerald-400/70 tracking-wide"><i data-lucide=car-taxi-front class=inline-icon></i> Live GPS across Kumasi &amp; Accra</span>
                 </div>
                 <div class="caption-line" style="animation-delay: -8s;">
-                    <span class="text-[11px] sm:text-xs font-mono text-amber-400/70 tracking-wide">🗣️ Pragya Voice speaks Twi &amp; English</span>
+                    <span class="text-[11px] sm:text-xs font-mono text-amber-400/70 tracking-wide"><i data-lucide=message-circle class=inline-icon></i> Pragya Voice speaks Twi &amp; English</span>
                 </div>
                 <div class="caption-line" style="animation-delay: -16s;">
-                    <span class="text-[11px] sm:text-xs font-mono text-sky-400/70 tracking-wide">🚏 Pool a ride, split the fare automatically</span>
+                    <span class="text-[11px] sm:text-xs font-mono text-sky-400/70 tracking-wide"><i data-lucide=signpost class=inline-icon></i> Pool a ride, split the fare automatically</span>
                 </div>
                 <div class="caption-line" style="animation-delay: -24s;">
-                    <span class="text-[11px] sm:text-xs font-mono text-emerald-400/70 tracking-wide">🆘 One-tap SOS reaches your operator instantly</span>
+                    <span class="text-[11px] sm:text-xs font-mono text-emerald-400/70 tracking-wide"><i data-lucide=siren class=inline-icon></i> One-tap SOS reaches your operator instantly</span>
                 </div>
             </div>
         </div>
@@ -726,7 +741,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full">
             
             <a href="/passenger" class="bg-slate-900 border border-slate-800 hover:border-emerald-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
-                <div class="text-4xl">🧳</div>
+                <div class="text-4xl"><i data-lucide=briefcase class=inline-icon></i></div>
                 <div>
                     <h3 class="text-lg font-black text-white group-hover:text-emerald-400 transition">Passenger View</h3>
                     <p class="text-xs text-slate-400 mt-1">Request rides on live 3D map with accurate OSRM pricing.</p>
@@ -735,7 +750,7 @@
             </a>
 
             <a href="/rider" class="bg-slate-900 border border-slate-800 hover:border-emerald-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
-                <div class="text-4xl">🛺</div>
+                <div class="text-4xl"><i data-lucide=car-taxi-front class=inline-icon></i></div>
                 <div>
                     <h3 class="text-lg font-black text-white group-hover:text-emerald-400 transition">Driver Console</h3>
                     <p class="text-xs text-slate-400 mt-1">Accept trips, track Service Passport mileage & trigger SOS.</p>
@@ -744,7 +759,7 @@
             </a>
 
             <a href="/owner" class="bg-slate-900 border border-slate-800 hover:border-amber-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
-                <div class="text-4xl">📋</div>
+                <div class="text-4xl"><i data-lucide=clipboard-list class=inline-icon></i></div>
                 <div>
                     <h3 class="text-lg font-black text-white group-hover:text-amber-400 transition">Owner Portal</h3>
                     <p class="text-xs text-slate-400 mt-1">Register vehicles, set lease targets & manage your fleet registry.</p>
@@ -753,7 +768,7 @@
             </a>
 
             <a href="/fleet" class="bg-slate-900 border border-slate-800 hover:border-indigo-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
-                <div class="text-4xl">🗺️</div>
+                <div class="text-4xl"><i data-lucide=map class=inline-icon></i></div>
                 <div>
                     <h3 class="text-lg font-black text-white group-hover:text-indigo-400 transition">Fleet Command</h3>
                     <p class="text-xs text-slate-400 mt-1">Live map, searchable ledger & driver leaderboard, in real time.</p>
@@ -762,7 +777,7 @@
             </a>
 
             <a href="/mechanic" class="bg-slate-900 border border-slate-800 hover:border-sky-500/50 p-6 rounded-3xl text-left transition transform hover:-translate-y-1 shadow-xl flex flex-col justify-between space-y-6 group">
-                <div class="text-4xl">🛠️</div>
+                <div class="text-4xl"><i data-lucide=wrench class=inline-icon></i></div>
                 <div>
                     <h3 class="text-lg font-black text-white group-hover:text-sky-400 transition">Workshops</h3>
                     <p class="text-xs text-slate-400 mt-1">Receive Breakdown beacons & verify driver service passports.</p>
@@ -777,5 +792,25 @@
         PragyaLink Open Telematics Platform &copy; 2026
     </footer>
 
+
+    <script src="https://unpkg.com/lucide@0.462.0/dist/umd/lucide.js"></script>
+    <script>
+        // Renders every <i data-lucide=...> as a crisp inline SVG icon. A MutationObserver
+        // re-runs this after any dynamic content update (socket events, re-rendered lists,
+        // modals, etc.) so icons in content injected after page load still render — without
+        // needing to hunt down and instrument every individual injection site by hand.
+        (function () {
+            function refreshIcons() { if (window.lucide) { try { lucide.createIcons(); } catch (e) {} } }
+            let queued = false;
+            function queueRefresh() {
+                if (queued) return;
+                queued = true;
+                requestAnimationFrame(() => { queued = false; refreshIcons(); });
+            }
+            document.addEventListener('DOMContentLoaded', refreshIcons);
+            refreshIcons();
+            new MutationObserver(queueRefresh).observe(document.documentElement, { childList: true, subtree: true });
+        })();
+    </script>
 </body>
 </html>
