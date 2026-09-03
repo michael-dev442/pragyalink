@@ -138,7 +138,9 @@ const RATE_LIMITS = {
     'mark-paid-cash': { max: 5, windowMs: 30000 },
     'submit-referral-code': { max: 3, windowMs: 30000 },
     'log-expense': { max: 10, windowMs: 30000 },
-    'register-owner-payout': { max: 5, windowMs: 30000 }
+    'register-owner-payout': { max: 5, windowMs: 30000 },
+    'request-fleet-analytics': { max: 6, windowMs: 10000 },
+    'request-driver-earnings': { max: 6, windowMs: 10000 }
 };
 const DEFAULT_RATE_LIMIT = { max: 20, windowMs: 5000 };
 
@@ -712,6 +714,121 @@ function buildLeaderboard(fleetCode) {
         .filter(Boolean)
         .sort((a, b) => (b.totalTrips * 1 + b.avgRating * 20 + b.avgSmoothness) - (a.totalTrips * 1 + a.avgRating * 20 + a.avgSmoothness))
         .slice(0, 20);
+}
+
+// =========================================================
+// 📊 ANALYTICS AGGREGATION (Fleet/Owner insights + Driver earnings)
+// =========================================================
+const ANALYTICS_WINDOW_DAYS = 14;
+
+function dayKey(isoString) {
+    return (isoString || '').slice(0, 10); // 'YYYY-MM-DD'
+}
+
+function lastNDayKeys(n) {
+    const keys = [];
+    for (let i = n - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        keys.push(d.toISOString().slice(0, 10));
+    }
+    return keys;
+}
+
+// Builds the full analytics payload for a fleet owner's dashboard: revenue trend,
+// payment-method mix, per-driver leaderboard-by-earnings, expense breakdown, and
+// fleet composition — everything derived from existing transactions/expenses/fleet
+// records, so no new data model is needed.
+function buildFleetAnalytics(fleetCode) {
+    const plates = new Set((db.registeredFleet[fleetCode] || []).map(v => v.plateNumber));
+    const days = lastNDayKeys(ANALYTICS_WINDOW_DAYS);
+    const revenueByDay = Object.fromEntries(days.map(d => [d, { gross: 0, ownerShare: 0, trips: 0 }]));
+    const methodMix = { MOMO: 0, CASH: 0, WALLET_CREDIT: 0 };
+    const driverEarnings = {};
+
+    db.transactions.forEach(tx => {
+        if (tx.status !== 'SUCCESS' || !tx.plateNumber || !plates.has(tx.plateNumber)) return;
+        const dk = dayKey(tx.timestamp);
+        if (revenueByDay[dk]) {
+            revenueByDay[dk].gross = +(revenueByDay[dk].gross + (tx.amountGhs || 0)).toFixed(2);
+            revenueByDay[dk].ownerShare = +(revenueByDay[dk].ownerShare + (tx.ownerShareGhs || 0)).toFixed(2);
+            revenueByDay[dk].trips += 1;
+        }
+        if (methodMix[tx.method] != null) methodMix[tx.method] = +(methodMix[tx.method] + (tx.amountGhs || 0)).toFixed(2);
+        if (!driverEarnings[tx.plateNumber]) driverEarnings[tx.plateNumber] = { plateNumber: tx.plateNumber, grossGhs: 0, driverShareGhs: 0, trips: 0 };
+        driverEarnings[tx.plateNumber].grossGhs = +(driverEarnings[tx.plateNumber].grossGhs + (tx.amountGhs || 0)).toFixed(2);
+        driverEarnings[tx.plateNumber].driverShareGhs = +(driverEarnings[tx.plateNumber].driverShareGhs + (tx.driverShareGhs || 0)).toFixed(2);
+        driverEarnings[tx.plateNumber].trips += 1;
+    });
+
+    const expenseByCategory = {};
+    let totalExpenses = 0;
+    db.expenses.forEach(e => {
+        if (e.ownerCode !== fleetCode) return;
+        expenseByCategory[e.category] = +((expenseByCategory[e.category] || 0) + e.amountGhs).toFixed(2);
+        totalExpenses = +(totalExpenses + e.amountGhs).toFixed(2);
+    });
+
+    const fleetList = db.registeredFleet[fleetCode] || [];
+    let overdueCount = 0, onlineCount = 0;
+    fleetList.forEach(v => {
+        const passport = db.servicePassports[v.plateNumber];
+        if (passport && passport.currentServiceKm >= 1500) overdueCount++;
+        if (findDriverSocketIdByPlate(v.plateNumber)) onlineCount++;
+    });
+
+    const totalGross = days.reduce((s, d) => s + revenueByDay[d].gross, 0);
+    const totalOwnerShare = days.reduce((s, d) => s + revenueByDay[d].ownerShare, 0);
+    const totalTrips = days.reduce((s, d) => s + revenueByDay[d].trips, 0);
+
+    return {
+        fleetCode,
+        generatedAt: new Date().toISOString(),
+        revenueByDay: days.map(d => ({ date: d, ...revenueByDay[d] })),
+        methodMix,
+        driverEarnings: Object.values(driverEarnings).sort((a, b) => b.driverShareGhs - a.driverShareGhs).slice(0, 25),
+        expenseByCategory,
+        totals: {
+            grossGhs: +totalGross.toFixed(2),
+            ownerShareGhs: +totalOwnerShare.toFixed(2),
+            netProfitGhs: +(totalOwnerShare - totalExpenses).toFixed(2),
+            expensesGhs: totalExpenses,
+            trips: totalTrips,
+            fleetSize: fleetList.length,
+            onlineCount,
+            overdueCount
+        }
+    };
+}
+
+// Per-driver earnings history for the driver cockpit's own earnings tab.
+function buildDriverEarnings(plateNumber) {
+    const plate = (plateNumber || '').toUpperCase();
+    const days = lastNDayKeys(ANALYTICS_WINDOW_DAYS);
+    const byDay = Object.fromEntries(days.map(d => [d, { earningsGhs: 0, trips: 0 }]));
+    let lifetimeEarnings = 0, lifetimeTrips = 0;
+
+    db.transactions.forEach(tx => {
+        if (tx.status !== 'SUCCESS' || tx.plateNumber !== plate) return;
+        const share = tx.driverShareGhs != null ? tx.driverShareGhs : tx.amountGhs;
+        lifetimeEarnings = +(lifetimeEarnings + share).toFixed(2);
+        lifetimeTrips += 1;
+        const dk = dayKey(tx.timestamp);
+        if (byDay[dk]) {
+            byDay[dk].earningsGhs = +(byDay[dk].earningsGhs + share).toFixed(2);
+            byDay[dk].trips += 1;
+        }
+    });
+
+    const stats = db.driverStats[plate];
+    return {
+        plateNumber: plate,
+        earningsByDay: days.map(d => ({ date: d, ...byDay[d] })),
+        lifetimeEarningsGhs: +lifetimeEarnings.toFixed(2),
+        lifetimeTrips,
+        avgRating: stats && stats.ratingCount > 0 ? Math.round((stats.ratingSum / stats.ratingCount) * 10) / 10 : null,
+        badge: stats ? stats.badge : 'New Driver'
+    };
 }
 
 // =========================================================
@@ -1374,6 +1491,16 @@ io.on('connection', (socket) => {
 
     safeOn(socket, 'request-leaderboard', (fleetCode) => {
         socket.emit('leaderboard-update', buildLeaderboard(fleetCode));
+    });
+
+    safeOn(socket, 'request-fleet-analytics', (fleetCode) => {
+        if (!fleetCode) return;
+        socket.emit('fleet-analytics-update', buildFleetAnalytics(fleetCode.trim()));
+    });
+
+    safeOn(socket, 'request-driver-earnings', (plateNumber) => {
+        if (!plateNumber) return;
+        socket.emit('driver-earnings-update', buildDriverEarnings(plateNumber));
     });
 
     safeOn(socket, 'request-driver-stats', (plateNumber) => {

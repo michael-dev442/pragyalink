@@ -7,6 +7,7 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="/socket.io/socket.io.js"></script>
 
@@ -45,6 +46,9 @@
                 <span id="voiceBtnText" class="hidden sm:inline">Activate Voice AI</span>
             </button>
             
+            <button onclick="openEarningsPanel()" class="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                💰<span class="hidden sm:inline"> Earnings</span>
+            </button>
             <button onclick="openOwnershipModal()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition">
                 ⚙️ Profile / Ownership
             </button>
@@ -166,6 +170,38 @@
                 <div id="twiCaption" class="text-amber-300 font-bold min-h-[16px]"></div>
             </div>
         </aside>
+    </div>
+
+    <div id="earningsPanel" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md hidden overflow-y-auto">
+        <div class="max-w-2xl mx-auto p-4 sm:p-6 space-y-5">
+            <div class="flex justify-between items-center sticky top-0 bg-slate-950/95 backdrop-blur-md py-2 z-10">
+                <h2 class="text-xl sm:text-2xl font-black text-white">💰 My Earnings <span class="text-emerald-400">· Last 14 days</span></h2>
+                <button onclick="closeEarningsPanel()" class="text-slate-400 hover:text-white text-2xl leading-none px-2">✕</button>
+            </div>
+
+            <div id="earningsEmptyState" class="text-center text-slate-500 text-sm py-16 italic">Loading your earnings…</div>
+
+            <div id="earningsContent" class="hidden space-y-5">
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold">Lifetime Earned</span>
+                        <div id="earnLifetime" class="text-lg font-black text-emerald-400 font-mono">GH₵ 0.00</div>
+                    </div>
+                    <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold">Lifetime Trips</span>
+                        <div id="earnTrips" class="text-lg font-black text-white font-mono">0</div>
+                    </div>
+                    <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold">Avg Rating</span>
+                        <div id="earnRating" class="text-lg font-black text-amber-400 font-mono">–</div>
+                    </div>
+                </div>
+                <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-800">
+                    <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Daily Earnings (GH₵)</h3>
+                    <canvas id="earningsChart" height="180"></canvas>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="ownershipModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 hidden">
@@ -1653,6 +1689,52 @@
         // Auto-restore on page load
         window.addEventListener('DOMContentLoaded', () => {
             restoreDriverSession();
+        });
+
+        // =========================================================
+        // 💰 Earnings Panel
+        // =========================================================
+        let earningsChartInstance = null;
+
+        function openEarningsPanel() {
+            const plate = localStorage.getItem('pragya_driver_plate');
+            if (!plate) { alert('Set up your vehicle plate under Profile / Ownership first.'); return; }
+            document.getElementById('earningsPanel').classList.remove('hidden');
+            document.getElementById('earningsEmptyState').classList.remove('hidden');
+            document.getElementById('earningsContent').classList.add('hidden');
+            socket.emit('request-driver-earnings', plate);
+        }
+
+        function closeEarningsPanel() {
+            document.getElementById('earningsPanel').classList.add('hidden');
+        }
+
+        socket.on('driver-earnings-update', (data) => {
+            if (!data) return;
+            document.getElementById('earningsEmptyState').classList.add('hidden');
+            document.getElementById('earningsContent').classList.remove('hidden');
+
+            document.getElementById('earnLifetime').innerText = `GH₵ ${data.lifetimeEarningsGhs.toFixed(2)}`;
+            document.getElementById('earnTrips').innerText = data.lifetimeTrips;
+            document.getElementById('earnRating').innerText = data.avgRating != null ? `⭐ ${data.avgRating}` : '–';
+
+            const labels = data.earningsByDay.map(d => d.date.slice(5));
+            if (earningsChartInstance) earningsChartInstance.destroy();
+            earningsChartInstance = new Chart(document.getElementById('earningsChart'), {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{ label: 'Earnings (GH₵)', data: data.earningsByDay.map(d => d.earningsGhs), backgroundColor: '#10b981', borderRadius: 4 }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.1)' } }
+                    }
+                }
+            });
         });
     </script>
 </body>

@@ -7,6 +7,7 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="/socket.io/socket.io.js"></script>
 
@@ -139,6 +140,9 @@
         </div>
         
         <div class="flex flex-wrap items-center gap-2">
+            <button onclick="openAnalyticsPanel()" class="text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                📊<span class="hidden sm:inline"> Analytics</span>
+            </button>
             <button onclick="openVehicleModal()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
                 ➕<span class="hidden sm:inline"> Add Vehicle</span>
             </button>
@@ -226,6 +230,60 @@
                 <div id="shortfallAlertList" class="space-y-1.5 max-h-40 overflow-y-auto"></div>
             </div>
         </aside>
+    </div>
+
+    <div id="analyticsPanel" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md hidden overflow-y-auto">
+        <div class="max-w-6xl mx-auto p-4 sm:p-6 space-y-5">
+            <div class="flex justify-between items-center sticky top-0 bg-slate-950/95 backdrop-blur-md py-2 z-10">
+                <h2 class="text-xl sm:text-2xl font-black text-white">📊 Fleet Analytics <span class="text-indigo-400">· Last 14 days</span></h2>
+                <button onclick="closeAnalyticsPanel()" class="text-slate-400 hover:text-white text-2xl leading-none px-2">✕</button>
+            </div>
+
+            <div id="analyticsEmptyState" class="text-center text-slate-500 text-sm py-16 italic">Loading analytics…</div>
+
+            <div id="analyticsContent" class="hidden space-y-5">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold">Gross Revenue</span>
+                        <div id="statGross" class="text-lg sm:text-xl font-black text-white font-mono">GHS 0.00</div>
+                    </div>
+                    <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold">Net Profit</span>
+                        <div id="statNetProfit" class="text-lg sm:text-xl font-black text-emerald-400 font-mono">GHS 0.00</div>
+                    </div>
+                    <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold">Total Trips</span>
+                        <div id="statTrips" class="text-lg sm:text-xl font-black text-amber-400 font-mono">0</div>
+                    </div>
+                    <div class="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold">Fleet Health</span>
+                        <div id="statHealth" class="text-lg sm:text-xl font-black text-white font-mono">0/0 online</div>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-3 gap-4">
+                    <div class="md:col-span-2 bg-slate-900/90 p-4 rounded-2xl border border-slate-800">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Revenue Trend (Gross vs Owner Share)</h3>
+                        <canvas id="revenueChart" height="140"></canvas>
+                    </div>
+                    <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-800">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Payment Mix</h3>
+                        <canvas id="methodMixChart" height="180"></canvas>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-800">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">🏆 Top Drivers by Earnings</h3>
+                        <canvas id="driverEarningsChart" height="180"></canvas>
+                    </div>
+                    <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-800">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Expense Breakdown</h3>
+                        <canvas id="expenseChart" height="180"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -633,6 +691,107 @@
                 }
             });
         }
+
+        // =========================================================
+        // 📊 Fleet Analytics Panel
+        // =========================================================
+        let analyticsCharts = {};
+
+        function openAnalyticsPanel() {
+            if (!currentOwnerKey) { alert('Set your Fleet Key first.'); return; }
+            document.getElementById('analyticsPanel').classList.remove('hidden');
+            document.getElementById('analyticsEmptyState').classList.remove('hidden');
+            document.getElementById('analyticsContent').classList.add('hidden');
+            socket.emit('request-fleet-analytics', currentOwnerKey);
+        }
+
+        function closeAnalyticsPanel() {
+            document.getElementById('analyticsPanel').classList.add('hidden');
+        }
+
+        const CHART_COLORS = { amber: '#f59e0b', emerald: '#10b981', indigo: '#6366f1', rose: '#f43f5e', slate: '#64748b', sky: '#0ea5e9' };
+        const CHART_TEXT = '#94a3b8';
+        const CHART_GRID = 'rgba(148,163,184,0.1)';
+
+        function destroyChart(key) {
+            if (analyticsCharts[key]) { analyticsCharts[key].destroy(); delete analyticsCharts[key]; }
+        }
+
+        socket.on('fleet-analytics-update', (data) => {
+            if (!data) return;
+            document.getElementById('analyticsEmptyState').classList.add('hidden');
+            document.getElementById('analyticsContent').classList.remove('hidden');
+
+            document.getElementById('statGross').innerText = `GHS ${data.totals.grossGhs.toFixed(2)}`;
+            document.getElementById('statNetProfit').innerText = `GHS ${data.totals.netProfitGhs.toFixed(2)}`;
+            document.getElementById('statTrips').innerText = data.totals.trips;
+            document.getElementById('statHealth').innerText = `${data.totals.onlineCount}/${data.totals.fleetSize} online${data.totals.overdueCount ? ` · ${data.totals.overdueCount} overdue` : ''}`;
+
+            const labels = data.revenueByDay.map(d => d.date.slice(5)); // MM-DD
+
+            destroyChart('revenue');
+            analyticsCharts.revenue = new Chart(document.getElementById('revenueChart'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Gross (GHS)', data: data.revenueByDay.map(d => d.gross), borderColor: CHART_COLORS.amber, backgroundColor: 'rgba(245,158,11,0.15)', fill: true, tension: 0.3 },
+                        { label: 'Owner Share (GHS)', data: data.revenueByDay.map(d => d.ownerShare), borderColor: CHART_COLORS.emerald, backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { labels: { color: CHART_TEXT } } },
+                    scales: {
+                        x: { ticks: { color: CHART_TEXT }, grid: { color: CHART_GRID } },
+                        y: { ticks: { color: CHART_TEXT }, grid: { color: CHART_GRID } }
+                    }
+                }
+            });
+
+            destroyChart('methodMix');
+            const mix = data.methodMix;
+            analyticsCharts.methodMix = new Chart(document.getElementById('methodMixChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['MoMo', 'Cash', 'Wallet Credit'],
+                    datasets: [{ data: [mix.MOMO, mix.CASH, mix.WALLET_CREDIT], backgroundColor: [CHART_COLORS.indigo, CHART_COLORS.amber, CHART_COLORS.emerald] }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: CHART_TEXT, boxWidth: 10 } } } }
+            });
+
+            destroyChart('driverEarnings');
+            const topDrivers = data.driverEarnings.slice(0, 8);
+            analyticsCharts.driverEarnings = new Chart(document.getElementById('driverEarningsChart'), {
+                type: 'bar',
+                data: {
+                    labels: topDrivers.map(d => d.plateNumber),
+                    datasets: [{ label: 'Driver Share (GHS)', data: topDrivers.map(d => d.driverShareGhs), backgroundColor: CHART_COLORS.sky }]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: CHART_TEXT }, grid: { color: CHART_GRID } },
+                        y: { ticks: { color: CHART_TEXT }, grid: { color: CHART_GRID } }
+                    }
+                }
+            });
+
+            destroyChart('expense');
+            const expenseEntries = Object.entries(data.expenseByCategory);
+            analyticsCharts.expense = new Chart(document.getElementById('expenseChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: expenseEntries.length ? expenseEntries.map(e => e[0]) : ['No expenses logged'],
+                    datasets: [{
+                        data: expenseEntries.length ? expenseEntries.map(e => e[1]) : [1],
+                        backgroundColor: expenseEntries.length ? [CHART_COLORS.rose, CHART_COLORS.amber, CHART_COLORS.indigo, CHART_COLORS.sky, CHART_COLORS.emerald, CHART_COLORS.slate] : [CHART_COLORS.slate]
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: CHART_TEXT, boxWidth: 10 } } } }
+            });
+        });
     </script>
 </body>
 </html>
